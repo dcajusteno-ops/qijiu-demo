@@ -1,0 +1,22 @@
+
+> frontend@0.0.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 16 modules transformed.
+[31m✗[39m Build failed in 317ms
+[31merror during build:
+[31m[vite:vue] [plugin vite:vue] src/components/TrashDialog.vue (194:1): Invalid end tag.[31m
+file: [36mD:/AiImg/ComfyUI-aki-v3/ComfyUI/output/comfy-manager-wails/frontend/src/components/TrashDialog.vue:194:1[31m
+SyntaxError: [plugin vite:vue] src/components/TrashDialog.vue (194:1): Invalid end tag.
+    at createCompilerError (D:\AiImg\ComfyUI-aki-v3\ComfyUI\output\comfy-manager-wails\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1374:17)
+    at emitError (D:\AiImg\ComfyUI-aki-v3\ComfyUI\output\comfy-manager-wails\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:2980:5)
+    at Object.onclosetag (D:\AiImg\ComfyUI-aki-v3\ComfyUI\output\comfy-manager-wails\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:2387:9)
+    at Tokenizer.stateInClosingTagName (D:\AiImg\ComfyUI-aki-v3\ComfyUI\output\comfy-manager-wails\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:799:16)
+    at Tokenizer.parse (D:\AiImg\ComfyUI-aki-v3\ComfyUI\output\comfy-manager-wails\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:1157:16)
+    at Object.baseParse (D:\AiImg\ComfyUI-aki-v3\ComfyUI\output\comfy-manager-wails\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.prod.js:3012:13)
+    at Object.parse (D:\AiImg\ComfyUI-aki-v3\ComfyUI\output\comfy-manager-wails\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.prod.js:665:23)
+    at Object.parse$1 [as parse] (D:\AiImg\ComfyUI-aki-v3\ComfyUI\output\comfy-manager-wails\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1824:24)
+    at createDescriptor (file:///D:/AiImg/ComfyUI-aki-v3/ComfyUI/output/comfy-manager-wails/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:54:42)
+    at transformMain (file:///D:/AiImg/ComfyUI-aki-v3/ComfyUI/output/comfy-manager-wails/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:1319:33)[39m
