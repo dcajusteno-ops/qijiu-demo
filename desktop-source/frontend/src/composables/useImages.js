@@ -537,7 +537,7 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
             return null
           }
 
-          if (!hasImages && children.length === 0 && node.type !== 'root') {
+          if (!hasImages && children.length === 0 && node.type !== 'root' && !node.isFavoriteGroup) {
             return null
           }
 

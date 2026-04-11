@@ -68,6 +68,11 @@ export const DeleteLauncherTool = async (id) => callApp('DeleteLauncherTool', id
 export const RunLauncherTool = async (id) => callApp('RunLauncherTool', id)
 export const ExtractIcon = async (path) => callApp('ExtractIcon', path)
 
+export const GetPromptToolLinks = async () => callApp('GetPromptToolLinks')
+export const AddPromptToolLink = async (data) => callApp('AddPromptToolLink', data)
+export const UpdatePromptToolLink = async (id, data) => callApp('UpdatePromptToolLink', id, data)
+export const DeletePromptToolLink = async (id) => callApp('DeletePromptToolLink', id)
+
 export const ExportImages = async (paths, targetDir, move) => callApp('ExportImages', paths, targetDir, move)
 export const UploadImages = async (paths, targetFolder) => callApp('UploadImages', paths, targetFolder)
 export const BatchAddTag = async (paths, tagId) => callApp('BatchAddTag', paths, tagId)

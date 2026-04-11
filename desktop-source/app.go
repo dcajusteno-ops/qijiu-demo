@@ -120,6 +120,13 @@ type LauncherTool struct {
 	Args string `json:"args"`
 }
 
+type PromptToolLink struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	Icon string `json:"icon"`
+}
+
 type FavoriteGroup struct {
 	ID    string   `json:"id"`
 	Name  string   `json:"name"`
@@ -777,6 +784,7 @@ func (a *App) imageTagsFile() string     { return filepath.Join(a.dataDir, "imag
 func (a *App) trashMetadataFile() string { return filepath.Join(a.dataDir, "trash-metadata.json") }
 func (a *App) settingsFile() string      { return filepath.Join(a.dataDir, "settings.json") }
 func (a *App) launcherToolsFile() string { return filepath.Join(a.dataDir, "launcher-tools.json") }
+func (a *App) promptToolLinksFile() string { return filepath.Join(a.dataDir, "prompt-tool-links.json") }
 func (a *App) customRootsFile() string   { return filepath.Join(a.dataDir, "custom-roots.json") }
 func (a *App) imageMetaCacheFile() string {
 	return filepath.Join(a.dataDir, "image-meta-cache.json")
@@ -3765,4 +3773,62 @@ func (a *App) ExtractIcon(path string) (string, error) {
 	}
 
 	return generateBase64(iconPath)
+}
+
+// --- Prompt Tool Links ---
+
+func (a *App) loadPromptToolLinks() ([]PromptToolLink, error) {
+	var links []PromptToolLink
+	data, err := os.ReadFile(a.promptToolLinksFile())
+	if err != nil {
+		return []PromptToolLink{}, nil
+	}
+	json.Unmarshal(data, &links)
+	return links, nil
+}
+
+func (a *App) savePromptToolLinks(links []PromptToolLink) error {
+	data, _ := json.MarshalIndent(links, "", "  ")
+	return os.WriteFile(a.promptToolLinksFile(), data, 0644)
+}
+
+func (a *App) GetPromptToolLinks() ([]PromptToolLink, error) {
+	return a.loadPromptToolLinks()
+}
+
+func (a *App) AddPromptToolLink(link PromptToolLink) (PromptToolLink, error) {
+	links, _ := a.loadPromptToolLinks()
+	link.ID = uuid.New().String()
+	links = append(links, link)
+	err := a.savePromptToolLinks(links)
+	return link, err
+}
+
+func (a *App) UpdatePromptToolLink(id string, link PromptToolLink) error {
+	links, _ := a.loadPromptToolLinks()
+	updated := false
+	for i, l := range links {
+		if l.ID == id {
+			links[i].Name = link.Name
+			links[i].URL = link.URL
+			links[i].Icon = link.Icon
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		return fmt.Errorf("link not found")
+	}
+	return a.savePromptToolLinks(links)
+}
+
+func (a *App) DeletePromptToolLink(id string) error {
+	links, _ := a.loadPromptToolLinks()
+	newLinks := []PromptToolLink{}
+	for _, l := range links {
+		if l.ID != id {
+			newLinks = append(newLinks, l)
+		}
+	}
+	return a.savePromptToolLinks(newLinks)
 }

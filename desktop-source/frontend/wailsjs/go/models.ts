@@ -160,6 +160,24 @@ export namespace main {
 	        this.args = source["args"];
 	    }
 	}
+	export class PromptToolLink {
+	    id: string;
+	    name: string;
+	    url: string;
+	    icon: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptToolLink(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.url = source["url"];
+	        this.icon = source["icon"];
+	    }
+	}
 	export class Settings {
 	    trashRetentionDays: number;
 	    rootDir?: string;

@@ -14,7 +14,7 @@ const props = defineProps({
     selected: Boolean
 })
 
-defineEmits(['view', 'delete', 'toggle', 'toggle-favorite', 'manage-tags', 'open-location'])
+const emit = defineEmits(['view', 'delete', 'toggle', 'toggle-favorite', 'manage-tags', 'open-location', 'manage-favorites'])
 
 // 3D Tilt State
 const cardRef = ref(null)
@@ -101,13 +101,13 @@ const handleMouseLeave = () => {
                     <TooltipTrigger as-child>
                         <button 
                            class="h-9 w-9 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center shadow-lg hover:bg-white hover:text-red-500 transition-all hover:scale-110 active:scale-90"
-                           @click.stop="$emit('toggle-favorite', image)" 
+                           @click.stop="emit('manage-favorites', image)" 
                         >
                             <Heart class="h-4 w-4" :class="{ 'fill-red-500 text-red-500': image.isFavorite }" />
                         </button>
                     </TooltipTrigger>
                     <TooltipContent side="left">
-                      <p>{{ image.isFavorite ? '取消收藏' : '添加到收藏' }}</p>
+                      <p>管理收藏</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>

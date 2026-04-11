@@ -9,6 +9,8 @@ import PromptToolsDropdown from './PromptToolsDropdown.vue'
 import BatchActionsPanel from './BatchActionsPanel.vue'
 import MoveToFolderDialog from './MoveToFolderDialog.vue'
 import PaginationControls from './PaginationControls.vue'
+import ABCompareSlider from './ABCompareSlider.vue'
+import FavoriteGroupsDialog from './FavoriteGroupsDialog.vue'
 
 // import StatisticsPanel from './StatisticsPanel.vue' - replaced by dashboard
 import StatisticsDashboard from './StatisticsDashboard.vue'
@@ -82,7 +84,38 @@ const isUploading = ref(false)
 
 // Batch Operations state
 const moveDialogOpen = ref(false)
+const compareSliderOpen = ref(false)
+const compareImageA = ref(null)
+const compareImageB = ref(null)
+const favoriteGroupsDialogOpen = ref(false)
+const favoriteDialogImage = ref(null)
 
+const handleCompare = () => {
+    const paths = Array.from(props.selectedPaths)
+    if (paths.length !== 2) return
+
+    // Find the full image objects from the currently loaded images
+    compareImageA.value = props.images.find(img => img.relPath === paths[0]) || { relPath: paths[0], name: paths[0].split(/[/\\]/).pop() }
+    compareImageB.value = props.images.find(img => img.relPath === paths[1]) || { relPath: paths[1], name: paths[1].split(/[/\\]/).pop() }
+
+    compareSliderOpen.value = true
+}
+
+const openFavoriteDialog = (img) => {
+    favoriteDialogImage.value = img
+    favoriteGroupsDialogOpen.value = true
+}
+
+const handleFavoriteDialogOpenChange = (open) => {
+    favoriteGroupsDialogOpen.value = open
+    if (!open) {
+        favoriteDialogImage.value = null
+    }
+}
+
+const handleFavoriteGroupsChanged = () => {
+    emit('favorite-groups-changed')
+}
 
 const handleExport = async ({ targetDir, move }) => {
     const paths = Array.from(props.selectedPaths)
@@ -430,7 +463,7 @@ watch(() => props.currentPage, () => {
                 @view="openLightbox(img)"
                 @delete="emit('delete', img)"
                 @toggle="emit('toggle-selection', img)"
-                @toggle-favorite="emit('toggle-favorite', img)"
+                @manage-favorites="openFavoriteDialog(img)"
                 @manage-tags="openLightbox(img, true)"
                 @open-location="emit('open-location', img)"
               />
@@ -468,6 +501,13 @@ watch(() => props.currentPage, () => {
         @delete="(img) => { emit('delete', img); lightboxOpen = false }"
         @open-location="(img) => emit('open-location', img)"
         @favorite-groups-changed="emit('favorite-groups-changed')"
+      />
+      <FavoriteGroupsDialog
+        :open="favoriteGroupsDialogOpen"
+        :groups="favoriteGroups"
+        :image="favoriteDialogImage"
+        @update:open="handleFavoriteDialogOpenChange"
+        @change="handleFavoriteGroupsChanged"
       />
       <ExportDialog 
         v-model:open="exportDialogOpen"
@@ -526,13 +566,22 @@ watch(() => props.currentPage, () => {
         @batch-delete="emit('delete-selected')"
         @select-all="emit('select-all')"
         @clear-selection="emit('clear-selection')"
+        @compare="handleCompare"
       />
-      
+
       <!-- Move To Folder Dialog -->
       <MoveToFolderDialog
         v-model:open="moveDialogOpen"
         :count="selectedPaths.size"
         @move="handleMoveConfirm"
+      />
+
+      <!-- A/B Compare Slider Modal -->
+      <ABCompareSlider
+        :is-open="compareSliderOpen"
+        :image-a="compareImageA"
+        :image-b="compareImageB"
+        @close="compareSliderOpen = false"
       />
 
   </div>

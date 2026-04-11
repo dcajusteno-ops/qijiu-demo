@@ -87,6 +87,12 @@
                 批量收藏
             </Button>
 
+            <!-- A/B Compare -->
+            <Button v-if="count === 2" variant="outline" size="sm" @click="emit('compare')" class="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 hover:text-blue-600 border-blue-500/30">
+                <ArrowLeftRight class="w-4 h-4 mr-2" />
+                A/B 对比
+            </Button>
+
             <Separator orientation="vertical" class="h-6" />
 
             <!-- Batch Delete -->
@@ -108,7 +114,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tags, FolderSymlink, Heart } from 'lucide-vue-next'
+import { Tags, FolderSymlink, Heart, ArrowLeftRight } from 'lucide-vue-next'
 
 defineProps({
     show: Boolean,
@@ -119,10 +125,11 @@ defineProps({
 const emit = defineEmits([
     'batch-add-tag',
     'batch-remove-tag',
-    'batch-move', 
-    'batch-favorite', 
+    'batch-move',
+    'batch-favorite',
     'batch-delete',
     'select-all',
-    'clear-selection'
+    'clear-selection',
+    'compare'
 ])
 </script>
