@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { Check, Trash2, Heart, Tags, FileImage, Layers } from 'lucide-vue-next'
+import { Check, Trash2, Heart, Tags, FileImage, Layers, StickyNote } from 'lucide-vue-next'
 import {
   Tooltip,
   TooltipContent,
@@ -11,7 +11,8 @@ import {
 const props = defineProps({
     image: Object,
     selectable: Boolean,
-    selected: Boolean
+    selected: Boolean,
+    hasNote: Boolean,
 })
 
 const emit = defineEmits(['view', 'delete', 'toggle', 'toggle-favorite', 'manage-tags', 'open-location', 'manage-favorites'])
@@ -165,7 +166,10 @@ const handleMouseLeave = () => {
         
         <div class="p-4 flex items-center justify-between gap-2 bg-gradient-to-b from-card to-card/50">
             <span class="text-sm font-semibold truncate flex-1 min-w-0 text-foreground/90" :title="image.name">{{ image.name }}</span>
-            <span class="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground shrink-0">{{ (image.size / 1024 / 1024).toFixed(2) }}MB</span>
+            <div class="flex items-center gap-1 shrink-0">
+                <StickyNote v-if="hasNote" class="h-3 w-3 text-amber-500" />
+                <span class="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{{ (image.size / 1024 / 1024).toFixed(2) }}MB</span>
+            </div>
         </div>
     </div>
 </template>

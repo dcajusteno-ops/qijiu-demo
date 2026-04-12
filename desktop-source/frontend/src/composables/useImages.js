@@ -15,6 +15,8 @@ const activeTagFilter = ref(null)
 
 const customRoots = ref([])
 
+const imageNotes = ref({})
+
 const filters = ref({
   dateRange: { start: null, end: null },
   size: { min: null, max: null },
@@ -779,6 +781,15 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     }
   }
 
+  const fetchImageNotes = async () => {
+    try {
+      const notes = await App.GetImageNotes()
+      imageNotes.value = notes || {}
+    } catch (e) {
+      console.error('Failed to fetch image notes:', e)
+    }
+  }
+
   const createTag = async (name, color, category = '') => {
     try {
       const newTag = await App.CreateTag(name, color, category)
@@ -1017,6 +1028,8 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     resetPage,
     customRoots,
     fetchCustomRoots,
+    imageNotes,
+    fetchImageNotes,
     isStackingEnabled,
     toggleStacking: () => {
       isStackingEnabled.value = !isStackingEnabled.value

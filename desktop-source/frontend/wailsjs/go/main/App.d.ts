@@ -46,6 +46,8 @@ export function DeleteFavoriteGroup(arg1:string):Promise<void>;
 
 export function DeleteImage(arg1:string):Promise<void>;
 
+export function DeleteImageNote(arg1:string):Promise<void>;
+
 export function DeleteLauncherTool(arg1:string):Promise<void>;
 
 export function DeletePromptToolLink(arg1:string):Promise<void>;
@@ -68,6 +70,8 @@ export function GetFavorites():Promise<Array<string>>;
 
 export function GetImageMetadata(arg1:string):Promise<main.ImageMetadata>;
 
+export function GetImageNotes():Promise<main.ImageNotesMap>;
+
 export function GetImageTags():Promise<main.ImageTagsMap>;
 
 export function GetImages(arg1:string,arg2:string):Promise<Array<main.ImageFile>>;
@@ -77,6 +81,10 @@ export function GetLauncherTools():Promise<Array<main.LauncherTool>>;
 export function GetPromptToolLinks():Promise<Array<main.PromptToolLink>>;
 
 export function GetRelativePath(arg1:string):Promise<string>;
+
+export function GetSmartAlbumFields():Promise<Array<main.SmartAlbumField>>;
+
+export function GetSmartAlbums(arg1:string):Promise<Array<main.SmartAlbum>>;
 
 export function GetStatistics(arg1:string):Promise<main.Stats>;
 
@@ -111,6 +119,8 @@ export function SaveTrashSettings(arg1:main.Settings):Promise<void>;
 export function SelectFolder():Promise<string>;
 
 export function SetImageFavoriteGroups(arg1:string,arg2:Array<string>):Promise<void>;
+
+export function SetImageNote(arg1:string,arg2:string):Promise<void>;
 
 export function UpdateCustomRoot(arg1:string,arg2:string,arg3:string):Promise<void>;
 

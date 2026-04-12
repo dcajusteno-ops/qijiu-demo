@@ -67,12 +67,12 @@ const {
     activeSub,
     activeChild,
     fileTree,
-    currentImages, // Restored
+    currentImages,
     fetchImages,
     fetchFavorites,
     toggleFavorite,
     toggleRoot,
-    handleDelete: deleteImage, // Restored alias
+    handleDelete: deleteImage,
     tags,
     imageTags,
     activeTagFilter,
@@ -102,13 +102,16 @@ const {
     openImageLocation,
     customRoots,
     fetchCustomRoots,
+    imageNotes,
+    fetchImageNotes,
 } = useImages(showToast, confirm)
 
 // Selection State (Global or App level)
-// ... (I need to be careful with the context)
+const isSelectionMode = ref(false)
+const selectedPaths = ref(new Set())
 
-
-// Sidebar State
+// Smart Album filter state
+const smartAlbumFilter = ref(null)
 const isSidebarCollapsed = ref(false)
 const toggleSidebar = () => {
     isSidebarCollapsed.value = !isSidebarCollapsed.value
@@ -160,9 +163,39 @@ const activeLocation = computed(() => {
     }
 })
 
-// Selection State (Global or App level)
-const isSelectionMode = ref(false)
-const selectedPaths = ref(new Set())
+const handleSmartAlbumSelect = (filter) => {
+  if (!filter) {
+    smartAlbumFilter.value = null
+    return
+  }
+  if (smartAlbumFilter.value?.field === filter.field && smartAlbumFilter.value?.value === filter.value) {
+    smartAlbumFilter.value = null
+    return
+  }
+  smartAlbumFilter.value = filter
+  if (activeRoot.value === 'dashboard' || activeRoot.value === 'documentation') {
+    activeRoot.value = 'output'
+    activeSub.value = ''
+    activeChild.value = ''
+  }
+}
+
+const finalPaginatedImages = computed(() => {
+  if (!smartAlbumFilter.value) return paginatedImages.value
+  // Smart album paths come from all images across all folders,
+  // so filter from the full image list, not just the current page/folder
+  const filterPaths = new Set(smartAlbumFilter.value.paths)
+  const matched = images.value.filter(img => filterPaths.has(img.relPath))
+  const startIndex = (currentPage.value - 1) * itemsPerPage.value
+  const endIndex = startIndex + itemsPerPage.value
+  return matched.slice(startIndex, endIndex)
+})
+
+const finalTotalImages = computed(() => {
+  if (!smartAlbumFilter.value) return currentImages.value.length
+  const filterPaths = new Set(smartAlbumFilter.value.paths)
+  return images.value.filter(img => filterPaths.has(img.relPath)).length
+})
 
 import { watch } from 'vue'
 watch([activeRoot, activeSub, activeChild], () => {
@@ -281,6 +314,7 @@ onMounted(async () => {
     await fetchImages()
     fetchTags()
     fetchImageTags()
+    fetchImageNotes()
     unsubscribeImagesChanged = EventsOn('images:changed', async () => {
         await handleRefresh()
     })
@@ -294,7 +328,7 @@ onUnmounted(() => {
 
 <template>
   <div class="flex h-screen bg-background text-foreground font-sans antialiased overflow-hidden">
-    <AppSidebar 
+    <AppSidebar
         :file-tree="fileTree"
         :active-root="activeRoot"
         :active-sub="activeSub"
@@ -306,6 +340,7 @@ onUnmounted(() => {
         :collapsed="isSidebarCollapsed"
         :custom-roots="customRoots"
         :favorite-groups="favoriteGroups"
+        :active-smart-album="smartAlbumFilter"
         @update:activeRoot="toggleRoot"
         @update:activeSub="(val) => activeSub = val"
         @update:activeChild="(val) => activeChild = val"
@@ -322,6 +357,7 @@ onUnmounted(() => {
         @custom-root-change="fetchCustomRoots"
         @favorite-group-change="handleFavoriteGroupsChanged"
         @clear-preview-cache="handleClearPreviewCache"
+        @smart-album-select="handleSmartAlbumSelect"
     />
     
     <div class="flex-1 h-screen overflow-hidden transition-all duration-300">
@@ -331,10 +367,10 @@ onUnmounted(() => {
         <div v-else-if="activeRoot === 'documentation'" class="h-full overflow-hidden">
              <Documentation />
         </div>
-        <ImageGallery 
-            v-else 
-            :images="paginatedImages"
-            :total-images="currentImages.length"
+        <ImageGallery
+            v-else
+            :images="finalPaginatedImages"
+            :total-images="finalTotalImages"
             :loading="loading"
             :root-name="activeRoot"
             :sub-name="activeSub"
@@ -348,6 +384,8 @@ onUnmounted(() => {
             :tags="tags"
             :image-tags="imageTags"
             :favorite-groups="favoriteGroups"
+            :image-notes="imageNotes"
+            :smart-album-filter="smartAlbumFilter"
             :current-page="currentPage"
             :items-per-page="itemsPerPage"
             :total-pages="totalPages"
@@ -368,6 +406,7 @@ onUnmounted(() => {
             @items-per-page-change="setItemsPerPage"
             @open-location="openImageLocation"
             @toggle-sidebar="toggleSidebar"
+            @clear-smart-album-filter="smartAlbumFilter = null"
         />
     </div>
 

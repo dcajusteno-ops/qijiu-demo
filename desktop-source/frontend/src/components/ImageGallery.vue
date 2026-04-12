@@ -17,7 +17,7 @@ import StatisticsDashboard from './StatisticsDashboard.vue'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
-import { Heart, Grid, Download, BarChart3, Upload, Layers, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
+import { Heart, Grid, Download, BarChart3, Upload, Layers, PanelLeftClose, PanelLeftOpen, X } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import * as App from '@/api'
 import { useImages } from '@/composables/useImages'
@@ -45,6 +45,8 @@ const props = defineProps({
   tags: { type: Array, default: () => [] },
   imageTags: { type: Object, default: () => ({}) },
   favoriteGroups: { type: Array, default: () => [] },
+  imageNotes: { type: Object, default: () => ({}) },
+  smartAlbumFilter: { type: Object, default: null },
   currentPage: { type: Number, default: 1 },
   itemsPerPage: { type: Number, default: 50 },
   totalPages: { type: Number, default: 1 },
@@ -65,10 +67,9 @@ const emit = defineEmits([
   'favorite-groups-changed',
   'page-change',
   'items-per-page-change',
-  'page-change',
-  'items-per-page-change',
   'open-location',
-  'toggle-sidebar'
+  'toggle-sidebar',
+  'clear-smart-album-filter',
 ])
 
 const lightboxOpen = ref(false)
@@ -367,7 +368,18 @@ watch(() => props.currentPage, () => {
                     <span v-if="childLabel" class="text-muted-foreground font-normal">
                         / {{ childLabel }}
                     </span>
+                    <span v-if="smartAlbumFilter" class="text-purple-500 font-normal">
+                        / 智能筛选: {{ smartAlbumFilter.value }}
+                    </span>
                  </h2>
+                 <button
+                   v-if="smartAlbumFilter"
+                   class="mt-0.5 flex items-center gap-1 text-xs text-purple-500 hover:text-purple-700 transition-colors w-fit"
+                   @click="emit('clear-smart-album-filter')"
+                 >
+                   <X class="h-3 w-3" />
+                   清除智能筛选
+                 </button>
               </div>
               <div v-else class="flex flex-col justify-center">
                   <!-- Empty space for statistics mode to align with other pages -->
@@ -454,12 +466,13 @@ watch(() => props.currentPage, () => {
           />
 
           <div class="grid gap-6" :style="{ gridTemplateColumns: `repeat(auto-fill, minmax(${thumbnailSize[0]}px, 1fr))` }">
-              <ImageCard 
-                v-for="img in images" 
-                :key="img.relPath" 
+              <ImageCard
+                v-for="img in images"
+                :key="img.relPath"
                 :image="img"
                 :selectable="isSelectionMode"
                 :selected="selectedPaths.has(img.relPath)"
+                :has-note="!!imageNotes[img.relPath]"
                 @view="openLightbox(img)"
                 @delete="emit('delete', img)"
                 @toggle="emit('toggle-selection', img)"
@@ -484,14 +497,15 @@ watch(() => props.currentPage, () => {
           该文件夹为空
       </div>
 
-      <Lightbox 
-        :image="currentImage" 
+      <Lightbox
+        :image="currentImage"
         :images="images"
         :current-index="currentImageIndex"
         :isOpen="lightboxOpen"
         :favorite-groups="favoriteGroups"
         :tags="tags"
         :image-tags="imageTags"
+        :image-notes="imageNotes"
         :open-tags-on-mount="openTagsOnLightboxOpen"
         @close="lightboxOpen = false; openTagsOnLightboxOpen = false"
         @navigate="handleNavigate"

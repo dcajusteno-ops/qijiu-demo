@@ -90,6 +90,10 @@ export function DeleteImage(arg1) {
   return window['go']['main']['App']['DeleteImage'](arg1);
 }
 
+export function DeleteImageNote(arg1) {
+  return window['go']['main']['App']['DeleteImageNote'](arg1);
+}
+
 export function DeleteLauncherTool(arg1) {
   return window['go']['main']['App']['DeleteLauncherTool'](arg1);
 }
@@ -134,6 +138,10 @@ export function GetImageMetadata(arg1) {
   return window['go']['main']['App']['GetImageMetadata'](arg1);
 }
 
+export function GetImageNotes() {
+  return window['go']['main']['App']['GetImageNotes']();
+}
+
 export function GetImageTags() {
   return window['go']['main']['App']['GetImageTags']();
 }
@@ -152,6 +160,14 @@ export function GetPromptToolLinks() {
 
 export function GetRelativePath(arg1) {
   return window['go']['main']['App']['GetRelativePath'](arg1);
+}
+
+export function GetSmartAlbumFields() {
+  return window['go']['main']['App']['GetSmartAlbumFields']();
+}
+
+export function GetSmartAlbums(arg1) {
+  return window['go']['main']['App']['GetSmartAlbums'](arg1);
 }
 
 export function GetStatistics(arg1) {
@@ -220,6 +236,10 @@ export function SelectFolder() {
 
 export function SetImageFavoriteGroups(arg1, arg2) {
   return window['go']['main']['App']['SetImageFavoriteGroups'](arg1, arg2);
+}
+
+export function SetImageNote(arg1, arg2) {
+  return window['go']['main']['App']['SetImageNote'](arg1, arg2);
 }
 
 export function UpdateCustomRoot(arg1, arg2, arg3) {

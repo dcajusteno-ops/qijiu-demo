@@ -81,3 +81,12 @@ export const BatchMove = async (paths, targetFolder) => callApp('BatchMove', pat
 export const BatchFavorites = async (paths, action) => callApp('BatchFavorites', paths, action)
 export const CleanEmptyFolders = async () => callApp('CleanEmptyFolders')
 export const ClearPreviewCache = async () => callApp('ClearPreviewCache')
+
+// Image Notes
+export const GetImageNotes = async () => callApp('GetImageNotes')
+export const SetImageNote = async (relPath, note) => callApp('SetImageNote', relPath, note)
+export const DeleteImageNote = async (relPath) => callApp('DeleteImageNote', relPath)
+
+// Smart Albums
+export const GetSmartAlbumFields = async () => callApp('GetSmartAlbumFields')
+export const GetSmartAlbums = async (field) => callApp('GetSmartAlbums', field)

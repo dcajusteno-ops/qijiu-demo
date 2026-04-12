@@ -196,6 +196,40 @@ export namespace main {
 	        this.pathVersion = source["pathVersion"];
 	    }
 	}
+	export class SmartAlbum {
+	    field: string;
+	    value: string;
+	    count: number;
+	    paths: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SmartAlbum(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.field = source["field"];
+	        this.value = source["value"];
+	        this.count = source["count"];
+	        this.paths = source["paths"];
+	    }
+	}
+	export class SmartAlbumField {
+	    key: string;
+	    label: string;
+	    icon: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SmartAlbumField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.icon = source["icon"];
+	    }
+	}
 	export class Stats {
 	    totalCount: number;
 	    todayCount: number;

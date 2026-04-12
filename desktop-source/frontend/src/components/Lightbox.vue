@@ -18,6 +18,7 @@ import {
   Layers,
   ChevronUp,
   ChevronDown,
+  StickyNote,
 } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,7 @@ const props = defineProps({
   favoriteGroups: { type: Array, default: () => [] },
   tags: { type: Array, default: () => [] },
   imageTags: { type: Object, default: () => ({}) },
+  imageNotes: { type: Object, default: () => ({}) },
   openTagsOnMount: { type: Boolean, default: false },
 })
 
@@ -63,6 +65,52 @@ const metadataLoading = ref(false)
 const metadataError = ref('')
 const favoriteGroupsDialogOpen = ref(false)
 let metadataRequestId = 0
+
+const noteText = ref('')
+const noteSaving = ref(false)
+const noteExpanded = ref(true)
+
+const currentNote = computed(() => {
+  if (!currentDisplayImage.value) return ''
+  return props.imageNotes[currentDisplayImage.value.relPath] || ''
+})
+
+const hasNote = computed(() => currentNote.value.trim() !== '')
+
+watch(() => [props.isOpen, currentDisplayImage.value?.relPath], () => {
+  noteText.value = currentNote.value
+})
+
+const saveNote = async () => {
+  if (!currentDisplayImage.value) return
+  const text = noteText.value
+  noteSaving.value = true
+  try {
+    await App.SetImageNote(currentDisplayImage.value.relPath, text)
+    if (text.trim()) {
+      props.imageNotes[currentDisplayImage.value.relPath] = text
+    } else {
+      delete props.imageNotes[currentDisplayImage.value.relPath]
+    }
+  } catch (e) {
+    console.error('Failed to save note:', e)
+  } finally {
+    noteSaving.value = false
+  }
+}
+
+const handleNoteBlur = () => {
+  if (noteText.value !== currentNote.value) {
+    saveNote()
+  }
+}
+
+const handleNoteKeydown = (e) => {
+  if (e.ctrlKey && (e.key === 'Enter' || e.key === 's')) {
+    e.preventDefault()
+    handleNoteBlur()
+  }
+}
 
 const totalImages = computed(() => props.images?.length || 0)
 const canGoPrev = computed(() => props.currentIndex > 0)
@@ -535,6 +583,33 @@ onUnmounted(() => {
 
           <ScrollArea class="min-h-0 flex-1">
             <div class="space-y-3 p-4">
+              <!-- Image Note -->
+              <div class="rounded-lg border border-white/10 bg-white/5 overflow-hidden">
+                <button
+                  class="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors"
+                  @click="noteExpanded = !noteExpanded"
+                >
+                  <div class="flex items-center gap-2">
+                    <StickyNote class="h-3.5 w-3.5" :class="hasNote ? 'text-amber-300' : 'text-white/45'" />
+                    <span class="text-[11px] font-semibold uppercase tracking-wider" :class="hasNote ? 'text-amber-300' : 'text-white/45'">笔记</span>
+                  </div>
+                  <ChevronUp v-if="noteExpanded" class="h-3.5 w-3.5 text-white/45" />
+                  <ChevronDown v-else class="h-3.5 w-3.5 text-white/45" />
+                </button>
+                <div v-if="noteExpanded" class="px-3 pb-3">
+                  <textarea
+                    v-model="noteText"
+                    class="w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-white/20 resize-none"
+                    rows="3"
+                    placeholder="添加笔记... (Ctrl+S / Ctrl+Enter 保存)"
+                    @blur="handleNoteBlur"
+                    @keydown="handleNoteKeydown"
+                  ></textarea>
+                  <div v-if="noteSaving" class="text-[10px] text-white/40 mt-1">保存中...</div>
+                  <div v-else-if="hasNote" class="text-[10px] text-white/40 mt-1">已保存</div>
+                </div>
+              </div>
+
               <div v-if="metadataLoading" class="flex items-center gap-2 text-sm text-white/70">
                 <Loader2 class="h-4 w-4 animate-spin" />
                 <span>正在读取图片元数据...</span>

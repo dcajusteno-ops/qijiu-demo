@@ -146,6 +146,21 @@ type CacheClearResult struct {
 const defaultFavoriteGroupID = "default"
 const defaultFavoriteGroupName = "默认收藏"
 
+type ImageNotesMap map[string]string // relPath -> note text
+
+type SmartAlbum struct {
+	Field string   `json:"field"` // "model", "sampler", "lora", "dimensions"
+	Value string   `json:"value"` // e.g. "sdxl_base_1.0"
+	Count int      `json:"count"`
+	Paths []string `json:"paths"`
+}
+
+type SmartAlbumField struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Icon  string `json:"icon"`
+}
+
 type CustomRoot struct {
 	ID   string `json:"id"`
 	Name string `json:"name"` // 侧边栏显示名称
@@ -786,6 +801,7 @@ func (a *App) settingsFile() string      { return filepath.Join(a.dataDir, "sett
 func (a *App) launcherToolsFile() string { return filepath.Join(a.dataDir, "launcher-tools.json") }
 func (a *App) promptToolLinksFile() string { return filepath.Join(a.dataDir, "prompt-tool-links.json") }
 func (a *App) customRootsFile() string   { return filepath.Join(a.dataDir, "custom-roots.json") }
+func (a *App) imageNotesFile() string     { return filepath.Join(a.dataDir, "image-notes.json") }
 func (a *App) imageMetaCacheFile() string {
 	return filepath.Join(a.dataDir, "image-meta-cache.json")
 }
@@ -1112,6 +1128,9 @@ func (a *App) DeleteImage(relPath string) error {
 		DeletedAt:    time.Now().Format(time.RFC3339),
 	}
 	a.saveTrashMetadata(meta)
+
+	// Notify frontend to refresh
+	a.scheduleImagesChangedEvent()
 
 	return nil
 }
@@ -1566,6 +1585,56 @@ func (a *App) loadImageTags() (ImageTagsMap, error) {
 func (a *App) saveImageTags(imageTags ImageTagsMap) error {
 	data, _ := json.MarshalIndent(imageTags, "", "  ")
 	return os.WriteFile(a.imageTagsFile(), data, 0644)
+}
+
+// --- Image Notes ---
+
+func (a *App) loadImageNotes() (ImageNotesMap, error) {
+	var notes ImageNotesMap
+	data, err := os.ReadFile(a.imageNotesFile())
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if err == nil {
+		json.Unmarshal(data, &notes)
+	}
+	if notes == nil {
+		notes = make(ImageNotesMap)
+	}
+	return notes, nil
+}
+
+func (a *App) saveImageNotes(notes ImageNotesMap) error {
+	data, _ := json.MarshalIndent(notes, "", "  ")
+	return os.WriteFile(a.imageNotesFile(), data, 0644)
+}
+
+func (a *App) GetImageNotes() (ImageNotesMap, error) {
+	return a.loadImageNotes()
+}
+
+func (a *App) SetImageNote(relPath, note string) error {
+	relPath = normalizeRelPath(relPath)
+	notes, err := a.loadImageNotes()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(note) == "" {
+		delete(notes, relPath)
+	} else {
+		notes[relPath] = note
+	}
+	return a.saveImageNotes(notes)
+}
+
+func (a *App) DeleteImageNote(relPath string) error {
+	relPath = normalizeRelPath(relPath)
+	notes, err := a.loadImageNotes()
+	if err != nil {
+		return err
+	}
+	delete(notes, relPath)
+	return a.saveImageNotes(notes)
 }
 
 func (a *App) GetImageTags() (ImageTagsMap, error) {
@@ -3831,4 +3900,131 @@ func (a *App) DeletePromptToolLink(id string) error {
 		}
 	}
 	return a.savePromptToolLinks(newLinks)
+}
+
+// --- Smart Albums ---
+
+func (a *App) GetSmartAlbumFields() []SmartAlbumField {
+	return []SmartAlbumField{
+		{Key: "model", Label: "模型", Icon: "Cpu"},
+		{Key: "sampler", Label: "采样器", Icon: "FlaskConical"},
+		{Key: "lora", Label: "LoRA", Icon: "Puzzle"},
+		{Key: "dimensions", Label: "尺寸", Icon: "Maximize"},
+	}
+}
+
+func (a *App) GetSmartAlbums(field string) ([]SmartAlbum, error) {
+	a.ensureImageMetaCacheLoaded()
+	cache := a.snapshotImageMetaCache()
+
+	// For dimensions, cache already has width/height from GetImages.
+	// For model/sampler/lora, we need to scan PNG metadata if not yet cached.
+	needsMetaScan := field == "model" || field == "sampler" || field == "lora"
+
+	if needsMetaScan {
+		type scanTask struct {
+			relPath string
+			absPath string
+		}
+		var tasks []scanTask
+		for relPath, entry := range cache {
+			if entry.MetadataScanned {
+				continue
+			}
+			ext := strings.ToLower(filepath.Ext(relPath))
+			if ext != ".png" {
+				continue
+			}
+			absPath, err := a.resolveRootPath(relPath)
+			if err != nil {
+				continue
+			}
+			if _, err := os.Stat(absPath); err != nil {
+				continue
+			}
+			tasks = append(tasks, scanTask{relPath: relPath, absPath: absPath})
+		}
+
+		if len(tasks) > 0 {
+			updated := make(map[string]ImageMetaCacheEntry)
+			for _, task := range tasks {
+				textChunks, err := parsePNGTextChunks(task.absPath)
+				if err != nil {
+					continue
+				}
+				meta := buildImageMetadata(task.relPath, 0, 0, textChunks)
+				if entry, ok := cache[task.relPath]; ok {
+					entry.MetadataScanned = true
+					entry.HasMetadata = meta.HasMetadata
+					entry.HasWorkflow = meta.Workflow != ""
+					entry.Positive = meta.Positive
+					entry.Negative = meta.Negative
+					entry.Model = meta.Model
+					entry.Sampler = meta.Sampler
+					if len(meta.Loras) > 0 {
+						entry.Loras = meta.Loras
+					}
+					searchParts := []string{meta.Model, meta.Sampler}
+					searchParts = append(searchParts, meta.Loras...)
+					entry.SearchText = strings.Join(searchParts, " ")
+					cache[task.relPath] = entry
+					updated[task.relPath] = entry
+				}
+			}
+			if len(updated) > 0 {
+				// Write back to in-memory cache
+				a.imageMetaMu.Lock()
+				for k, v := range updated {
+					a.imageMetaCache[k] = v
+				}
+				a.imageMetaMu.Unlock()
+				// Persist to disk asynchronously
+				go func() {
+					if err := a.saveImageMetaCache(a.snapshotImageMetaCache()); err != nil {
+						log.Printf("failed to save smart album metadata scan: %v", err)
+					}
+				}()
+			}
+		}
+	}
+
+	groups := map[string][]string{} // value -> paths
+
+	for relPath, entry := range cache {
+		switch field {
+		case "model":
+			if entry.Model != "" {
+				groups[entry.Model] = append(groups[entry.Model], relPath)
+			}
+		case "sampler":
+			if entry.Sampler != "" {
+				groups[entry.Sampler] = append(groups[entry.Sampler], relPath)
+			}
+		case "lora":
+			for _, lora := range entry.Loras {
+				groups[lora] = append(groups[lora], relPath)
+			}
+		case "dimensions":
+			if entry.Width > 0 && entry.Height > 0 {
+				dim := fmt.Sprintf("%d × %d", entry.Width, entry.Height)
+				groups[dim] = append(groups[dim], relPath)
+			}
+		}
+	}
+
+	albums := make([]SmartAlbum, 0, len(groups))
+	for value, paths := range groups {
+		albums = append(albums, SmartAlbum{
+			Field: field,
+			Value: value,
+			Count: len(paths),
+			Paths: paths,
+		})
+	}
+
+	sort.Slice(albums, func(i, j int) bool {
+		return albums[i].Count > albums[j].Count
+	})
+
+	return albums, nil
 }
