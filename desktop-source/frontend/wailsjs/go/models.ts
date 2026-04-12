@@ -160,6 +160,30 @@ export namespace main {
 	        this.args = source["args"];
 	    }
 	}
+	export class PromptTemplate {
+	    id: string;
+	    name: string;
+	    content: string;
+	    type: string;
+	    category: string;
+	    sourcePath: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptTemplate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.content = source["content"];
+	        this.type = source["type"];
+	        this.category = source["category"];
+	        this.sourcePath = source["sourcePath"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
 	export class PromptToolLink {
 	    id: string;
 	    name: string;

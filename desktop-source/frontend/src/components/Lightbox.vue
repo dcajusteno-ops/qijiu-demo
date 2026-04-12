@@ -19,6 +19,7 @@ import {
   ChevronUp,
   ChevronDown,
   StickyNote,
+  Bookmark,
 } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'vue-sonner'
 import * as App from '@/api'
 import FavoriteGroupsDialog from './FavoriteGroupsDialog.vue'
+import PromptTemplateDialog from './PromptTemplateDialog.vue'
 
 const props = defineProps({
   image: Object,
@@ -65,6 +67,10 @@ const metadataLoading = ref(false)
 const metadataError = ref('')
 const favoriteGroupsDialogOpen = ref(false)
 let metadataRequestId = 0
+
+const promptTemplateDialogOpen = ref(false)
+const promptTemplateInitialContent = ref('')
+const promptTemplateInitialType = ref('')
 
 const noteText = ref('')
 const noteSaving = ref(false)
@@ -649,15 +655,27 @@ onUnmounted(() => {
                   <div v-if="metadata?.positive" class="space-y-2">
                     <div class="flex items-center justify-between gap-3">
                       <div class="text-[11px] font-semibold uppercase tracking-wider text-white/45">正向 Prompt</div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        class="h-7 gap-1.5 px-2 text-white/75 hover:bg-white/10 hover:text-white"
-                        @click="copyMetadataField(metadata.positive, '正向 Prompt')"
-                      >
-                        <Copy class="h-3.5 w-3.5" />
-                        复制
-                      </Button>
+                      <div class="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          class="h-7 gap-1.5 px-2 text-white/75 hover:bg-white/10 hover:text-white"
+                          @click="promptTemplateInitialContent = metadata.positive; promptTemplateInitialType = 'positive'; promptTemplateDialogOpen = true"
+                          title="存为模板"
+                        >
+                          <Bookmark class="h-3.5 w-3.5" />
+                          存为模板
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          class="h-7 gap-1.5 px-2 text-white/75 hover:bg-white/10 hover:text-white"
+                          @click="copyMetadataField(metadata.positive, '正向 Prompt')"
+                        >
+                          <Copy class="h-3.5 w-3.5" />
+                          复制
+                        </Button>
+                      </div>
                     </div>
                     <ScrollArea class="h-40 rounded-md border border-white/10 bg-black/20" @wheel.stop>
                       <div class="whitespace-pre-wrap break-words p-3 text-sm leading-6 text-white/88">
@@ -669,15 +687,27 @@ onUnmounted(() => {
                   <div v-if="metadata?.negative" class="space-y-2">
                     <div class="flex items-center justify-between gap-3">
                       <div class="text-[11px] font-semibold uppercase tracking-wider text-white/45">反向 Prompt</div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        class="h-7 gap-1.5 px-2 text-white/75 hover:bg-white/10 hover:text-white"
-                        @click="copyMetadataField(metadata.negative, '反向 Prompt')"
-                      >
-                        <Copy class="h-3.5 w-3.5" />
-                        复制
-                      </Button>
+                      <div class="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          class="h-7 gap-1.5 px-2 text-white/75 hover:bg-white/10 hover:text-white"
+                          @click="promptTemplateInitialContent = metadata.negative; promptTemplateInitialType = 'negative'; promptTemplateDialogOpen = true"
+                          title="存为模板"
+                        >
+                          <Bookmark class="h-3.5 w-3.5" />
+                          存为模板
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          class="h-7 gap-1.5 px-2 text-white/75 hover:bg-white/10 hover:text-white"
+                          @click="copyMetadataField(metadata.negative, '反向 Prompt')"
+                        >
+                          <Copy class="h-3.5 w-3.5" />
+                          复制
+                        </Button>
+                      </div>
                     </div>
                     <ScrollArea class="h-40 rounded-md border border-white/10 bg-black/20" @wheel.stop>
                       <div class="whitespace-pre-wrap break-words p-3 text-sm leading-6 text-white/88">
@@ -783,6 +813,13 @@ onUnmounted(() => {
         :groups="favoriteGroups"
         :image="currentDisplayImage"
         @change="$emit('favorite-groups-changed')"
+      />
+
+      <PromptTemplateDialog
+        v-model:open="promptTemplateDialogOpen"
+        :initial-content="promptTemplateInitialContent"
+        :initial-type="promptTemplateInitialType"
+        :initial-source-path="currentDisplayImage?.relPath || ''"
       />
     </div>
   </transition>

@@ -127,6 +127,16 @@ type PromptToolLink struct {
 	Icon string `json:"icon"`
 }
 
+type PromptTemplate struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Content    string `json:"content"`
+	Type       string `json:"type"`
+	Category   string `json:"category"`
+	SourcePath string `json:"sourcePath"`
+	CreatedAt  string `json:"createdAt"`
+}
+
 type FavoriteGroup struct {
 	ID    string   `json:"id"`
 	Name  string   `json:"name"`
@@ -800,6 +810,7 @@ func (a *App) trashMetadataFile() string { return filepath.Join(a.dataDir, "tras
 func (a *App) settingsFile() string      { return filepath.Join(a.dataDir, "settings.json") }
 func (a *App) launcherToolsFile() string { return filepath.Join(a.dataDir, "launcher-tools.json") }
 func (a *App) promptToolLinksFile() string { return filepath.Join(a.dataDir, "prompt-tool-links.json") }
+func (a *App) promptTemplatesFile() string  { return filepath.Join(a.dataDir, "prompt-templates.json") }
 func (a *App) customRootsFile() string   { return filepath.Join(a.dataDir, "custom-roots.json") }
 func (a *App) imageNotesFile() string     { return filepath.Join(a.dataDir, "image-notes.json") }
 func (a *App) imageMetaCacheFile() string {
@@ -3900,6 +3911,67 @@ func (a *App) DeletePromptToolLink(id string) error {
 		}
 	}
 	return a.savePromptToolLinks(newLinks)
+}
+
+// --- Prompt Templates ---
+
+func (a *App) loadPromptTemplates() ([]PromptTemplate, error) {
+	var templates []PromptTemplate
+	data, err := os.ReadFile(a.promptTemplatesFile())
+	if err != nil {
+		return []PromptTemplate{}, nil
+	}
+	json.Unmarshal(data, &templates)
+	return templates, nil
+}
+
+func (a *App) savePromptTemplates(templates []PromptTemplate) error {
+	data, _ := json.MarshalIndent(templates, "", "  ")
+	return os.WriteFile(a.promptTemplatesFile(), data, 0644)
+}
+
+func (a *App) GetPromptTemplates() ([]PromptTemplate, error) {
+	return a.loadPromptTemplates()
+}
+
+func (a *App) AddPromptTemplate(template PromptTemplate) (PromptTemplate, error) {
+	templates, _ := a.loadPromptTemplates()
+	template.ID = uuid.New().String()
+	template.CreatedAt = time.Now().Format(time.RFC3339)
+	templates = append(templates, template)
+	err := a.savePromptTemplates(templates)
+	return template, err
+}
+
+func (a *App) UpdatePromptTemplate(id string, template PromptTemplate) error {
+	templates, _ := a.loadPromptTemplates()
+	updated := false
+	for i, t := range templates {
+		if t.ID == id {
+			templates[i].Name = template.Name
+			templates[i].Content = template.Content
+			templates[i].Type = template.Type
+			templates[i].Category = template.Category
+			templates[i].SourcePath = template.SourcePath
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		return fmt.Errorf("template not found")
+	}
+	return a.savePromptTemplates(templates)
+}
+
+func (a *App) DeletePromptTemplate(id string) error {
+	templates, _ := a.loadPromptTemplates()
+	newTemplates := []PromptTemplate{}
+	for _, t := range templates {
+		if t.ID != id {
+			newTemplates = append(newTemplates, t)
+		}
+	}
+	return a.savePromptTemplates(newTemplates)
 }
 
 // --- Smart Albums ---

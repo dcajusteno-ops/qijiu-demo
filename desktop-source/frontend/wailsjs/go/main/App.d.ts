@@ -10,6 +10,8 @@ export function AddImageToFavoriteGroup(arg1:string,arg2:string):Promise<void>;
 
 export function AddLauncherTool(arg1:main.LauncherTool):Promise<main.LauncherTool>;
 
+export function AddPromptTemplate(arg1:main.PromptTemplate):Promise<main.PromptTemplate>;
+
 export function AddPromptToolLink(arg1:main.PromptToolLink):Promise<main.PromptToolLink>;
 
 export function AddTagToImage(arg1:string,arg2:string):Promise<Array<string>>;
@@ -50,6 +52,8 @@ export function DeleteImageNote(arg1:string):Promise<void>;
 
 export function DeleteLauncherTool(arg1:string):Promise<void>;
 
+export function DeletePromptTemplate(arg1:string):Promise<void>;
+
 export function DeletePromptToolLink(arg1:string):Promise<void>;
 
 export function DeleteTag(arg1:string):Promise<void>;
@@ -77,6 +81,8 @@ export function GetImageTags():Promise<main.ImageTagsMap>;
 export function GetImages(arg1:string,arg2:string):Promise<Array<main.ImageFile>>;
 
 export function GetLauncherTools():Promise<Array<main.LauncherTool>>;
+
+export function GetPromptTemplates():Promise<Array<main.PromptTemplate>>;
 
 export function GetPromptToolLinks():Promise<Array<main.PromptToolLink>>;
 
@@ -127,6 +133,8 @@ export function UpdateCustomRoot(arg1:string,arg2:string,arg3:string):Promise<vo
 export function UpdateFavoriteGroup(arg1:string,arg2:string):Promise<void>;
 
 export function UpdateLauncherTool(arg1:string,arg2:main.LauncherTool):Promise<void>;
+
+export function UpdatePromptTemplate(arg1:string,arg2:main.PromptTemplate):Promise<void>;
 
 export function UpdatePromptToolLink(arg1:string,arg2:main.PromptToolLink):Promise<void>;
 

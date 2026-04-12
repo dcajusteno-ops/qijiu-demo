@@ -90,3 +90,9 @@ export const DeleteImageNote = async (relPath) => callApp('DeleteImageNote', rel
 // Smart Albums
 export const GetSmartAlbumFields = async () => callApp('GetSmartAlbumFields')
 export const GetSmartAlbums = async (field) => callApp('GetSmartAlbums', field)
+
+// Prompt Templates
+export const GetPromptTemplates = async () => callApp('GetPromptTemplates')
+export const AddPromptTemplate = async (data) => callApp('AddPromptTemplate', data)
+export const UpdatePromptTemplate = async (id, data) => callApp('UpdatePromptTemplate', id, data)
+export const DeletePromptTemplate = async (id) => callApp('DeletePromptTemplate', id)

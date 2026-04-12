@@ -37,6 +37,7 @@ import {
   Cpu,
   Puzzle,
   Maximize,
+  Bookmark,
   Sparkles,
   Search,
 } from 'lucide-vue-next'
@@ -45,6 +46,7 @@ import TrashDialog from './TrashDialog.vue'
 import LauncherDialog from './LauncherDialog.vue'
 import CustomRootDialog from './CustomRootDialog.vue'
 import FavoriteGroupsDialog from './FavoriteGroupsDialog.vue'
+import PromptTemplateDialog from './PromptTemplateDialog.vue'
 import { TerminalSquare } from 'lucide-vue-next'
 import { availableIcons } from '@/lib/icons'
 import * as App from '@/api'
@@ -173,6 +175,7 @@ const showTrashDialog = ref(false)
 const showLauncherDialog = ref(false)
 const showCustomRootDialog = ref(false)
 const showFavoriteGroupsDialog = ref(false)
+const showPromptTemplateDialog = ref(false)
 const isTagsCollapsed = ref(false)
 const showUtilityMenu = ref(false)
 
@@ -275,6 +278,11 @@ const openFavoriteGroups = () => {
 
 const openLauncher = () => {
     showLauncherDialog.value = true
+    closeUtilityMenu()
+}
+
+const openPromptTemplates = () => {
+    showPromptTemplateDialog.value = true
     closeUtilityMenu()
 }
 
@@ -680,6 +688,10 @@ const handleDrawerClick = (subId) => {
                    <TerminalSquare class="h-4 w-4 text-muted-foreground" />
                    <span>外部工具</span>
                 </Button>
+                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openPromptTemplates">
+                   <Bookmark class="h-4 w-4 text-amber-500" />
+                   <span>提示词模板</span>
+                </Button>
                 <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openCustomRootManager">
                    <FolderSymlink class="h-4 w-4 text-muted-foreground" />
                    <span>管理目录</span>
@@ -711,10 +723,13 @@ const handleDrawerClick = (subId) => {
       :groups="favoriteGroups"
       @change="$emit('favorite-group-change')"
     />
-    <CustomRootDialog 
-      v-model:open="showCustomRootDialog" 
+    <CustomRootDialog
+      v-model:open="showCustomRootDialog"
       :custom-roots="customRoots"
       @change="$emit('custom-root-change')"
+    />
+    <PromptTemplateDialog
+      v-model:open="showPromptTemplateDialog"
     />
   </aside>
 

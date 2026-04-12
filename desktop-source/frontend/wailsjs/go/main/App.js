@@ -18,6 +18,10 @@ export function AddLauncherTool(arg1) {
   return window['go']['main']['App']['AddLauncherTool'](arg1);
 }
 
+export function AddPromptTemplate(arg1) {
+  return window['go']['main']['App']['AddPromptTemplate'](arg1);
+}
+
 export function AddPromptToolLink(arg1) {
   return window['go']['main']['App']['AddPromptToolLink'](arg1);
 }
@@ -98,6 +102,10 @@ export function DeleteLauncherTool(arg1) {
   return window['go']['main']['App']['DeleteLauncherTool'](arg1);
 }
 
+export function DeletePromptTemplate(arg1) {
+  return window['go']['main']['App']['DeletePromptTemplate'](arg1);
+}
+
 export function DeletePromptToolLink(arg1) {
   return window['go']['main']['App']['DeletePromptToolLink'](arg1);
 }
@@ -152,6 +160,10 @@ export function GetImages(arg1, arg2) {
 
 export function GetLauncherTools() {
   return window['go']['main']['App']['GetLauncherTools']();
+}
+
+export function GetPromptTemplates() {
+  return window['go']['main']['App']['GetPromptTemplates']();
 }
 
 export function GetPromptToolLinks() {
@@ -252,6 +264,10 @@ export function UpdateFavoriteGroup(arg1, arg2) {
 
 export function UpdateLauncherTool(arg1, arg2) {
   return window['go']['main']['App']['UpdateLauncherTool'](arg1, arg2);
+}
+
+export function UpdatePromptTemplate(arg1, arg2) {
+  return window['go']['main']['App']['UpdatePromptTemplate'](arg1, arg2);
 }
 
 export function UpdatePromptToolLink(arg1, arg2) {
