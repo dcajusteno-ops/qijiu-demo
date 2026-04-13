@@ -33,7 +33,22 @@
 
 ## 下载安装
 
-前往 [Releases](https://github.com/dcajusteno-ops/qijiu-demo/releases) 页面下载最新版 `desktop-app.exe`，双击运行即可。
+1. 前往 [Releases](https://github.com/dcajusteno-ops/qijiu-demo/releases) 页面下载最新版 `desktop-app.exe`
+2. 在 ComfyUI 的 `output/` 目录下创建 `comfy-manager` 文件夹
+3. 将 `desktop-app.exe` 放入该文件夹中
+4. 双击运行
+
+最终目录结构如下：
+
+```
+ComfyUI/
+└── output/                  ← ComfyUI 图片输出目录
+    ├── 2026/                 ← 生成的图片
+    └── comfy-manager/        ← 新建此文件夹
+        ├── desktop-app.exe   ← 放在这里
+        ├── data/             ← 运行后自动生成（配置与缓存）
+        └── .trash/           ← 运行后自动生成（回收站）
+```
 
 ## 技术栈
 
