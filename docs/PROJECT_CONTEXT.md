@@ -356,6 +356,25 @@ comfy-manager/
 
 ## 11. 最近变更记录
 
+- **2026-04-13 | v1.3.0 - 智能筛选自动刷新、按日期整理文件、导出移动模式、图片上传**
+  - 影响范围：后端/前端/事件刷新
+  - 变更文件：
+    - `desktop-source/app.go`（新增 `UploadImages`、`OrganizeFiles`）
+    - `desktop-source/frontend/src/App.vue`（新增 `refreshSmartAlbumFilter`、`handleOrganizeFiles`，`handleRefresh` 调用刷新智能筛选）
+    - `desktop-source/frontend/src/api.js`（新增 `OrganizeFiles`、`UploadImages`）
+    - `desktop-source/frontend/src/components/AppSidebar.vue`（智能相册弹出框居中对齐+边距，新增"按日期整理文件"按钮）
+    - `desktop-source/frontend/src/components/ExportDialog.vue`（导出支持移动模式，含二次确认）
+  - 行为变化：
+    - 智能筛选激活时，`images:changed` 事件触发后会自动重新获取筛选路径，新图片即时显示
+    - 智能相册弹出框改为 `align="center"` 居中对齐，增加 `ml-2 mb-2` 边距
+    - 新增按日期整理文件功能（散落图片移动到年/月子文件夹）
+    - 导出弹窗恢复移动模式选项，含二次确认弹窗
+    - 新增 `UploadImages` 后端接口（从外部目录导入图片）
+  - 兼容性：
+    - 不影响旧数据/旧接口
+  - AI 提示：
+    - 修改智能筛选相关逻辑时，注意 `refreshSmartAlbumFilter` 在 `handleRefresh` 中被调用；若筛选不存在匹配项会自动清除
+
 - **2026-04-12 | 提示词模板库**
   - 影响范围：后端/前端/数据结构
   - 变更文件：
@@ -387,4 +406,4 @@ comfy-manager/
 
 ---
 
-*Generated/Updated by Claude Code (Opus 4.6) on 2026-04-12*
+*Generated/Updated by Claude Code (Opus 4.6) on 2026-04-13*
