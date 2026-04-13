@@ -81,6 +81,7 @@ export const BatchMove = async (paths, targetFolder) => callApp('BatchMove', pat
 export const BatchFavorites = async (paths, action) => callApp('BatchFavorites', paths, action)
 export const CleanEmptyFolders = async () => callApp('CleanEmptyFolders')
 export const ClearPreviewCache = async () => callApp('ClearPreviewCache')
+export const OrganizeFiles = async (mode) => callApp('OrganizeFiles', mode)
 
 // Image Notes
 export const GetImageNotes = async () => callApp('GetImageNotes')

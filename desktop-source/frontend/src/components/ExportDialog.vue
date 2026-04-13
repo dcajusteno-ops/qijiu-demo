@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, inject } from 'vue'
 import {
   Dialog,
   DialogContent,
@@ -20,17 +20,22 @@ const props = defineProps({
 
 const emit = defineEmits(['update:open', 'confirm'])
 
+const confirm = inject('confirm')
 const targetDir = ref('')
 const moveFiles = ref(false)
 const loading = ref(false)
 
 const handleConfirm = async () => {
     if (!targetDir.value.trim()) return
+    if (moveFiles.value) {
+        const ok = await confirm('移动模式将从原目录删除文件，此操作不可撤销。确定继续？')
+        if (!ok) return
+    }
     loading.value = true
     try {
-        await emit('confirm', { 
-            targetDir: targetDir.value, 
-            move: moveFiles.value 
+        await emit('confirm', {
+            targetDir: targetDir.value,
+            move: moveFiles.value
         })
         emit('update:open', false)
     } finally {
@@ -48,7 +53,7 @@ const handleConfirm = async () => {
           将选中的 {{ count }} 张图片导出到指定文件夹。
         </DialogDescription>
       </DialogHeader>
-      
+
       <div class="grid gap-4 py-4">
         <div class="grid grid-cols-4 items-center gap-4">
           <Label for="target-dir" class="text-right">
@@ -61,15 +66,10 @@ const handleConfirm = async () => {
             class="col-span-3"
           />
         </div>
-        <!-- 
-        <div class="flex items-center space-x-2 ml-[25%] hidden">
-           <Checkbox id="move-mode" v-model="moveFiles" />
-           <Label for="move-mode" class="cursor-pointer">移动文件 (而不是复制)</Label>
+        <div class="flex items-center space-x-2 ml-[25%]">
+           <Checkbox id="move-mode" v-model:checked="moveFiles" />
+           <Label for="move-mode" class="cursor-pointer">移动文件（而不是复制）</Label>
         </div>
-        -->
-         <p class="text-xs text-muted-foreground ml-[25%]">
-            目前仅支持复制模式，不会删除原文件。
-        </p>
       </div>
 
       <DialogFooter>

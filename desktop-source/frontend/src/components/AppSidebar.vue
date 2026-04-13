@@ -40,6 +40,7 @@ import {
   Bookmark,
   Sparkles,
   Search,
+  FolderTree,
 } from 'lucide-vue-next'
 import { isDark, toggleTheme } from '@/theme'
 import TrashDialog from './TrashDialog.vue'
@@ -83,6 +84,7 @@ const emit = defineEmits([
   'custom-root-change',
   'favorite-group-change',
   'clear-preview-cache',
+  'organize-files',
   'smart-album-select',
 ])
 
@@ -579,7 +581,7 @@ const handleDrawerClick = (subId) => {
                     <ChevronRight class="h-3 w-3 text-muted-foreground" />
                   </button>
                 </PopoverTrigger>
-                <PopoverContent side="right" align="start" :side-offset="8" class="w-72 p-0 max-h-[70vh] flex flex-col overflow-hidden">
+                <PopoverContent side="right" align="center" :side-offset="12" class="w-72 p-0 max-h-[70vh] flex flex-col overflow-hidden ml-2 mb-2">
                   <!-- Header with search -->
                   <div class="shrink-0 bg-background border-b px-3 py-2 z-10">
                     <div class="flex items-center gap-2 mb-2">
@@ -670,6 +672,10 @@ const handleDrawerClick = (subId) => {
                 <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="cleanEmptyFolders">
                    <Eraser class="h-4 w-4 text-muted-foreground" />
                    <span>清理空文件夹</span>
+                </Button>
+                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="$emit('organize-files')">
+                   <FolderTree class="h-4 w-4 text-muted-foreground" />
+                   <span>按日期整理文件</span>
                 </Button>
                 <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="clearPreviewCache">
                    <Trash2 class="h-4 w-4 text-muted-foreground" />

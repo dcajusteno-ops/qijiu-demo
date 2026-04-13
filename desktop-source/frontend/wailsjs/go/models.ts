@@ -310,6 +310,20 @@ export namespace main {
 	        this.path = source["path"];
 	    }
 	}
+	export class UploadResult {
+	    count: number;
+	    errors: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new UploadResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.count = source["count"];
+	        this.errors = source["errors"];
+	    }
+	}
 
 }
 

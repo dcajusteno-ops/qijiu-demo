@@ -277,3 +277,7 @@ export function UpdatePromptToolLink(arg1, arg2) {
 export function UpdateTag(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['UpdateTag'](arg1, arg2, arg3, arg4);
 }
+
+export function UploadImages(arg1, arg2) {
+  return window['go']['main']['App']['UploadImages'](arg1, arg2);
+}

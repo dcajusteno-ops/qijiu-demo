@@ -180,6 +180,26 @@ const handleSmartAlbumSelect = (filter) => {
   }
 }
 
+const refreshSmartAlbumFilter = async () => {
+  if (!smartAlbumFilter.value) return
+  try {
+    const albums = await App.GetSmartAlbums(smartAlbumFilter.value.field)
+    const match = (albums || []).find(
+      a => a.value === smartAlbumFilter.value.value
+    )
+    if (match) {
+      smartAlbumFilter.value = {
+        ...smartAlbumFilter.value,
+        paths: match.paths,
+      }
+    } else {
+      smartAlbumFilter.value = null
+    }
+  } catch (e) {
+    console.error('Failed to refresh smart album filter:', e)
+  }
+}
+
 const finalPaginatedImages = computed(() => {
   if (!smartAlbumFilter.value) return paginatedImages.value
   // Smart album paths come from all images across all folders,
@@ -260,6 +280,18 @@ const handleClearPreviewCache = async () => {
     }
 }
 
+const handleOrganizeFiles = async () => {
+    const ok = await confirm('确定要按日期自动整理文件吗？这将把散落在根目录的图片移动到年/月子文件夹中。')
+    if (!ok) return
+    try {
+        const count = await App.OrganizeFiles('month')
+        showToast(`已整理 ${count} 张图片`, 'success')
+        handleRefresh()
+    } catch (e) {
+        showToast(`整理失败: ${e}`, 'error')
+    }
+}
+
 const handleFavoriteGroupsChanged = async () => {
     await fetchImages()
 }
@@ -306,6 +338,7 @@ const deleteSelected = async () => {
 const handleRefresh = async () => {
     await fetchImages()
     await fetchImageTags()
+    await refreshSmartAlbumFilter()
 }
 
 let unsubscribeImagesChanged = null
@@ -357,6 +390,7 @@ onUnmounted(() => {
         @custom-root-change="fetchCustomRoots"
         @favorite-group-change="handleFavoriteGroupsChanged"
         @clear-preview-cache="handleClearPreviewCache"
+        @organize-files="handleOrganizeFiles"
         @smart-album-select="handleSmartAlbumSelect"
     />
     

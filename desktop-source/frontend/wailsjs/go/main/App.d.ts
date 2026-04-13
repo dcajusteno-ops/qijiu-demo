@@ -139,3 +139,5 @@ export function UpdatePromptTemplate(arg1:string,arg2:main.PromptTemplate):Promi
 export function UpdatePromptToolLink(arg1:string,arg2:main.PromptToolLink):Promise<void>;
 
 export function UpdateTag(arg1:string,arg2:any,arg3:any,arg4:any):Promise<void>;
+
+export function UploadImages(arg1:Array<string>,arg2:string):Promise<main.UploadResult>;

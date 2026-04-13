@@ -3386,6 +3386,87 @@ func (a *App) ExportImages(paths []string, targetDir string, move bool) (int, er
 	return successCount, nil
 }
 
+type UploadResult struct {
+	Count  int      `json:"count"`
+	Errors []string `json:"errors"`
+}
+
+func (a *App) UploadImages(paths []string, targetFolder string) (*UploadResult, error) {
+	var targetPath string
+	if targetFolder == "" {
+		targetPath = a.imageDir
+	} else {
+		var err error
+		targetPath, err = a.resolveRootPath(targetFolder)
+		if err != nil {
+			return nil, fmt.Errorf("invalid target folder: %v", err)
+		}
+	}
+
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
+		return nil, fmt.Errorf("cannot create target directory: %v", err)
+	}
+
+	result := &UploadResult{}
+	for _, srcPath := range paths {
+		// Validate source file exists
+		info, err := os.Stat(srcPath)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: file not found", filepath.Base(srcPath)))
+			continue
+		}
+
+		// Only accept image files
+		ext := strings.ToLower(filepath.Ext(srcPath))
+		if !isImageExt(ext) {
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: not an image file", filepath.Base(srcPath)))
+			continue
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			continue
+		}
+
+		fileName := filepath.Base(srcPath)
+		destPath := filepath.Join(targetPath, fileName)
+
+		// Handle name collision with timestamp suffix
+		if _, err := os.Stat(destPath); err == nil {
+			name := strings.TrimSuffix(fileName, ext)
+			timestamp := time.Now().Format("20060102_150405")
+			destPath = filepath.Join(targetPath, fmt.Sprintf("%s_%s%s", name, timestamp, ext))
+		}
+
+		// Copy file (use io.Copy since source may be on a different drive)
+		srcFile, err := os.Open(srcPath)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: cannot open file", fileName))
+			continue
+		}
+
+		destFile, err := os.Create(destPath)
+		if err != nil {
+			srcFile.Close()
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: cannot create destination", fileName))
+			continue
+		}
+
+		_, err = io.Copy(destFile, srcFile)
+		srcFile.Close()
+		destFile.Close()
+
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("%s: copy failed", fileName))
+			continue
+		}
+
+		result.Count++
+	}
+
+	return result, nil
+}
+
 func (a *App) SelectFolder() (string, error) {
 	options := runtime.OpenDialogOptions{
 		Title: "Select Folder",
