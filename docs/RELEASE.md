@@ -33,13 +33,17 @@ cd desktop-source
 wails build
 ```
 
-将生成的可执行文件复制到项目根目录：
+### 3. 更新项目目录下的 exe
+
+将编译产物复制到项目根目录，确保仓库中的 `desktop-app.exe` 与当前版本一致：
 
 ```bash
-cp build/bin/comfy-manager-wails.exe ../desktop-app.exe
+cp desktop-source/build/bin/comfy-manager-wails.exe desktop-app.exe
 ```
 
-### 3. 提交代码
+> **重要：** 每次发版都必须更新并提交 `desktop-app.exe`，保持仓库中的可执行文件与版本号同步。
+
+### 4. 提交代码
 
 ```bash
 # 查看变更
@@ -53,7 +57,7 @@ git add <相关文件>
 git commit -m "feat: 简要描述变更内容"
 ```
 
-### 4. 打标签
+### 5. 打标签
 
 ```bash
 git tag -a v<版本号> -m "v<版本号> - 版本描述"
@@ -64,7 +68,7 @@ git tag -a v<版本号> -m "v<版本号> - 版本描述"
 git tag -a v1.1.0 -m "v1.1.0 - 新增XXX功能"
 ```
 
-### 5. 推送到 GitHub
+### 6. 推送到 GitHub
 
 ```bash
 # 推送代码
@@ -74,7 +78,7 @@ git push origin main
 git push origin v<版本号>
 ```
 
-### 6. 创建 Release（含可下载的 exe）
+### 7. 创建 Release（含可下载的 exe）
 
 ```bash
 gh release create v<版本号> \
@@ -121,7 +125,7 @@ gh release create v1.1.0 \
 | `desktop-source/build/bin/` | 开发构建产物 |
 | `Sanrio Cinnamoroll White Arrow & Head.zip` | 非项目资源 |
 
-`desktop-app.exe` 会通过 **GitHub Release** 附件分发，不再直接提交到仓库代码中（如需调整可修改 `.gitignore`）。
+`desktop-app.exe` 同时提交到仓库代码中（保持版本同步）并通过 **GitHub Release** 附件分发。
 
 ---
 
