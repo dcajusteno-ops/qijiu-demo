@@ -38,10 +38,12 @@ wails build
 将编译产物复制到项目根目录，确保仓库中的 `desktop-app.exe` 与当前版本一致：
 
 ```bash
-cp desktop-source/build/bin/comfy-manager-wails.exe desktop-app.exe
+cp desktop-source/build/bin/desktop-app.exe desktop-app.exe
 ```
 
 > **重要：** 每次发版都必须更新并提交 `desktop-app.exe`，保持仓库中的可执行文件与版本号同步。
+
+当前最新 Release：[`v1.4.1`](https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v1.4.1)
 
 ### 4. 提交代码
 
@@ -133,13 +135,13 @@ gh release create v1.1.0 \
 
 ```bash
 # 设置版本号
-VER=v1.1.0
+VER=v1.4.1
 
 # 编译
 cd desktop-source && wails build && cd ..
 
 # 复制 exe
-cp desktop-source/build/bin/comfy-manager-wails.exe desktop-app.exe
+cp desktop-source/build/bin/desktop-app.exe desktop-app.exe
 
 # 提交
 git add -A
@@ -163,6 +165,8 @@ gh release create $VER \
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v1.4.1 | 2026-04-14 | 修复提示词模板弹窗交互与边框显示，统一 Wails 发布产物文件名为 `desktop-app.exe` |
+| v1.4.0 | 2026-04-14 | 修复智能筛选路径叠加问题，改进侧边栏导航逻辑 |
 | v1.3.0 | 2026-04-13 | 修复智能筛选不自动刷新、智能相册弹出框居中对齐、新增按日期整理文件、导出支持移动模式、新增图片上传 |
 | v1.2.0 | 2026-04-12 | 新增提示词模板库：从图片 Prompt 一键存模板、分类管理、搜索过滤、一键复制 |
 | v1.1.0 | 2026-04-12 | 智能相册滚动修复、文件变更自动刷新、Ctrl+S保存笔记 |

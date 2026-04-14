@@ -356,17 +356,52 @@ comfy-manager/
 
 ## 11. 最近变更记录
 
+- **2026-04-14 | v1.4.1 - 修复提示词模板弹窗交互，统一发布产物命名**
+  - 影响范围：前端/发布流程/桌面产物
+  - 变更文件：
+    - `desktop-source/frontend/src/components/PromptTemplateDialog.vue`
+    - `desktop-source/frontend/src/components/ui/input/Input.vue`
+    - `desktop-source/wails.json`
+    - `desktop-app.exe`
+  - 行为变化：
+    - 修复提示词输入框聚焦时左右边框看起来消失的问题
+    - 新增模板后保持表单打开，支持连续添加
+    - 模板数量增多时，左侧底部“添加模板”按钮保持固定可见
+    - 隐藏右侧表单滚动条，但保留滚轮滚动能力
+    - Wails 构建输出文件名统一为 `desktop-app.exe`，与仓库根目录发布文件一致
+  - 兼容性：
+    - 不影响既有 `data/prompt-templates.json` 数据
+    - 发布流程中复制源文件由 `comfy-manager-wails.exe` 调整为 `desktop-app.exe`
+  - AI 提示：
+    - 以后改提示词模板弹窗时，优先检查左侧列表容器的 `min-h-0/flex` 约束与右侧表单的保存后状态切换逻辑
+
+- **2026-04-14 | v1.4.0 - 修复智能筛选路径叠加问题，改进侧边栏导航逻辑**
+  - 影响范围：前端
+  - 变更文件：
+    - `desktop-source/frontend/src/App.vue`
+    - `desktop-source/frontend/src/components/AppSidebar.vue`
+    - `desktop-source/frontend/src/composables/useImages.js`
+  - 行为变化：
+    - 修复智能筛选激活状态下点击侧边栏目录时路径叠加问题
+    - 侧边栏根目录切换逻辑优化：如果已在该根目录，则切换到dashboard而非空值
+    - 切换导航节点时自动清除智能筛选状态，避免残留筛选影响新视图
+    - 智能相册弹出框增加 `ml-2 mb-2` 边距，优化视觉对齐
+  - 兼容性：
+    - 不影响旧数据/旧接口
+  - AI 提示：
+    - 修改侧边栏导航逻辑时注意 `toggleRoot` 函数中的状态切换策略，确保清除所有可能残留的筛选状态
+
 - **2026-04-13 | v1.3.0 - 智能筛选自动刷新、按日期整理文件、导出移动模式、图片上传**
   - 影响范围：后端/前端/事件刷新
   - 变更文件：
     - `desktop-source/app.go`（新增 `UploadImages`、`OrganizeFiles`）
     - `desktop-source/frontend/src/App.vue`（新增 `refreshSmartAlbumFilter`、`handleOrganizeFiles`，`handleRefresh` 调用刷新智能筛选）
     - `desktop-source/frontend/src/api.js`（新增 `OrganizeFiles`、`UploadImages`）
-    - `desktop-source/frontend/src/components/AppSidebar.vue`（智能相册弹出框居中对齐+边距，新增"按日期整理文件"按钮）
+    - `desktop-source/frontend/src/components/AppSidebar.vue`（智能相册弹出框居中对齐+边距，新增”按日期整理文件”按钮）
     - `desktop-source/frontend/src/components/ExportDialog.vue`（导出支持移动模式，含二次确认）
   - 行为变化：
     - 智能筛选激活时，`images:changed` 事件触发后会自动重新获取筛选路径，新图片即时显示
-    - 智能相册弹出框改为 `align="center"` 居中对齐，增加 `ml-2 mb-2` 边距
+    - 智能相册弹出框改为 `align=”center”` 居中对齐，增加 `ml-2 mb-2` 边距
     - 新增按日期整理文件功能（散落图片移动到年/月子文件夹）
     - 导出弹窗恢复移动模式选项，含二次确认弹窗
     - 新增 `UploadImages` 后端接口（从外部目录导入图片）
@@ -375,7 +410,7 @@ comfy-manager/
   - AI 提示：
     - 修改智能筛选相关逻辑时，注意 `refreshSmartAlbumFilter` 在 `handleRefresh` 中被调用；若筛选不存在匹配项会自动清除
 
-- **2026-04-12 | 提示词模板库**
+- **2026-04-12 | v1.2.0 - 提示词模板库**
   - 影响范围：后端/前端/数据结构
   - 变更文件：
     - `desktop-source/app.go`
@@ -385,8 +420,8 @@ comfy-manager/
     - `desktop-source/frontend/src/components/AppSidebar.vue`
   - 行为变化：
     - 新增 PromptTemplate 实体（CRUD + JSON 持久化）
-    - Lightbox 正向/反向 Prompt 区域新增"存为模板"按钮
-    - 侧栏工具菜单新增"提示词模板"入口
+    - Lightbox 正向/反向 Prompt 区域新增”存为模板”按钮
+    - 侧栏工具菜单新增”提示词模板”入口
     - 新增 PromptTemplateDialog 模板管理弹窗（搜索/分类/复制/编辑/删除）
   - 兼容性：
     - 新增 `data/prompt-templates.json`，不影响旧数据
@@ -402,8 +437,8 @@ comfy-manager/
   - 兼容性：
     - 无代码行为变更
   - AI 提示：
-    - 先读“第9节快速定位索引”，再进入代码修改。
+    - 先读”第9节快速定位索引”，再进入代码修改。
 
 ---
 
-*Generated/Updated by Claude Code (Opus 4.6) on 2026-04-13*
+*Generated/Updated by Claude Code (Opus 4.6) on 2026-04-14*
