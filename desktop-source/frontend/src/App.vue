@@ -221,6 +221,8 @@ import { watch } from 'vue'
 watch([activeRoot, activeSub, activeChild], () => {
     isSelectionMode.value = false
     selectedPaths.value.clear()
+    // 清除智能筛选状态
+    smartAlbumFilter.value = null
 })
 
 const toggleSelectionMode = () => {
