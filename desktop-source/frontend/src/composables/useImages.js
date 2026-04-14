@@ -569,8 +569,9 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
   })
 
   const toggleRoot = (name) => {
+    // 如果已经在该根目录，则切换到dashboard
     if (activeRoot.value === name) {
-      activeRoot.value = ''
+      activeRoot.value = 'dashboard'
       activeSub.value = ''
       activeChild.value = ''
     } else {

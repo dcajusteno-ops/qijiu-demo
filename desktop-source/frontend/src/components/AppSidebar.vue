@@ -659,7 +659,7 @@ const handleDrawerClick = (subId) => {
                 <ChevronRight v-if="!collapsed" class="h-4 w-4 text-muted-foreground" />
              </Button>
           </PopoverTrigger>
-          <PopoverContent side="right" align="end" :side-offset="12" class="w-56 p-2">
+          <PopoverContent side="right" align="end" :side-offset="12" class="w-56 p-2 ml-2 mb-2">
              <div class="space-y-1">
                 <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openTrashManager">
                    <Trash2 class="h-4 w-4 text-muted-foreground" />
