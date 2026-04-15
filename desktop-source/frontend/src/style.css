@@ -136,6 +136,24 @@
     @apply bg-background text-foreground;
     /* Redundant but good for safety */
     cursor: url('/cursors/default_small.png'), auto !important;
+    user-select: none;
+  }
+
+  #app,
+  button,
+  a,
+  p,
+  span,
+  div,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  label,
+  li {
+    user-select: none;
   }
 
   /* Interactive elements get the pointer */
@@ -161,18 +179,17 @@
   /* Text selection cursor */
   .cursor-text,
   input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="url"],
   input[type="password"],
+  select,
   textarea,
-  .prose,
-  p,
-  span,
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  option,
+  [contenteditable="true"],
+  .selectable-text {
     cursor: url('/cursors/text.png'), text !important;
+    user-select: text !important;
   }
 
   /* Move/Drag cursor */

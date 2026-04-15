@@ -803,8 +803,8 @@ const insightCards = computed(() => [
         </Card>
       </section>
 
-      <section id="stats-timeline-section" class="grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_380px]">
-        <Card class="rounded-[28px] border-border/70 bg-card p-6 shadow-none">
+      <section id="stats-timeline-section" class="grid gap-6 xl:h-[calc(100vh-12rem)] xl:grid-cols-[minmax(0,1.08fr)_380px]">
+        <Card class="rounded-[28px] border-border/70 bg-card p-6 shadow-none xl:flex xl:h-full xl:flex-col xl:overflow-hidden">
           <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div class="space-y-2">
               <div class="flex items-center gap-2 text-muted-foreground">
@@ -821,11 +821,11 @@ const insightCards = computed(() => [
             </div>
           </div>
 
-          <div v-if="!timelineEntries.length" class="mt-6 flex h-[340px] items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
+          <div v-if="!timelineEntries.length" class="mt-6 flex h-[340px] items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground xl:flex-1">
             {{ TEXT.emptyTimeline }}
           </div>
 
-          <div v-else class="mt-8 space-y-8">
+          <div v-else class="mt-8 space-y-8 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-2 custom-scrollbar">
             <div v-for="group in timelineYearGroups" :key="group.year" class="grid gap-4 md:grid-cols-[72px_minmax(0,1fr)]">
               <div class="pt-2 text-[13px] font-medium tracking-wide text-muted-foreground">{{ group.year }}</div>
               <div class="relative space-y-3 pl-6">
@@ -880,7 +880,7 @@ const insightCards = computed(() => [
           </div>
         </Card>
 
-        <Card class="rounded-[28px] border-border/70 bg-card p-6 shadow-none">
+        <Card class="rounded-[28px] border-border/70 bg-card p-6 shadow-none xl:flex xl:h-full xl:flex-col xl:overflow-hidden">
           <div class="space-y-2">
             <div class="flex items-center gap-2 text-muted-foreground">
               <ArrowUpRight class="h-4 w-4" />
@@ -892,11 +892,11 @@ const insightCards = computed(() => [
             </p>
           </div>
 
-          <div v-if="!activeTimelineEntry" class="mt-6 flex h-[220px] items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
+          <div v-if="!activeTimelineEntry" class="mt-6 flex h-[220px] items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground xl:flex-1">
             {{ TEXT.emptyDetail }}
           </div>
 
-          <div v-else class="mt-6 space-y-4">
+          <div v-else class="mt-6 space-y-4 xl:min-h-0 xl:flex xl:flex-1 xl:flex-col">
             <div class="grid gap-3 sm:grid-cols-2">
               <div class="rounded-2xl border border-border bg-background p-4">
                 <div class="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -915,40 +915,42 @@ const insightCards = computed(() => [
               </div>
             </div>
 
-            <div v-if="visibleTimelineImagesList.length" class="grid gap-3">
-              <article v-for="(image, index) in visibleTimelineImagesList" :key="image.relPath" class="overflow-hidden rounded-2xl border border-border bg-background">
-                <button type="button" class="block w-full" @click="openTimelineLightbox(activeTimelineEntry.images, index)">
-                  <div class="aspect-[16/9] overflow-hidden bg-muted/20">
-                    <img :src="image.path" :alt="image.name" class="h-full w-full object-cover" loading="lazy" />
-                  </div>
-                </button>
+            <div class="xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-2 custom-scrollbar">
+              <div v-if="visibleTimelineImagesList.length" class="grid gap-3">
+                <article v-for="(image, index) in visibleTimelineImagesList" :key="image.relPath" class="overflow-hidden rounded-2xl border border-border bg-background">
+                  <button type="button" class="block w-full" @click="openTimelineLightbox(activeTimelineEntry.images, index)">
+                    <div class="aspect-[16/9] overflow-hidden bg-muted/20">
+                      <img :src="image.path" :alt="image.name" class="h-full w-full object-cover" loading="lazy" />
+                    </div>
+                  </button>
 
-                <div class="space-y-3 p-4">
-                  <div>
-                    <p class="truncate text-[13px] font-medium text-foreground">{{ image.name }}</p>
-                    <p class="mt-1 text-xs text-muted-foreground">{{ dateTimeFormatter.format(new Date(image.modTime)) }}</p>
-                  </div>
+                  <div class="space-y-3 p-4">
+                    <div>
+                      <p class="truncate text-[13px] font-medium text-foreground">{{ image.name }}</p>
+                      <p class="mt-1 text-xs text-muted-foreground">{{ dateTimeFormatter.format(new Date(image.modTime)) }}</p>
+                    </div>
 
-                  <div class="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" class="h-8 rounded-full px-3 text-xs shadow-none" @click="openTimelineLightbox(activeTimelineEntry.images, index)">{{ TEXT.preview }}</Button>
-                    <Button variant="outline" size="sm" class="h-8 rounded-full px-3 text-xs shadow-none" @click="openImageLocation(image)">
-                      <FolderOpen class="mr-1.5 h-3.5 w-3.5" />
-                      {{ TEXT.locate }}
-                    </Button>
-                    <Button variant="outline" size="sm" class="h-8 rounded-full border-red-500/30 px-3 text-xs text-red-500 shadow-none hover:bg-red-500/8 hover:text-red-400" @click="handleTimelineDelete(image)">{{ TEXT.delete }}</Button>
+                    <div class="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" class="h-8 rounded-full px-3 text-xs shadow-none" @click="openTimelineLightbox(activeTimelineEntry.images, index)">{{ TEXT.preview }}</Button>
+                      <Button variant="outline" size="sm" class="h-8 rounded-full px-3 text-xs shadow-none" @click="openImageLocation(image)">
+                        <FolderOpen class="mr-1.5 h-3.5 w-3.5" />
+                        {{ TEXT.locate }}
+                      </Button>
+                      <Button variant="outline" size="sm" class="h-8 rounded-full border-red-500/30 px-3 text-xs text-red-500 shadow-none hover:bg-red-500/8 hover:text-red-400" @click="handleTimelineDelete(image)">{{ TEXT.delete }}</Button>
+                    </div>
                   </div>
+                </article>
+
+                <div class="flex justify-center">
+                  <Button v-if="activeTimelineEntry.images.length > visibleTimelineImages" variant="outline" class="h-10 rounded-full px-6 shadow-none" @click="visibleTimelineImages += 8">
+                    {{ TEXT.loadMoreImages }}
+                  </Button>
                 </div>
-              </article>
-
-              <div class="flex justify-center">
-                <Button v-if="activeTimelineEntry.images.length > visibleTimelineImages" variant="outline" class="h-10 rounded-full px-6 shadow-none" @click="visibleTimelineImages += 8">
-                  {{ TEXT.loadMoreImages }}
-                </Button>
               </div>
-            </div>
 
-            <div v-else class="flex h-32 items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
-              {{ TEXT.emptyImages }}
+              <div v-else class="flex h-32 items-center justify-center rounded-2xl border border-dashed border-border text-sm text-muted-foreground">
+                {{ TEXT.emptyImages }}
+              </div>
             </div>
           </div>
         </Card>

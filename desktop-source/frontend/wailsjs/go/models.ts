@@ -202,6 +202,32 @@ export namespace main {
 	        this.icon = source["icon"];
 	    }
 	}
+	export class UserProfile {
+	    displayName?: string;
+	    headline?: string;
+	    bio?: string;
+	    location?: string;
+	    website?: string;
+	    dailyGoal?: number;
+	    preferredStartPage?: string;
+	    imagePath?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UserProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.displayName = source["displayName"];
+	        this.headline = source["headline"];
+	        this.bio = source["bio"];
+	        this.location = source["location"];
+	        this.website = source["website"];
+	        this.dailyGoal = source["dailyGoal"];
+	        this.preferredStartPage = source["preferredStartPage"];
+	        this.imagePath = source["imagePath"];
+	    }
+	}
 	export class ShortcutBinding {
 	    action: string;
 	    accelerator: string;
@@ -254,6 +280,7 @@ export namespace main {
 	    outputDir?: string;
 	    pathVersion?: number;
 	    shortcutSettings?: ShortcutSettings;
+	    userProfile?: UserProfile;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -266,6 +293,7 @@ export namespace main {
 	        this.outputDir = source["outputDir"];
 	        this.pathVersion = source["pathVersion"];
 	        this.shortcutSettings = this.convertValues(source["shortcutSettings"], ShortcutSettings);
+	        this.userProfile = this.convertValues(source["userProfile"], UserProfile);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

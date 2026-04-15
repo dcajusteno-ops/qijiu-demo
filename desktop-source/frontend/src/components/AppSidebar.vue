@@ -43,6 +43,7 @@ import {
   Search,
   FolderTree,
   Keyboard,
+  UserRound,
 } from 'lucide-vue-next'
 import { isDark, toggleTheme } from '@/theme'
 import TrashDialog from './TrashDialog.vue'
@@ -344,17 +345,34 @@ const handleDrawerClick = (subId) => {
   <aside class="h-full bg-muted/30 border-r flex flex-col transition-all duration-300" :class="collapsed ? 'w-[60px]' : 'w-64'">
     
     <!-- Header / Title -->
-    <div class="h-16 shrink-0 flex items-center px-4 border-b bg-background/50">
-      <div v-if="!collapsed" class="flex items-center gap-2 text-primary font-semibold truncate tracking-tight">
-          <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <span class="truncate">灵动图库</span>
+    <div class="h-16 shrink-0 border-b bg-background/50">
+      <div v-if="!collapsed" class="flex h-full items-center justify-between px-4">
+        <div class="flex min-w-0 items-center gap-2 text-primary font-semibold tracking-tight">
+            <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span class="truncate">灵动图库</span>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
+          title="收起侧边栏"
+          @click="$emit('toggle-collapse')"
+        >
+          <PanelLeftClose class="h-4 w-4" />
+        </Button>
       </div>
-      <div v-else class="w-full flex justify-center text-primary">
-          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
+      <div v-else class="flex h-full items-center justify-center">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-9 w-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
+          title="展开侧边栏"
+          @click="$emit('toggle-collapse')"
+        >
+          <PanelLeftOpen class="h-5 w-5" />
+        </Button>
       </div>
     </div>
 
@@ -668,7 +686,17 @@ const handleDrawerClick = (subId) => {
     </div>
 
     <!-- Footer - Always visible -->
-    <div class="shrink-0 border-t bg-background" :class="collapsed ? 'p-2 space-y-2' : 'p-3'">
+    <div class="shrink-0 border-t bg-background" :class="collapsed ? 'p-2 space-y-3' : 'p-3 space-y-3'">
+       <Button
+          variant="outline"
+          :class="collapsed ? 'w-full justify-center px-0 h-10' : 'w-full justify-start gap-2 h-9 px-3 text-sm font-medium'"
+          @click="$emit('update:activeRoot', 'profile')"
+          :title="collapsed ? '个人中心' : ''"
+       >
+          <UserRound class="h-4 w-4 text-muted-foreground" :class="{'h-5 w-5': collapsed}" />
+          <span v-if="!collapsed">个人中心</span>
+       </Button>
+
        <Popover v-model:open="showUtilityMenu">
           <PopoverTrigger as-child>
              <Button
@@ -724,23 +752,17 @@ const handleDrawerClick = (subId) => {
                    <FolderSymlink class="h-4 w-4 text-muted-foreground" />
                    <span>管理目录</span>
                 </Button>
+                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openShortcutSettings">
+                   <Keyboard class="h-4 w-4 text-muted-foreground" />
+                   <span>快捷键设置</span>
+                </Button>
              </div>
           </PopoverContent>
        </Popover>
 
-       <Button
-          variant="outline"
-          :class="collapsed ? 'mt-2 w-full justify-center px-0 h-10' : 'mt-2 w-full justify-start gap-2 h-9 px-3 text-sm font-medium'"
-          @click="openShortcutSettings"
-          :title="collapsed ? '快捷键设置' : ''"
-       >
-          <Keyboard class="h-4 w-4 text-muted-foreground" :class="{'h-5 w-5': collapsed}" />
-          <span v-if="!collapsed">快捷键设置</span>
-       </Button>
-
        <Button 
           :variant="isSelectionMode ? 'default' : 'secondary'"
-          :class="collapsed ? 'w-full justify-center px-0 h-10' : 'mt-2 w-full justify-start gap-2 h-9 px-3 text-sm font-medium'"
+          :class="collapsed ? 'w-full justify-center px-0 h-10' : 'w-full justify-start gap-2 h-9 px-3 text-sm font-medium'"
           @click="$emit('toggle-selection-mode')"
           :title="collapsed ? (isSelectionMode ? '退出批量模式' : '批量模式') : ''"
        >

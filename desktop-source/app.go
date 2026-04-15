@@ -111,6 +111,18 @@ type Settings struct {
 	OutputDir          string           `json:"outputDir,omitempty"`
 	PathVersion        int              `json:"pathVersion,omitempty"`
 	ShortcutSettings   ShortcutSettings `json:"shortcutSettings,omitempty"`
+	UserProfile        UserProfile      `json:"userProfile,omitempty"`
+}
+
+type UserProfile struct {
+	DisplayName        string `json:"displayName,omitempty"`
+	Headline           string `json:"headline,omitempty"`
+	Bio                string `json:"bio,omitempty"`
+	Location           string `json:"location,omitempty"`
+	Website            string `json:"website,omitempty"`
+	DailyGoal          int    `json:"dailyGoal,omitempty"`
+	PreferredStartPage string `json:"preferredStartPage,omitempty"`
+	ImagePath          string `json:"imagePath,omitempty"`
 }
 
 type LauncherTool struct {
@@ -827,6 +839,7 @@ func (a *App) imageNotesFile() string      { return filepath.Join(a.dataDir, "im
 func (a *App) imageMetaCacheFile() string {
 	return filepath.Join(a.dataDir, "image-meta-cache.json")
 }
+func (a *App) profileImageDir() string  { return filepath.Join(a.dataDir, "profile") }
 func (a *App) imageVariantsDir() string { return filepath.Join(a.dataDir, "image-variants") }
 func (a *App) previewVariantsDir() string {
 	return filepath.Join(a.imageVariantsDir(), "preview")
@@ -902,6 +915,35 @@ func uniqueNonEmptyStrings(items []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
+}
+
+func isSupportedProfileImageExt(ext string) bool {
+	switch strings.ToLower(ext) {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif":
+		return true
+	default:
+		return false
+	}
+}
+
+func copyFile(sourcePath, destPath string) error {
+	input, err := os.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+
+	output, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+
+	if _, err := io.Copy(output, input); err != nil {
+		return err
+	}
+
+	return output.Close()
 }
 
 func normalizeFavoriteGroups(groups []FavoriteGroup) []FavoriteGroup {
@@ -1924,6 +1966,7 @@ func (a *App) loadSettings() (Settings, error) {
 		return Settings{
 			TrashRetentionDays: 30,
 			ShortcutSettings:   defaultShortcutSettings(),
+			UserProfile:        defaultUserProfile(),
 		}, nil
 	}
 	json.Unmarshal(data, &settings)
@@ -1931,12 +1974,64 @@ func (a *App) loadSettings() (Settings, error) {
 		settings.TrashRetentionDays = 30
 	}
 	settings.ShortcutSettings = normalizeShortcutSettings(settings.ShortcutSettings)
+	settings.UserProfile = normalizeUserProfile(settings.UserProfile)
 	return settings, nil
 }
 
 func (a *App) saveSettings(settings Settings) error {
 	data, _ := json.MarshalIndent(settings, "", "  ")
 	return os.WriteFile(a.settingsFile(), data, 0644)
+}
+
+func defaultUserProfile() UserProfile {
+	return UserProfile{
+		DisplayName:        "创作者",
+		Headline:           "把灵感整理成稳定、清爽的作品集",
+		Bio:                "这里保存你的出图节奏、偏好设置和常用入口，让工作流保持顺手。",
+		Location:           "",
+		Website:            "",
+		DailyGoal:          12,
+		PreferredStartPage: "dashboard",
+		ImagePath:          "",
+	}
+}
+
+func normalizeUserProfile(profile UserProfile) UserProfile {
+	defaults := defaultUserProfile()
+
+	profile.DisplayName = strings.TrimSpace(profile.DisplayName)
+	if profile.DisplayName == "" {
+		profile.DisplayName = defaults.DisplayName
+	}
+
+	profile.Headline = strings.TrimSpace(profile.Headline)
+	if profile.Headline == "" {
+		profile.Headline = defaults.Headline
+	}
+
+	profile.Bio = strings.TrimSpace(profile.Bio)
+	if profile.Bio == "" {
+		profile.Bio = defaults.Bio
+	}
+
+	profile.Location = strings.TrimSpace(profile.Location)
+	profile.Website = strings.TrimSpace(profile.Website)
+	profile.ImagePath = normalizeRelPath(strings.TrimSpace(profile.ImagePath))
+
+	if profile.DailyGoal <= 0 {
+		profile.DailyGoal = defaults.DailyGoal
+	}
+	if profile.DailyGoal > 999 {
+		profile.DailyGoal = 999
+	}
+
+	switch profile.PreferredStartPage {
+	case "dashboard", "statistics", "profile", "favorites", "documentation", "output":
+	default:
+		profile.PreferredStartPage = defaults.PreferredStartPage
+	}
+
+	return profile
 }
 
 func (a *App) loadImageMetaCache() (ImageMetaCache, error) {
@@ -3171,6 +3266,115 @@ func (a *App) SaveTrashSettings(settings Settings) error {
 		current.TrashRetentionDays = 30
 	}
 	return a.saveSettings(current)
+}
+
+func (a *App) GetUserProfile() (UserProfile, error) {
+	settings, err := a.loadSettings()
+	if err != nil {
+		return defaultUserProfile(), err
+	}
+	return settings.UserProfile, nil
+}
+
+func (a *App) SaveUserProfile(profile UserProfile) (UserProfile, error) {
+	settings, err := a.loadSettings()
+	if err != nil {
+		return defaultUserProfile(), err
+	}
+
+	settings.UserProfile = normalizeUserProfile(profile)
+	if err := a.saveSettings(settings); err != nil {
+		return defaultUserProfile(), err
+	}
+
+	return settings.UserProfile, nil
+}
+
+func (a *App) saveUserProfileImage(sourcePath string) (UserProfile, error) {
+	settings, err := a.loadSettings()
+	if err != nil {
+		return defaultUserProfile(), err
+	}
+
+	ext := strings.ToLower(filepath.Ext(sourcePath))
+	if !isSupportedProfileImageExt(ext) {
+		return settings.UserProfile, fmt.Errorf("unsupported image format")
+	}
+
+	if err := os.MkdirAll(a.profileImageDir(), 0755); err != nil {
+		return settings.UserProfile, err
+	}
+
+	existing, _ := filepath.Glob(filepath.Join(a.profileImageDir(), "profile-image.*"))
+	for _, item := range existing {
+		if err := os.Remove(item); err != nil && !os.IsNotExist(err) {
+			return settings.UserProfile, err
+		}
+	}
+
+	targetName := "profile-image" + ext
+	targetPath := filepath.Join(a.profileImageDir(), targetName)
+	if err := copyFile(sourcePath, targetPath); err != nil {
+		return settings.UserProfile, err
+	}
+
+	relPath, err := filepath.Rel(a.rootDir, targetPath)
+	if err != nil {
+		return settings.UserProfile, err
+	}
+
+	settings.UserProfile.ImagePath = normalizeRelPath(relPath)
+	settings.UserProfile = normalizeUserProfile(settings.UserProfile)
+	if err := a.saveSettings(settings); err != nil {
+		return settings.UserProfile, err
+	}
+
+	return settings.UserProfile, nil
+}
+
+func (a *App) SelectUserProfileImage() (UserProfile, error) {
+	options := runtime.OpenDialogOptions{
+		Title: "选择个人中心图片",
+		Filters: []runtime.FileFilter{
+			{
+				DisplayName: "Image Files (*.png;*.jpg;*.jpeg;*.webp;*.gif)",
+				Pattern:     "*.png;*.jpg;*.jpeg;*.webp;*.gif",
+			},
+		},
+	}
+
+	filePath, err := runtime.OpenFileDialog(a.ctx, options)
+	if err != nil {
+		return defaultUserProfile(), err
+	}
+
+	if strings.TrimSpace(filePath) == "" {
+		return a.GetUserProfile()
+	}
+
+	return a.saveUserProfileImage(filePath)
+}
+
+func (a *App) ClearUserProfileImage() (UserProfile, error) {
+	settings, err := a.loadSettings()
+	if err != nil {
+		return defaultUserProfile(), err
+	}
+
+	existing, _ := filepath.Glob(filepath.Join(a.profileImageDir(), "profile-image.*"))
+	for _, item := range existing {
+		if err := os.Remove(item); err != nil && !os.IsNotExist(err) {
+			return settings.UserProfile, err
+		}
+	}
+
+	settings.UserProfile.ImagePath = ""
+	settings.UserProfile = normalizeUserProfile(settings.UserProfile)
+	if err := a.saveSettings(settings); err != nil {
+		return settings.UserProfile, err
+	}
+
+	return settings.UserProfile, nil
 }
 
 func (a *App) GetDirectoryBinding() (DirectoryBinding, error) {

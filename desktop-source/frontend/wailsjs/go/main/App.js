@@ -70,6 +70,10 @@ export function ClearPreviewCache() {
   return window['go']['main']['App']['ClearPreviewCache']();
 }
 
+export function ClearUserProfileImage() {
+  return window['go']['main']['App']['ClearUserProfileImage']();
+}
+
 export function CopyText(arg1) {
   return window['go']['main']['App']['CopyText'](arg1);
 }
@@ -210,6 +214,10 @@ export function GetTrashSettings() {
   return window['go']['main']['App']['GetTrashSettings']();
 }
 
+export function GetUserProfile() {
+  return window['go']['main']['App']['GetUserProfile']();
+}
+
 export function OpenFile(arg1) {
   return window['go']['main']['App']['OpenFile'](arg1);
 }
@@ -254,8 +262,16 @@ export function SaveTrashSettings(arg1) {
   return window['go']['main']['App']['SaveTrashSettings'](arg1);
 }
 
+export function SaveUserProfile(arg1) {
+  return window['go']['main']['App']['SaveUserProfile'](arg1);
+}
+
 export function SelectFolder() {
   return window['go']['main']['App']['SelectFolder']();
+}
+
+export function SelectUserProfileImage() {
+  return window['go']['main']['App']['SelectUserProfileImage']();
 }
 
 export function SetImageFavoriteGroups(arg1, arg2) {

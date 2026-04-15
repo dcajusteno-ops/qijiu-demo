@@ -4,6 +4,7 @@ import AppSidebar from './components/AppSidebar.vue'
 import ImageGallery from './components/ImageGallery.vue'
 import Home from './components/Home.vue'
 import Documentation from './components/Documentation.vue'
+import ProfileCenter from './components/ProfileCenter.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css' // Import sonner styles
@@ -389,6 +390,14 @@ let unsubscribeImagesChanged = null
 let unsubscribeShortcutTriggered = null
 onMounted(async () => {
     await fetchCustomRoots()
+    try {
+        const profile = await App.GetUserProfile()
+        if (profile?.preferredStartPage) {
+            setActiveView(profile.preferredStartPage)
+        }
+    } catch (e) {
+        console.error('Failed to load preferred start page:', e)
+    }
     await fetchImages()
     fetchTags()
     fetchImageTags()
@@ -449,6 +458,9 @@ onUnmounted(() => {
         <div v-if="activeRoot === 'dashboard'" class="h-full overflow-hidden">
              <Home />
         </div>
+        <div v-else-if="activeRoot === 'profile'" class="h-full overflow-hidden">
+             <ProfileCenter @navigate="setActiveView" />
+        </div>
         <div v-else-if="activeRoot === 'documentation'" class="h-full overflow-hidden">
              <Documentation />
         </div>
@@ -474,7 +486,6 @@ onUnmounted(() => {
             :current-page="currentPage"
             :items-per-page="itemsPerPage"
             :total-pages="totalPages"
-            :is-sidebar-collapsed="isSidebarCollapsed"
             @delete="deleteImage"
             @toggle-selection="toggleSelection"
             @select-all="selectAllCurrent"
@@ -490,7 +501,6 @@ onUnmounted(() => {
             @page-change="setPage"
             @items-per-page-change="setItemsPerPage"
             @open-location="openImageLocation"
-            @toggle-sidebar="toggleSidebar"
             @clear-smart-album-filter="smartAlbumFilter = null"
         />
     </div>

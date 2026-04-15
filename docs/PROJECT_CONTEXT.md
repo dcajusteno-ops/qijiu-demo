@@ -22,6 +22,7 @@
 - 自定义根目录（多目录纳管）
 - 智能相册（模型 / 采样器 / LoRA / 尺寸）
 - 数据视界（生成历史时间线 / 趋势图 / 活跃热图 / 节点回溯）
+- 个人中心（资料编辑 / 默认进入页 / 单张展示图 / 创作摘要）
 - 全局快捷键（系统级快捷键动作与设置）
 - 外部工具启动器与提示词工具链接
 - 缩略图/预览缓存管理
@@ -178,6 +179,7 @@ comfy-manager/
 - 图片笔记：`GetImageNotes` / `SetImageNote` / `DeleteImageNote`
 - 启动器：`GetLauncherTools` / `AddLauncherTool` / `UpdateLauncherTool` / `DeleteLauncherTool` / `RunLauncherTool` / `ExtractIcon`
 - 提示词工具链接：`GetPromptToolLinks` / `AddPromptToolLink` / `UpdatePromptToolLink` / `DeletePromptToolLink`
+- 个人中心：`GetUserProfile` / `SaveUserProfile`
 - 统计：`GetStatistics`
 - 智能相册：`GetSmartAlbumFields` / `GetSmartAlbums`
 - 缓存管理：`ClearPreviewCache`
@@ -233,7 +235,7 @@ comfy-manager/
 - `FilterPanel.vue`：日期/大小/尺寸过滤 + 堆叠开关
 - `TrashDialog.vue`：回收站管理与设置
 - `LauncherDialog.vue`：外部工具配置与运行
-- `StatisticsDashboard.vue` / `Home.vue`：主页与统计展示
+- `StatisticsDashboard.vue` / `Home.vue` / `ProfileCenter.vue`：主页、统计与个人中心展示
 
 ---
 
@@ -245,7 +247,7 @@ comfy-manager/
 - `image-tags.json`：图片-标签映射
 - `image-notes.json`：图片笔记
 - `custom-roots.json`：自定义根目录
-- `settings.json`：设置（含回收站保留期、路径绑定、快捷键配置）
+- `settings.json`：设置（含回收站保留期、路径绑定、快捷键配置、个人中心资料与展示图路径）
 - `trash-metadata.json`：回收站原路径/删除时间
 - `image-meta-cache.json`：图片元数据缓存
 - `launcher-tools.json`：外部工具
@@ -321,6 +323,7 @@ comfy-manager/
 - 侧栏：`desktop-source/frontend/src/components/AppSidebar.vue`
 - 画廊：`desktop-source/frontend/src/components/ImageGallery.vue`
 - 灯箱：`desktop-source/frontend/src/components/Lightbox.vue`
+- 个人中心：`desktop-source/frontend/src/components/ProfileCenter.vue`
 
 ---
 
@@ -357,6 +360,35 @@ comfy-manager/
 ---
 
 ## 11. 最近变更记录
+
+- **2026-04-15 | v1.6.0 - 个人中心与数据视界细化**
+  - 影响范围：后端/前端/设置结构/发布产物/文档
+  - 变更文件：
+    - `desktop-source/app.go`
+    - `desktop-source/frontend/src/api.js`
+    - `desktop-source/frontend/src/App.vue`
+    - `desktop-source/frontend/src/components/AppSidebar.vue`
+    - `desktop-source/frontend/src/components/ImageGallery.vue`
+    - `desktop-source/frontend/src/components/StatisticsDashboard.vue`
+    - `desktop-source/frontend/src/components/ProfileCenter.vue`
+    - `desktop-source/frontend/src/style.css`
+    - `docs/RELEASE.md`
+    - `docs/README.md`
+    - `docs/PROJECT_CONTEXT.md`
+    - `desktop-app.exe`
+  - 行为变化：
+    - 新增“个人中心”一级页面，支持编辑昵称、简介、主页链接、每日目标、默认进入页和单张展示图
+    - `settings.json` 新增 `userProfile` 持久化结构，应用启动时会按用户配置自动进入对应页面，并保存展示图路径
+    - 个人中心聚合今日出图、本月产出、创作节奏、收藏分组、标签数量与主题切换入口，并经过多轮重排，调整为更紧凑的左主内容 + 右侧功能栏布局
+    - 个人中心支持单张图片上传覆盖、调用项目内置主题切换逻辑，并统一侧栏入口与大部分文本不可选行为
+    - “数据视界”支持时间线与节点详情分栏独立滚动，节点详情顶部的作品规模与空间占用固定显示，不再随作品列表一起滚动
+  - 兼容性：
+    - 旧 `settings.json` 会自动补齐默认个人资料，不影响现有快捷键、回收站和路径绑定配置
+    - 不影响既有图库、标签、收藏、回收站与提示词模板数据
+  - AI 提示：
+    - 若继续扩展个人中心字段或展示图逻辑，优先查看 `app.go` 中的 `UserProfile`、`normalizeUserProfile`、`SelectUserProfileImage` 与 `ProfileCenter.vue`
+    - 若调整默认进入页行为，优先查看 `App.vue` 的启动初始化逻辑
+    - 若继续调整统计页滚动与节点详情布局，优先查看 `StatisticsDashboard.vue` 中时间线容器与详情容器的 `xl:flex / xl:overflow-y-auto` 结构
 
 - **2026-04-15 | v1.5 - 数据视界重构与全局快捷键**
   - 影响范围：后端/前端/发布产物/设置结构

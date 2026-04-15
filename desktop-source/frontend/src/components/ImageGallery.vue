@@ -17,7 +17,7 @@ import StatisticsDashboard from './StatisticsDashboard.vue'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
-import { Heart, Grid, Download, BarChart3, Upload, Layers, PanelLeftClose, PanelLeftOpen, X } from 'lucide-vue-next'
+import { Heart, Grid, Download, BarChart3, Upload, Layers, X } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import * as App from '@/api'
 import { useImages } from '@/composables/useImages'
@@ -49,8 +49,7 @@ const props = defineProps({
   smartAlbumFilter: { type: Object, default: null },
   currentPage: { type: Number, default: 1 },
   itemsPerPage: { type: Number, default: 50 },
-  totalPages: { type: Number, default: 1 },
-  isSidebarCollapsed: { type: Boolean, default: false }
+  totalPages: { type: Number, default: 1 }
 })
 
 const emit = defineEmits([
@@ -68,7 +67,6 @@ const emit = defineEmits([
   'page-change',
   'items-per-page-change',
   'open-location',
-  'toggle-sidebar',
   'clear-smart-album-filter',
 ])
 
@@ -347,18 +345,6 @@ watch(() => props.currentPage, () => {
       <!-- Header -->
       <header class="h-16 flex-none flex items-center justify-between px-6 bg-background/80 backdrop-blur-md border-b z-10 select-none">
           <div class="flex items-center gap-4">
-              <!-- Collapse Toggle - Integrated into gallery header -->
-              <Button
-                  variant="ghost"
-                  size="icon"
-                  class="h-8 w-8 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
-                  :title="isSidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
-                  @click="emit('toggle-sidebar')"
-              >
-                  <PanelLeftClose v-if="!isSidebarCollapsed" class="h-5 w-5" />
-                  <PanelLeftOpen v-else class="h-5 w-5" />
-              </Button>
-
               <div v-if="rootName === 'statistics'" class="flex flex-col justify-center">
                  <h2 class="text-xl font-semibold tracking-tight">数据视界</h2>
                  <p class="text-xs text-muted-foreground">生成历史时间线与趋势分析</p>

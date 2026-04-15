@@ -36,6 +36,8 @@ export function CleanupTags():Promise<number>;
 
 export function ClearPreviewCache():Promise<main.CacheClearResult>;
 
+export function ClearUserProfileImage():Promise<main.UserProfile>;
+
 export function CopyText(arg1:string):Promise<void>;
 
 export function CreateFavoriteGroup(arg1:string):Promise<main.FavoriteGroup>;
@@ -106,6 +108,8 @@ export function GetTrashList():Promise<Array<main.TrashItem>>;
 
 export function GetTrashSettings():Promise<main.Settings>;
 
+export function GetUserProfile():Promise<main.UserProfile>;
+
 export function OpenFile(arg1:string):Promise<void>;
 
 export function OpenImageLocation(arg1:string):Promise<void>;
@@ -128,7 +132,11 @@ export function SaveShortcutSettings(arg1:main.ShortcutSettings):Promise<main.Sh
 
 export function SaveTrashSettings(arg1:main.Settings):Promise<void>;
 
+export function SaveUserProfile(arg1:main.UserProfile):Promise<main.UserProfile>;
+
 export function SelectFolder():Promise<string>;
+
+export function SelectUserProfileImage():Promise<main.UserProfile>;
 
 export function SetImageFavoriteGroups(arg1:string,arg2:Array<string>):Promise<void>;
 

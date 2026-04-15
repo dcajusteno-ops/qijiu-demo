@@ -43,7 +43,7 @@ cp desktop-source/build/bin/desktop-app.exe desktop-app.exe
 
 > **重要：** 每次发版都必须更新并提交 `desktop-app.exe`，保持仓库中的可执行文件与版本号同步。
 
-当前最新 Release：[`v1.5`](https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v1.5)
+当前最新 Release：[`v1.6.0`](https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v1.6.0)
 
 ### 4. 提交代码
 
@@ -135,7 +135,7 @@ gh release create v1.1.0 \
 
 ```bash
 # 设置版本号
-VER=v1.5
+VER=v1.6.0
 
 # 编译
 cd desktop-source && wails build && cd ..
@@ -165,6 +165,7 @@ gh release create $VER \
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| v1.6.0 | 2026-04-15 | 新增简约风“个人中心”，支持资料编辑、默认进入页、单张展示图与创作摘要；优化“数据视界”节点详情固定统计与分栏滚动体验 |
 | v1.5 | 2026-04-15 | 新增“数据视界”生成历史时间线、趋势图与活跃热图；新增全局快捷键设置与系统级视图切换 |
 | v1.4.1 | 2026-04-14 | 修复提示词模板弹窗交互与边框显示，统一 Wails 发布产物文件名为 `desktop-app.exe` |
 | v1.4.0 | 2026-04-14 | 修复智能筛选路径叠加问题，改进侧边栏导航逻辑 |
