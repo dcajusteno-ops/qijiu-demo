@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import {
   Carousel,
@@ -119,13 +119,13 @@ const stats = ref({
 })
 const statsLoading = ref(true)
 const greetingMessages = [
-  '欢迎回来。您的创意空间已就绪。',
+  '欢迎回来，你的创作空间已经准备好了。',
   '今天也适合开工，灵感和作品都在等你。',
   '新的画面，新的惊喜，先挑一张开始吧。',
-  '愿你今天出图顺利，张张都有想要的感觉。',
-  '工作室已经准备好，去翻翻最近的新作品吧。',
+  '愿你今天出图顺利，每一张都更接近想要的感觉。',
+  '工作台已经就绪，去看看最近的新作品吧。',
   '灵感补给完毕，现在就开始新的创作。',
-  '先看两眼成果，再继续把灵感变成图片。',
+  '先看几眼成果，再继续把灵感变成图像。',
   '今天的创作舞台已经亮灯，随时可以开始。',
 ]
 const greetingMessage = ref(greetingMessages[0])
@@ -240,7 +240,7 @@ const navigateToFavorites = () => {
     <div class="flex-none mb-6">
        <div class="flex items-center justify-between">
            <div class="space-y-1">
-             <h2 class="text-3xl font-bold tracking-tight">工作室概览</h2>
+             <h2 class="text-3xl font-bold tracking-tight">工作台总览</h2>
              <p class="text-muted-foreground">{{ greetingMessage }}</p>
            </div>
            
@@ -249,12 +249,12 @@ const navigateToFavorites = () => {
                     <Heart class="w-4 h-4 mr-2 text-red-500 fill-red-500/10" />
                     收藏夹
                 </Button>
-                <Button variant="outline" size="sm" @click="toggleRoot('statistics')" title="数据统计面板" class="bg-card/40 backdrop-blur-md border border-border/50 hover:bg-card/60">
+                <Button variant="outline" size="sm" @click="toggleRoot('statistics')" title="查看数据视界" class="bg-card/40 backdrop-blur-md border border-border/50 hover:bg-card/60">
                     <BarChart3 class="w-4 h-4 mr-2 text-blue-500" />
                     数据视界
                 </Button>
                 
-                <PromptToolsDropdown variant="outline" size="sm" :show-text="true" text="提示词辅助" class="bg-card/40 backdrop-blur-md border border-border/50 hover:bg-card/60" />
+                <PromptToolsDropdown variant="outline" size="sm" :show-text="true" text="提示词助手" class="bg-card/40 backdrop-blur-md border border-border/50 hover:bg-card/60" />
            </div>
        </div>
     </div>
@@ -300,7 +300,7 @@ const navigateToFavorites = () => {
                              </Badge>
                              <h1 class="text-3xl font-bold tracking-tight text-foreground">{{ recentImages[0].name }}</h1>
                              <p class="text-muted-foreground mt-1 text-sm font-medium">
-                                {{ new Date(recentImages[0].modTime).toLocaleString() }} · {{ (recentImages[0].size / 1024 / 1024).toFixed(2) }} MB
+                                {{ new Date(recentImages[0].modTime).toLocaleString() }} 路 {{ (recentImages[0].size / 1024 / 1024).toFixed(2) }} MB
                              </p>
                         </div>
                         
@@ -334,7 +334,7 @@ const navigateToFavorites = () => {
                 </Card>
                  <Card>
                     <CardHeader class="p-3 pb-1">
-                        <CardTitle class="text-sm font-bold text-muted-foreground uppercase tracking-wider">总图片</CardTitle>
+                        <CardTitle class="text-sm font-bold text-muted-foreground uppercase tracking-wider">图片总数</CardTitle>
                     </CardHeader>
                     <CardContent class="p-3 pt-0">
                         <div class="text-2xl font-bold">{{ stats.totalCount.toLocaleString() }}</div>
@@ -451,3 +451,4 @@ const navigateToFavorites = () => {
     </AlertDialog>
   </div>
 </template>
+

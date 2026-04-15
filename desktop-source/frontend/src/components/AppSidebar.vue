@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref, onMounted, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -32,6 +32,7 @@ import {
   ChevronDown,
   ChevronRight,
   LayoutDashboard,
+  BarChart3,
   Link,
   FolderSymlink,
   Cpu,
@@ -41,6 +42,7 @@ import {
   Sparkles,
   Search,
   FolderTree,
+  Keyboard,
 } from 'lucide-vue-next'
 import { isDark, toggleTheme } from '@/theme'
 import TrashDialog from './TrashDialog.vue'
@@ -48,6 +50,7 @@ import LauncherDialog from './LauncherDialog.vue'
 import CustomRootDialog from './CustomRootDialog.vue'
 import FavoriteGroupsDialog from './FavoriteGroupsDialog.vue'
 import PromptTemplateDialog from './PromptTemplateDialog.vue'
+import ShortcutSettingsDialog from './ShortcutSettingsDialog.vue'
 import { TerminalSquare } from 'lucide-vue-next'
 import { availableIcons } from '@/lib/icons'
 import * as App from '@/api'
@@ -146,7 +149,7 @@ const tagsByCategory = computed(() => {
     return groups
 })
 
-// Get category Names sorted ("未分组" always last)
+// Get category names sorted ("未分组" always last)
 const categoryNames = computed(() => {
     const names = Object.keys(tagsByCategory.value)
     return names.sort((a, b) => {
@@ -168,8 +171,8 @@ const getRecursiveCount = (node) => {
 }
 
 const formatFolderName = (name) => {
-    // Only add "月" if name matches exactly 2 digits (e.g. 01, 12)
-    if (/^\d{2}$/.test(name)) return name + '月'
+    // Add a month suffix for 2-digit folder names.
+    if (/^\d{2}$/.test(name)) return `${name}月`
     return name
 }
 
@@ -178,6 +181,7 @@ const showLauncherDialog = ref(false)
 const showCustomRootDialog = ref(false)
 const showFavoriteGroupsDialog = ref(false)
 const showPromptTemplateDialog = ref(false)
+const showShortcutDialog = ref(false)
 const isTagsCollapsed = ref(false)
 const showUtilityMenu = ref(false)
 
@@ -288,6 +292,11 @@ const openPromptTemplates = () => {
     closeUtilityMenu()
 }
 
+const openShortcutSettings = () => {
+    showShortcutDialog.value = true
+    closeUtilityMenu()
+}
+
 const openCustomRootManager = () => {
     showCustomRootDialog.value = true
     closeUtilityMenu()
@@ -362,11 +371,24 @@ const handleDrawerClick = (subId) => {
                   class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors hover:bg-secondary text-left relative group"
                   :class="activeRoot === 'dashboard' ? 'bg-secondary text-primary' : 'text-foreground/80'"
                   @click="$emit('update:activeRoot', 'dashboard')"
-                  :title="collapsed ? '工作室概览' : ''"
+                  :title="collapsed ? '工作台总览' : ''"
                 >
                   <div class="flex items-center gap-2">
                     <LayoutDashboard class="h-4 w-4" :class="activeRoot === 'dashboard' ? 'text-primary' : 'text-muted-foreground'" />
-                    <span v-if="!collapsed" class="truncate">工作室概览</span>
+                    <span v-if="!collapsed" class="truncate">工作台总览</span>
+                  </div>
+                </button>
+            </div>
+            <div class="space-y-1">
+                <button 
+                  class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors hover:bg-secondary text-left relative group"
+                  :class="activeRoot === 'statistics' ? 'bg-secondary text-primary' : 'text-foreground/80'"
+                  @click="$emit('update:activeRoot', 'statistics')"
+                  :title="collapsed ? '数据视界' : ''"
+                >
+                  <div class="flex items-center gap-2">
+                    <BarChart3 class="h-4 w-4" :class="activeRoot === 'statistics' ? 'text-primary' : 'text-muted-foreground'" />
+                    <span v-if="!collapsed" class="truncate">数据视界</span>
                   </div>
                 </button>
             </div>
@@ -587,7 +609,7 @@ const handleDrawerClick = (subId) => {
                     <div class="flex items-center gap-2 mb-2">
                       <component :is="smartAlbumFieldIcons[field.key] || Folder" class="h-4 w-4 text-purple-500" />
                       <span class="text-sm font-medium">{{ field.label }}</span>
-                      <span v-if="smartAlbumsData[field.key]" class="text-[10px] text-muted-foreground ml-auto">{{ smartAlbumsData[field.key].length }}项</span>
+                      <span v-if="smartAlbumsData[field.key]" class="text-[10px] text-muted-foreground ml-auto">{{ smartAlbumsData[field.key].length }} 项</span>
                     </div>
                     <div class="relative">
                       <input
@@ -706,14 +728,24 @@ const handleDrawerClick = (subId) => {
           </PopoverContent>
        </Popover>
 
+       <Button
+          variant="outline"
+          :class="collapsed ? 'mt-2 w-full justify-center px-0 h-10' : 'mt-2 w-full justify-start gap-2 h-9 px-3 text-sm font-medium'"
+          @click="openShortcutSettings"
+          :title="collapsed ? '快捷键设置' : ''"
+       >
+          <Keyboard class="h-4 w-4 text-muted-foreground" :class="{'h-5 w-5': collapsed}" />
+          <span v-if="!collapsed">快捷键设置</span>
+       </Button>
+
        <Button 
           :variant="isSelectionMode ? 'default' : 'secondary'"
           :class="collapsed ? 'w-full justify-center px-0 h-10' : 'mt-2 w-full justify-start gap-2 h-9 px-3 text-sm font-medium'"
           @click="$emit('toggle-selection-mode')"
-          :title="collapsed ? (isSelectionMode ? '退出批量' : '批量管理') : ''"
+          :title="collapsed ? (isSelectionMode ? '退出批量模式' : '批量模式') : ''"
        >
           <CheckSquare class="h-4 w-4" :class="{'h-5 w-5': collapsed}" />
-          <span v-if="!collapsed">{{ isSelectionMode ? '退出批量' : '批量管理' }}</span>
+          <span v-if="!collapsed">{{ isSelectionMode ? '退出批量模式' : '批量模式' }}</span>
        </Button>
     </div>
     
@@ -736,6 +768,9 @@ const handleDrawerClick = (subId) => {
     />
     <PromptTemplateDialog
       v-model:open="showPromptTemplateDialog"
+    />
+    <ShortcutSettingsDialog
+      v-model:open="showShortcutDialog"
     />
   </aside>
 
@@ -821,3 +856,5 @@ const handleDrawerClick = (subId) => {
     </div>
   </Teleport>
 </template>
+
+

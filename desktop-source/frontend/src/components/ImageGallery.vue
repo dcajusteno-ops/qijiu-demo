@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed } from 'vue'
 import ImageCard from './ImageCard.vue'
 import Lightbox from './Lightbox.vue'
@@ -359,7 +359,11 @@ watch(() => props.currentPage, () => {
                   <PanelLeftOpen v-else class="h-5 w-5" />
               </Button>
 
-              <div v-if="rootName !== 'statistics'" class="flex flex-col justify-center">
+              <div v-if="rootName === 'statistics'" class="flex flex-col justify-center">
+                 <h2 class="text-xl font-semibold tracking-tight">数据视界</h2>
+                 <p class="text-xs text-muted-foreground">生成历史时间线与趋势分析</p>
+              </div>
+              <div v-else class="flex flex-col justify-center">
                  <h2 class="text-xl font-semibold tracking-tight">
                     {{ rootLabel || rootName || '图片库' }}
                     <span v-if="subLabel && subLabel !== '默认'" class="text-muted-foreground font-normal">
@@ -381,11 +385,8 @@ watch(() => props.currentPage, () => {
                    清除智能筛选
                  </button>
               </div>
-              <div v-else class="flex flex-col justify-center">
-                  <!-- Empty space for statistics mode to align with other pages -->
-              </div>
           </div>
-          <div class="flex items-center gap-4">
+          <div v-if="rootName !== 'statistics'" class="flex items-center gap-4">
               <div v-if="isSelectionMode" class="flex items-center gap-2 text-sm font-medium transition-colors" :class="selectedPaths.size > 0 ? 'text-primary bg-primary/10 px-3 py-1 rounded-full' : 'text-muted-foreground bg-muted/50 border border-dashed border-muted-foreground/30 px-3 py-1 rounded-full'">
                   <span>{{ selectedPaths.size === 0 ? '批量模式：请点击选择图片' : `已选 ${selectedPaths.size} 张` }}</span>
                   <template v-if="selectedPaths.size > 0">
@@ -600,3 +601,4 @@ watch(() => props.currentPage, () => {
 
   </div>
 </template>
+

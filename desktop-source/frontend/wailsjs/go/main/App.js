@@ -174,6 +174,14 @@ export function GetRelativePath(arg1) {
   return window['go']['main']['App']['GetRelativePath'](arg1);
 }
 
+export function GetShortcutActions() {
+  return window['go']['main']['App']['GetShortcutActions']();
+}
+
+export function GetShortcutSettings() {
+  return window['go']['main']['App']['GetShortcutSettings']();
+}
+
 export function GetSmartAlbumFields() {
   return window['go']['main']['App']['GetSmartAlbumFields']();
 }
@@ -236,6 +244,10 @@ export function RunLauncherTool(arg1) {
 
 export function SaveDirectoryBinding(arg1, arg2) {
   return window['go']['main']['App']['SaveDirectoryBinding'](arg1, arg2);
+}
+
+export function SaveShortcutSettings(arg1) {
+  return window['go']['main']['App']['SaveShortcutSettings'](arg1);
 }
 
 export function SaveTrashSettings(arg1) {

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import {
   X,
@@ -147,7 +147,7 @@ const metadataFacts = computed(() => {
   ]
 
   if (metadata.value.width && metadata.value.height) {
-    facts.push({ label: '尺寸', value: `${metadata.value.width} × ${metadata.value.height}` })
+    facts.push({ label: '尺寸', value: `${metadata.value.width} 脳 ${metadata.value.height}` })
   }
 
   if (metadata.value.nodeCount) {
@@ -462,7 +462,7 @@ onUnmounted(() => {
           :href="currentDisplayImage.path"
           download
           class="rounded-full p-2 text-white/70 transition-opacity hover:bg-white/10 hover:text-white"
-          title="下载"
+          title="涓嬭浇"
         >
           <Download class="h-6 w-6" />
         </a>
@@ -541,7 +541,7 @@ onUnmounted(() => {
             @click="resetZoom"
           >
             <RotateCcw class="h-3 w-3" />
-            重置视图
+            閲嶇疆瑙嗗浘
           </button>
         </div>
       </div>
@@ -637,8 +637,8 @@ onUnmounted(() => {
                   </div>
                 </div>
 
-                <div v-if="metadata?.loras?.length" class="space-y-2">
-                  <div class="text-[11px] font-semibold uppercase tracking-wider text-white/45">LoRA</div>
+                  <div v-if="metadata?.loras?.length" class="space-y-2">
+                    <div class="text-[11px] font-semibold uppercase tracking-wider text-white/45">LoRA</div>
                   <div class="flex flex-wrap gap-2">
                     <Badge
                       v-for="lora in metadata.loras"
@@ -718,7 +718,7 @@ onUnmounted(() => {
 
                   <div v-if="metadata?.prompt" class="space-y-2">
                     <div class="flex items-center justify-between gap-3">
-                      <div class="text-[11px] font-semibold uppercase tracking-wider text-white/45">ComfyUI Prompt</div>
+                      <div class="text-[11px] font-semibold uppercase tracking-wider text-white/45">ComfyUI 提示词</div>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -744,7 +744,7 @@ onUnmounted(() => {
 
                   <div v-if="metadata?.workflow" class="space-y-2">
                     <div class="flex items-center justify-between gap-3">
-                      <div class="text-[11px] font-semibold uppercase tracking-wider text-white/45">Workflow</div>
+                      <div class="text-[11px] font-semibold uppercase tracking-wider text-white/45">工作流</div>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -824,3 +824,5 @@ onUnmounted(() => {
     </div>
   </transition>
 </template>
+
+

@@ -117,6 +117,20 @@ const toggleSidebar = () => {
     isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
 
+const setActiveView = (rootId) => {
+    activeRoot.value = rootId
+    activeSub.value = ''
+    activeChild.value = ''
+}
+
+const getPreferredGalleryRoot = () => {
+    if (fileTree.value.some(node => node.id === 'output')) {
+        return 'output'
+    }
+    const firstGalleryRoot = fileTree.value.find(node => node.id !== 'favorites')
+    return firstGalleryRoot?.id || 'output'
+}
+
 const getNodeLabel = (node, fallback = '') => node?.displayName || node?.name || fallback
 
 const findNodeLineage = (nodes, targetId, lineage = []) => {
@@ -298,6 +312,34 @@ const handleFavoriteGroupsChanged = async () => {
     await fetchImages()
 }
 
+const handleShortcutAction = async (actionId) => {
+    switch (actionId) {
+    case 'switch_dashboard':
+        setActiveView('dashboard')
+        break
+    case 'switch_gallery':
+        setActiveView(getPreferredGalleryRoot())
+        break
+    case 'switch_favorites':
+        setActiveView('favorites')
+        break
+    case 'switch_documentation':
+        setActiveView('documentation')
+        break
+    case 'refresh_images':
+        await handleRefresh()
+        break
+    case 'toggle_sidebar':
+        toggleSidebar()
+        break
+    case 'toggle_selection_mode':
+        toggleSelectionMode()
+        break
+    default:
+        console.warn('Unknown shortcut action:', actionId)
+    }
+}
+
 const deleteSelected = async () => {
     if (selectedPaths.value.size === 0) return
     const count = selectedPaths.value.size
@@ -344,6 +386,7 @@ const handleRefresh = async () => {
 }
 
 let unsubscribeImagesChanged = null
+let unsubscribeShortcutTriggered = null
 onMounted(async () => {
     await fetchCustomRoots()
     await fetchImages()
@@ -353,10 +396,16 @@ onMounted(async () => {
     unsubscribeImagesChanged = EventsOn('images:changed', async () => {
         await handleRefresh()
     })
+    unsubscribeShortcutTriggered = EventsOn('shortcut:triggered', async (actionId) => {
+        await handleShortcutAction(actionId)
+    })
 })
 onUnmounted(() => {
     if (typeof unsubscribeImagesChanged === 'function') {
         unsubscribeImagesChanged()
+    }
+    if (typeof unsubscribeShortcutTriggered === 'function') {
+        unsubscribeShortcutTriggered()
     }
 })
 </script>

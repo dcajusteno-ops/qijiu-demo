@@ -106,10 +106,11 @@ type TrashMetadata struct {
 }
 
 type Settings struct {
-	TrashRetentionDays int    `json:"trashRetentionDays"`
-	RootDir            string `json:"rootDir,omitempty"`
-	OutputDir          string `json:"outputDir,omitempty"`
-	PathVersion        int    `json:"pathVersion,omitempty"`
+	TrashRetentionDays int              `json:"trashRetentionDays"`
+	RootDir            string           `json:"rootDir,omitempty"`
+	OutputDir          string           `json:"outputDir,omitempty"`
+	PathVersion        int              `json:"pathVersion,omitempty"`
+	ShortcutSettings   ShortcutSettings `json:"shortcutSettings,omitempty"`
 }
 
 type LauncherTool struct {
@@ -215,6 +216,7 @@ type App struct {
 	imageDir               string
 	dataDir                string
 	appDir                 string
+	shortcutManager        shortcutManager
 	imageMetaMu            sync.RWMutex
 	imageMetaCache         ImageMetaCache
 	imageMetaLoaded        bool
@@ -350,10 +352,11 @@ func NewApp() *App {
 	dataDir := filepath.Join(unifiedRoot, "data")
 
 	app := &App{
-		rootDir:  defaultRootDir,
-		imageDir: defaultOutputDir,
-		dataDir:  dataDir,
-		appDir:   unifiedRoot,
+		rootDir:         defaultRootDir,
+		imageDir:        defaultOutputDir,
+		dataDir:         dataDir,
+		appDir:          unifiedRoot,
+		shortcutManager: newShortcutManager(),
 	}
 
 	// Ensure data directory exists
@@ -402,11 +405,19 @@ func (a *App) startup(ctx context.Context) {
 		_ = a.cleanExpiredTrash()
 		_, _ = a.cleanupTagsSilent()
 	}()
+	if err := a.registerConfiguredShortcuts(); err != nil {
+		log.Printf("failed to register shortcuts: %v", err)
+	}
 	a.restartImageWatcher()
 }
 
 func (a *App) shutdown(ctx context.Context) {
 	a.stopImageWatcher()
+	if a.shortcutManager != nil {
+		if err := a.shortcutManager.Close(); err != nil {
+			log.Printf("failed to stop shortcut manager: %v", err)
+		}
+	}
 }
 
 func (a *App) outputRelPath() string {
@@ -803,16 +814,16 @@ func (a *App) serveImage(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- Internal Data Helpers ---
-func (a *App) favoritesFile() string     { return filepath.Join(a.dataDir, "favorites.json") }
-func (a *App) tagsFile() string          { return filepath.Join(a.dataDir, "tags.json") }
-func (a *App) imageTagsFile() string     { return filepath.Join(a.dataDir, "image-tags.json") }
-func (a *App) trashMetadataFile() string { return filepath.Join(a.dataDir, "trash-metadata.json") }
-func (a *App) settingsFile() string      { return filepath.Join(a.dataDir, "settings.json") }
-func (a *App) launcherToolsFile() string { return filepath.Join(a.dataDir, "launcher-tools.json") }
+func (a *App) favoritesFile() string       { return filepath.Join(a.dataDir, "favorites.json") }
+func (a *App) tagsFile() string            { return filepath.Join(a.dataDir, "tags.json") }
+func (a *App) imageTagsFile() string       { return filepath.Join(a.dataDir, "image-tags.json") }
+func (a *App) trashMetadataFile() string   { return filepath.Join(a.dataDir, "trash-metadata.json") }
+func (a *App) settingsFile() string        { return filepath.Join(a.dataDir, "settings.json") }
+func (a *App) launcherToolsFile() string   { return filepath.Join(a.dataDir, "launcher-tools.json") }
 func (a *App) promptToolLinksFile() string { return filepath.Join(a.dataDir, "prompt-tool-links.json") }
-func (a *App) promptTemplatesFile() string  { return filepath.Join(a.dataDir, "prompt-templates.json") }
-func (a *App) customRootsFile() string   { return filepath.Join(a.dataDir, "custom-roots.json") }
-func (a *App) imageNotesFile() string     { return filepath.Join(a.dataDir, "image-notes.json") }
+func (a *App) promptTemplatesFile() string { return filepath.Join(a.dataDir, "prompt-templates.json") }
+func (a *App) customRootsFile() string     { return filepath.Join(a.dataDir, "custom-roots.json") }
+func (a *App) imageNotesFile() string      { return filepath.Join(a.dataDir, "image-notes.json") }
 func (a *App) imageMetaCacheFile() string {
 	return filepath.Join(a.dataDir, "image-meta-cache.json")
 }
@@ -1910,12 +1921,16 @@ func (a *App) loadSettings() (Settings, error) {
 	var settings Settings
 	data, err := os.ReadFile(a.settingsFile())
 	if err != nil {
-		return Settings{TrashRetentionDays: 30}, nil
+		return Settings{
+			TrashRetentionDays: 30,
+			ShortcutSettings:   defaultShortcutSettings(),
+		}, nil
 	}
 	json.Unmarshal(data, &settings)
 	if settings.TrashRetentionDays <= 0 {
 		settings.TrashRetentionDays = 30
 	}
+	settings.ShortcutSettings = normalizeShortcutSettings(settings.ShortcutSettings)
 	return settings, nil
 }
 
@@ -3147,7 +3162,15 @@ func (a *App) GetTrashSettings() (Settings, error) {
 }
 
 func (a *App) SaveTrashSettings(settings Settings) error {
-	return a.saveSettings(settings)
+	current, err := a.loadSettings()
+	if err != nil {
+		return err
+	}
+	current.TrashRetentionDays = settings.TrashRetentionDays
+	if current.TrashRetentionDays <= 0 {
+		current.TrashRetentionDays = 30
+	}
+	return a.saveSettings(current)
 }
 
 func (a *App) GetDirectoryBinding() (DirectoryBinding, error) {

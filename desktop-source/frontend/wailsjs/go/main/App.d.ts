@@ -88,6 +88,10 @@ export function GetPromptToolLinks():Promise<Array<main.PromptToolLink>>;
 
 export function GetRelativePath(arg1:string):Promise<string>;
 
+export function GetShortcutActions():Promise<Array<main.ShortcutAction>>;
+
+export function GetShortcutSettings():Promise<main.ShortcutSettings>;
+
 export function GetSmartAlbumFields():Promise<Array<main.SmartAlbumField>>;
 
 export function GetSmartAlbums(arg1:string):Promise<Array<main.SmartAlbum>>;
@@ -119,6 +123,8 @@ export function RestoreTrash(arg1:string):Promise<string>;
 export function RunLauncherTool(arg1:string):Promise<void>;
 
 export function SaveDirectoryBinding(arg1:string,arg2:string):Promise<main.DirectoryBinding>;
+
+export function SaveShortcutSettings(arg1:main.ShortcutSettings):Promise<main.ShortcutSettings>;
 
 export function SaveTrashSettings(arg1:main.Settings):Promise<void>;
 

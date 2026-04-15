@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ArrowRight } from 'lucide-vue-next'
 import { useCarousel } from './useCarousel'
 import { Button } from '@/components/ui/button'
@@ -30,7 +30,9 @@ const { orientation, canScrollNext, scrollNext } = useCarousel()
   >
     <slot>
       <ArrowRight class="h-4 w-4" />
-      <span class="sr-only">Next slide</span>
+      <span class="sr-only">下一张</span>
     </slot>
   </Button>
 </template>
+
+

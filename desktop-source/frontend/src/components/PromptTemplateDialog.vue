@@ -127,7 +127,7 @@ const loadTemplates = async () => {
   try {
     const list = await App.GetPromptTemplates()
     templates.value = list || []
-  } catch (error) {
+  } catch {
     templates.value = []
   }
 }
@@ -159,12 +159,11 @@ const saveTemplate = async () => {
     toast.success('模板已添加')
     await loadTemplates()
 
-    // 保持表单打开，方便连续录入多个模板。
     openCreateForm({
       type: nextType,
       category: nextCategory,
     })
-  } catch (error) {
+  } catch {
     toast.error('保存失败')
   }
 }
@@ -194,7 +193,7 @@ const confirmDeleteTemplate = async () => {
     await App.DeletePromptTemplate(template.id)
     toast.success('模板已删除')
     await loadTemplates()
-  } catch (error) {
+  } catch {
     toast.error('删除失败')
   } finally {
     deleteDialogOpen.value = false
@@ -206,7 +205,7 @@ const copyContent = async (template) => {
   try {
     await App.CopyText(template.content)
     toast.success('已复制到剪贴板')
-  } catch (error) {
+  } catch {
     toast.error('复制失败')
   }
 }
@@ -388,7 +387,7 @@ watch(() => props.open, async (newVal) => {
             <div class="space-y-3 flex-1 min-h-0 overflow-y-auto scrollbar-hide pr-2">
               <div class="space-y-1">
                 <Label class="text-xs">模板名称</Label>
-                <Input v-model="formData.name" placeholder="例如: 高质量人物" class="h-8 select-text" />
+                <Input v-model="formData.name" placeholder="例如：高质量人物" class="h-8 select-text" />
               </div>
 
               <div class="space-y-1 flex-1 min-h-0 flex flex-col">
@@ -417,8 +416,8 @@ watch(() => props.open, async (newVal) => {
               </div>
 
               <div class="space-y-1 shrink-0">
-                <Label class="text-xs">分类 (可选)</Label>
-                <Input v-model="formData.category" placeholder="例如: 人物、画风、质量词" class="h-8 select-text" />
+                <Label class="text-xs">分类（可选）</Label>
+                <Input v-model="formData.category" placeholder="例如：人物、画风、质量词" class="h-8 select-text" />
               </div>
             </div>
           </div>

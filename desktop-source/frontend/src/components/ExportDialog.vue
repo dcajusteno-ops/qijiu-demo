@@ -13,9 +13,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 
-const props = defineProps({
-    open: Boolean,
-    count: Number
+defineProps({
+  open: Boolean,
+  count: Number,
 })
 
 const emit = defineEmits(['update:open', 'confirm'])
@@ -26,21 +26,21 @@ const moveFiles = ref(false)
 const loading = ref(false)
 
 const handleConfirm = async () => {
-    if (!targetDir.value.trim()) return
-    if (moveFiles.value) {
-        const ok = await confirm('移动模式将从原目录删除文件，此操作不可撤销。确定继续？')
-        if (!ok) return
-    }
-    loading.value = true
-    try {
-        await emit('confirm', {
-            targetDir: targetDir.value,
-            move: moveFiles.value
-        })
-        emit('update:open', false)
-    } finally {
-        loading.value = false
-    }
+  if (!targetDir.value.trim()) return
+  if (moveFiles.value) {
+    const ok = await confirm('移动模式会从原目录删除文件，此操作不可撤销。确定继续吗？')
+    if (!ok) return
+  }
+  loading.value = true
+  try {
+    await emit('confirm', {
+      targetDir: targetDir.value,
+      move: moveFiles.value,
+    })
+    emit('update:open', false)
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -62,20 +62,20 @@ const handleConfirm = async () => {
           <Input
             id="target-dir"
             v-model="targetDir"
-            placeholder="C:/Images/Export"
+            placeholder="例如：D:/图片/导出"
             class="col-span-3"
           />
         </div>
         <div class="flex items-center space-x-2 ml-[25%]">
-           <Checkbox id="move-mode" v-model:checked="moveFiles" />
-           <Label for="move-mode" class="cursor-pointer">移动文件（而不是复制）</Label>
+          <Checkbox id="move-mode" v-model:checked="moveFiles" />
+          <Label for="move-mode" class="cursor-pointer">移动文件而不是复制</Label>
         </div>
       </div>
 
       <DialogFooter>
         <Button variant="outline" @click="$emit('update:open', false)">取消</Button>
         <Button @click="handleConfirm" :disabled="loading || !targetDir">
-            {{ loading ? '导出中...' : '开始导出' }}
+          {{ loading ? '导出中...' : '开始导出' }}
         </Button>
       </DialogFooter>
     </DialogContent>

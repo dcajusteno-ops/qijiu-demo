@@ -259,14 +259,14 @@ const useBuiltInIcon = (iconName) => {
               <div class="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
                   <div class="space-y-1">
                       <Label class="text-xs">名称</Label>
-                      <Input v-model="formData.name" placeholder="例如: Checkpoint Merger" class="h-8 select-text" />
+                      <Input v-model="formData.name" placeholder="例如：模型合并器" class="h-8 select-text" />
                   </div>
                   
                   <div class="space-y-1">
                       <Label class="text-xs">目标路径</Label>
                       <Input 
                         v-model="formData.path" 
-                        placeholder="D:\Tools\Tool.exe 或 D:\Tools\脚本.bat" 
+                        placeholder="D:\工具\程序.exe 或 D:\工具\脚本.bat" 
                         class="h-8 font-mono text-xs select-text" 
                         @blur="handlePathBlur"
                       />
@@ -275,7 +275,7 @@ const useBuiltInIcon = (iconName) => {
                   
                   <div class="space-y-1">
                       <Label class="text-xs">启动参数 (可选)</Label>
-                      <Input v-model="formData.args" placeholder="--gpu-id 0" class="h-8 font-mono text-xs select-text" />
+                      <Input v-model="formData.args" placeholder="例如：--listen 0.0.0.0" class="h-8 font-mono text-xs select-text" />
                   </div>
                   
                   <div class="space-y-2">
@@ -376,3 +376,5 @@ const useBuiltInIcon = (iconName) => {
     </AlertDialogContent>
   </AlertDialog>
 </template>
+
+

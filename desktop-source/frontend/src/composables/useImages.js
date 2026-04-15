@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+﻿import { ref, computed, watch } from 'vue'
 import * as App from '@/api'
 import { useImageStacks } from './useImageStacks'
 
@@ -1038,3 +1038,4 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     }
   }
 }
+

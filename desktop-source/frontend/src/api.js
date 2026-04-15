@@ -57,6 +57,9 @@ export const RestoreTrash = async (filename) => callApp('RestoreTrash', filename
 export const BatchRestoreTrash = async (filenames) => callApp('BatchRestoreTrash', filenames)
 export const BatchDeleteTrash = async (filenames) => callApp('BatchDeleteTrash', filenames)
 export const EmptyTrash = async () => callApp('EmptyTrash')
+export const GetShortcutSettings = async () => callApp('GetShortcutSettings')
+export const SaveShortcutSettings = async (settings) => callApp('SaveShortcutSettings', settings)
+export const GetShortcutActions = async () => callApp('GetShortcutActions')
 
 export const CleanupTags = async () => callApp('CleanupTags')
 export const GetStatistics = async (mode) => callApp('GetStatistics', mode)

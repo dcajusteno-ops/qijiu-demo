@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, inject } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
@@ -360,3 +360,4 @@ const submitBatchCategorize = () => {
         </DialogContent>
     </Dialog>
 </template>
+
