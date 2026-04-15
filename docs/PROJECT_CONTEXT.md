@@ -21,6 +21,8 @@
 - 回收站（软删除 / 恢复 / 清空 / 保留期）
 - 自定义根目录（多目录纳管）
 - 智能相册（模型 / 采样器 / LoRA / 尺寸）
+- 数据视界（生成历史时间线 / 趋势图 / 活跃热图 / 节点回溯）
+- 全局快捷键（系统级快捷键动作与设置）
 - 外部工具启动器与提示词工具链接
 - 缩略图/预览缓存管理
 
@@ -179,7 +181,7 @@ comfy-manager/
 - 统计：`GetStatistics`
 - 智能相册：`GetSmartAlbumFields` / `GetSmartAlbums`
 - 缓存管理：`ClearPreviewCache`
-- 系统能力：`CopyText`
+- 系统能力：`CopyText` / `GetShortcutSettings` / `SaveShortcutSettings` / `GetShortcutActions`
 
 ---
 
@@ -243,7 +245,7 @@ comfy-manager/
 - `image-tags.json`：图片-标签映射
 - `image-notes.json`：图片笔记
 - `custom-roots.json`：自定义根目录
-- `settings.json`：设置（含回收站保留期、路径绑定）
+- `settings.json`：设置（含回收站保留期、路径绑定、快捷键配置）
 - `trash-metadata.json`：回收站原路径/删除时间
 - `image-meta-cache.json`：图片元数据缓存
 - `launcher-tools.json`：外部工具
@@ -356,6 +358,33 @@ comfy-manager/
 
 ## 11. 最近变更记录
 
+- **2026-04-15 | v1.5 - 数据视界重构与全局快捷键**
+  - 影响范围：后端/前端/发布产物/设置结构
+  - 变更文件：
+    - `desktop-source/shortcuts.go`
+    - `desktop-source/hotkeys_windows.go`
+    - `desktop-source/hotkeys_stub.go`
+    - `desktop-source/app.go`
+    - `desktop-source/frontend/src/components/ShortcutSettingsDialog.vue`
+    - `desktop-source/frontend/src/lib/shortcuts.js`
+    - `desktop-source/frontend/src/App.vue`
+    - `desktop-source/frontend/src/api.js`
+    - `desktop-source/frontend/src/components/AppSidebar.vue`
+    - `desktop-source/frontend/src/components/ImageGallery.vue`
+    - `desktop-source/frontend/src/components/StatisticsDashboard.vue`
+    - `desktop-app.exe`
+  - 行为变化：
+    - 新增系统级全局快捷键设置，支持切换总览、图库、收藏、文档，以及刷新图库、折叠侧栏、切换批量模式
+    - `settings.json` 新增快捷键配置持久化，应用启动时自动注册已保存的快捷键
+    - 新增“数据视界”模块，支持生成历史时间线、趋势图、活跃热图与时间节点回看
+    - 趋势图支持默认铺满卡片宽度与悬浮读数，统计页整体布局改为更简洁的信息结构
+  - 兼容性：
+    - 旧 `settings.json` 会自动补齐默认快捷键配置
+    - 不影响既有图库、标签、收藏、回收站与提示词模板数据
+  - AI 提示：
+    - 修改快捷键时优先查看 `shortcuts.go` 的动作目录与 `hotkeys_windows.go` 的注册逻辑
+    - 修改统计页时优先查看 `StatisticsDashboard.vue` 的趋势图宽度计算、时间线分组与 hover 提示状态
+
 - **2026-04-14 | v1.4.1 - 修复提示词模板弹窗交互，统一发布产物命名**
   - 影响范围：前端/发布流程/桌面产物
   - 变更文件：
@@ -441,4 +470,4 @@ comfy-manager/
 
 ---
 
-*Generated/Updated by Claude Code (Opus 4.6) on 2026-04-14*
+*Generated/Updated by Claude Code (Opus 4.6) on 2026-04-15*
