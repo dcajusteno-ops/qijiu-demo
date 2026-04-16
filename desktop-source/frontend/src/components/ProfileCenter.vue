@@ -14,6 +14,7 @@ import {
   BarChart3,
   BookOpen,
   Camera,
+  CalendarDays,
   ChevronDown,
   Copy,
   FolderOpen,
@@ -52,6 +53,7 @@ const defaultProfile = () => ({
 
 const startPageOptions = [
   { value: 'dashboard', label: '工作台总览' },
+  { value: 'date-workbench', label: '日期产出工作台' },
   { value: 'statistics', label: '数据视界' },
   { value: 'profile', label: '个人中心' },
   { value: 'favorites', label: '收藏夹' },
@@ -61,6 +63,7 @@ const startPageOptions = [
 
 const quickActions = [
   { key: 'dashboard', label: '工作台总览', icon: LayoutDashboard, desc: '回到首页看最新作品' },
+  { key: 'date-workbench', label: '日期产出', icon: CalendarDays, desc: '按日期回看近期产出' },
   { key: 'statistics', label: '数据视界', icon: BarChart3, desc: '查看趋势和时间线' },
   { key: 'favorites', label: '收藏夹', icon: Heart, desc: '整理你的精选作品' },
   { key: 'output', label: '打开图库', icon: FolderOpen, desc: '继续浏览当前图库' },

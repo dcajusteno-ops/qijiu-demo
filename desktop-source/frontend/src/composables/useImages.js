@@ -1,6 +1,13 @@
 ﻿import { ref, computed, watch } from 'vue'
 import * as App from '@/api'
 import { useImageStacks } from './useImageStacks'
+import {
+  buildDateCountMap,
+  extractDateFolder,
+  formatDateKey,
+  getDatePresetLabel,
+  matchesDatePreset,
+} from '@/lib/dateWorkbench'
 
 const images = ref([])
 const loading = ref(true)
@@ -23,6 +30,10 @@ const filters = ref({
   dimensions: { minW: null, minH: null },
 })
 const searchQuery = ref(localStorage.getItem('gallerySearchQuery') || '')
+const activeDatePreset = ref(localStorage.getItem('activeDatePreset') || 'all')
+const activeDateValue = ref(localStorage.getItem('activeDateValue') || '')
+const activeModelFilter = ref(localStorage.getItem('activeModelFilter') || '')
+const activeLoraFilter = ref(localStorage.getItem('activeLoraFilter') || '')
 
 const sortBy = ref(localStorage.getItem('sortBy') || 'time')
 const sortOrder = ref(localStorage.getItem('sortOrder') || 'desc')
@@ -39,6 +50,104 @@ const normalizeFolderPath = (path) => (path || '')
   .replace(/^\/+|\/+$/g, '')
 
 const normalizeSearchText = (value) => String(value ?? '').trim().toLowerCase()
+const normalizeFilterValue = (value) => normalizeSearchText(value).replace(/\s+/g, ' ')
+const stripPathSegments = (value) => String(value ?? '').split(/[\\/]/).pop() || ''
+const stripModelExtension = (value) =>
+  String(value ?? '').replace(/\.(safetensors|ckpt|pt|pth|bin)$/i, '')
+const prettifyAssetLabel = (value) =>
+  stripModelExtension(stripPathSegments(value)).replace(/[_]+/g, ' ').trim()
+const normalizeAssetKey = (value) =>
+  normalizeFilterValue(prettifyAssetLabel(value)).replace(/[-]+/g, ' ')
+
+const buildGroupedFilterOptions = (values = []) => {
+  const grouped = new Map()
+
+  values.forEach((rawValue) => {
+    const raw = String(rawValue || '').trim()
+    if (!raw) return
+
+    const key = normalizeAssetKey(raw)
+    if (!key) return
+
+    const label = prettifyAssetLabel(raw) || raw
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        value: key,
+        label,
+        count: 0,
+        aliases: new Set(),
+      })
+    }
+
+    const entry = grouped.get(key)
+    entry.count += 1
+    entry.aliases.add(raw)
+
+    if (label.length < entry.label.length) {
+      entry.label = label
+    }
+  })
+
+  return Array.from(grouped.values())
+    .sort((a, b) => {
+      const diff = b.count - a.count
+      if (diff !== 0) return diff
+      return a.label.localeCompare(b.label)
+    })
+    .map((item) => ({
+      value: item.value,
+      label: item.label,
+      count: item.count,
+      aliases: Array.from(item.aliases),
+    }))
+}
+
+const syncGroupedFilterValue = (currentValue, options = []) => {
+  const normalizedCurrent = normalizeAssetKey(currentValue)
+  if (!normalizedCurrent) return ''
+
+  const matched = (options || []).find((option) => option.value === normalizedCurrent)
+  return matched ? matched.value : ''
+}
+
+const getImageDateKey = (img) => {
+  const folderDate = extractDateFolder(img?.relPath)
+  if (folderDate) return folderDate
+
+  const modTime = img?.modTime ? new Date(img.modTime) : null
+  if (modTime && !Number.isNaN(modTime.getTime())) {
+    return formatDateKey(modTime)
+  }
+
+  return ''
+}
+
+const imageMatchesWorkbenchFilters = (img, datePreset, customDate, modelFilter, loraFilter) => {
+  if (datePreset && datePreset !== 'all') {
+    const dateKey = getImageDateKey(img)
+    if (!dateKey || !matchesDatePreset(dateKey, datePreset, customDate)) {
+      return false
+    }
+  }
+
+  if (modelFilter) {
+    const imageModelKey = normalizeAssetKey(img?.model)
+    const selectedModelKey = normalizeAssetKey(modelFilter)
+    if (!imageModelKey || !selectedModelKey || imageModelKey !== selectedModelKey) {
+      return false
+    }
+  }
+
+  if (loraFilter) {
+    const loras = Array.isArray(img?.loras) ? img.loras : []
+    const target = normalizeAssetKey(loraFilter)
+    if (!target || !loras.some((item) => normalizeAssetKey(item) === target)) {
+      return false
+    }
+  }
+
+  return true
+}
 
 const getFavoritePathSet = (groups) => {
   const set = new Set()
@@ -107,7 +216,10 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
 
       favoriteGroups.value = groups || []
       favorites.value = getFavoritePathSet(groups)
-      images.value = imgs || []
+      images.value = (imgs || []).map((img) => ({
+        ...img,
+        loras: Array.isArray(img.loras) ? img.loras : [],
+      }))
     } catch (err) {
       console.error(err)
     } finally {
@@ -635,8 +747,83 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     return targetNode ? collectImages(targetNode) : []
   })
 
+  const availableModels = computed(() => {
+    return buildGroupedFilterOptions(images.value.map((img) => img?.model || ''))
+  })
+
+  const availableLoras = computed(() => {
+    const loraValues = []
+    images.value.forEach((img) => {
+      ;(img?.loras || []).forEach((lora) => {
+        loraValues.push(lora)
+      })
+    })
+    return buildGroupedFilterOptions(loraValues)
+  })
+
+  const activeDateLabel = computed(() =>
+    getDatePresetLabel(activeDatePreset.value, activeDateValue.value),
+  )
+
+  const hasActiveWorkbenchFilters = computed(() =>
+    activeDatePreset.value !== 'all' || !!activeModelFilter.value || !!activeLoraFilter.value,
+  )
+
+  const workbenchFilteredImages = computed(() =>
+    images.value.filter((img) =>
+      imageMatchesWorkbenchFilters(
+        img,
+        activeDatePreset.value,
+        activeDateValue.value,
+        activeModelFilter.value,
+        activeLoraFilter.value,
+      ),
+    ),
+  )
+
+  const dateWorkbenchSummary = computed(() => {
+    const dateCountMap = buildDateCountMap(images.value)
+    const datedImages = images.value.filter((img) => getImageDateKey(img))
+    const countWithPreset = (preset) =>
+      datedImages.filter((img) =>
+        imageMatchesWorkbenchFilters(
+          img,
+          preset,
+          '',
+          activeModelFilter.value,
+          activeLoraFilter.value,
+        ),
+      ).length
+
+    const recentDates = Array.from(dateCountMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, count]) => ({ date, count }))
+
+    return {
+      total: workbenchFilteredImages.value.length,
+      datedTotal: datedImages.length,
+      today: countWithPreset('today'),
+      yesterday: countWithPreset('yesterday'),
+      last7: countWithPreset('last7'),
+      month: countWithPreset('month'),
+      recentDates,
+    }
+  })
+
   const finalImages = computed(() => {
     let imgs = currentImages.value
+
+    if (imgs.length > 0 && hasActiveWorkbenchFilters.value) {
+      imgs = imgs.filter((img) =>
+        imageMatchesWorkbenchFilters(
+          img,
+          activeDatePreset.value,
+          activeDateValue.value,
+          activeModelFilter.value,
+          activeLoraFilter.value,
+        ),
+      )
+    }
 
     if (activeTagFilter.value && imgs.length > 0) {
       imgs = imgs.filter((img) =>
@@ -693,6 +880,7 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
           img.relPath,
           img.prompt,
           img.model,
+          ...(img.loras || []),
           img.searchText,
           noteText,
           ...tagTexts,
@@ -743,11 +931,81 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     resetPage()
   })
 
+  watch(availableModels, (options) => {
+    const syncedValue = syncGroupedFilterValue(activeModelFilter.value, options)
+    if (activeModelFilter.value && !syncedValue) {
+      activeModelFilter.value = ''
+      return
+    }
+    if (syncedValue && activeModelFilter.value !== syncedValue) {
+      activeModelFilter.value = syncedValue
+    }
+  }, { immediate: true })
+
+  watch(availableLoras, (options) => {
+    const syncedValue = syncGroupedFilterValue(activeLoraFilter.value, options)
+    if (activeLoraFilter.value && !syncedValue) {
+      activeLoraFilter.value = ''
+      return
+    }
+    if (syncedValue && activeLoraFilter.value !== syncedValue) {
+      activeLoraFilter.value = syncedValue
+    }
+  }, { immediate: true })
+
+  watch(
+    [activeDatePreset, activeDateValue, activeModelFilter, activeLoraFilter],
+    ([datePreset, dateValue, modelFilter, loraFilter]) => {
+      localStorage.setItem('activeDatePreset', datePreset)
+      localStorage.setItem('activeDateValue', dateValue)
+      localStorage.setItem('activeModelFilter', modelFilter)
+      localStorage.setItem('activeLoraFilter', loraFilter)
+      resetPage()
+    },
+  )
+
+  const setActiveDatePreset = (preset) => {
+    activeDatePreset.value = preset || 'all'
+    if (activeDatePreset.value !== 'custom') {
+      activeDateValue.value = ''
+    }
+  }
+
+  const setActiveDateValue = (value) => {
+    activeDateValue.value = value || ''
+    activeDatePreset.value = value ? 'custom' : 'all'
+  }
+
+  const clearDateFilter = () => {
+    activeDatePreset.value = 'all'
+    activeDateValue.value = ''
+  }
+
+  const setActiveModel = (value) => {
+    activeModelFilter.value = value || ''
+  }
+
+  const setActiveLora = (value) => {
+    activeLoraFilter.value = value || ''
+  }
+
+  const clearWorkbenchFilters = () => {
+    clearDateFilter()
+    activeModelFilter.value = ''
+    activeLoraFilter.value = ''
+  }
+
+  const clearSearchQuery = () => {
+    searchQuery.value = ''
+  }
+
   const initAutoSelect = () => {
     if (fileTree.value.length === 0) return
     if (!isInitialized.value) {
+      const isSpecialRoot = ['dashboard', 'profile', 'documentation', 'statistics', 'date-workbench']
+        .includes(activeRoot.value)
       const rootExists = fileTree.value.find((r) => r.id === activeRoot.value)
-      if (activeRoot.value !== 'dashboard' && (!activeRoot.value || !rootExists)) {
+      if (!isSpecialRoot && (!activeRoot.value || !rootExists)) {
         activeRoot.value = fileTree.value[0].id
       }
 
@@ -1022,6 +1280,7 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     activeSub,
     activeChild,
     fileTree,
+    scopeImageCount: computed(() => currentImages.value.length),
     currentImages: finalImages,
     fetchImages,
     fetchFavorites,
@@ -1064,6 +1323,23 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     imageNotes,
     fetchImageNotes,
     isStackingEnabled,
+    availableModels,
+    availableLoras,
+    workbenchFilteredImages,
+    dateWorkbenchSummary,
+    activeDatePreset,
+    activeDateValue,
+    activeModelFilter,
+    activeLoraFilter,
+    activeDateLabel,
+    hasActiveWorkbenchFilters,
+    setActiveDatePreset,
+    setActiveDateValue,
+    clearDateFilter,
+    setActiveModel,
+    setActiveLora,
+    clearWorkbenchFilters,
+    clearSearchQuery,
     toggleStacking: () => {
       isStackingEnabled.value = !isStackingEnabled.value
       localStorage.setItem('isStackingEnabled', isStackingEnabled.value)

@@ -216,6 +216,7 @@ export namespace main {
 	    height: number;
 	    prompt?: string;
 	    model?: string;
+	    loras?: string[];
 	    searchText?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -233,6 +234,7 @@ export namespace main {
 	        this.height = source["height"];
 	        this.prompt = source["prompt"];
 	        this.model = source["model"];
+	        this.loras = source["loras"];
 	        this.searchText = source["searchText"];
 	    }
 	}

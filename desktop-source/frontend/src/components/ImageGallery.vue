@@ -43,11 +43,18 @@ const props = defineProps({
   targetFolderPath: { type: String, default: '' },
   isSelectionMode: { type: Boolean, default: false },
   selectedPaths: { type: Set, default: () => new Set() },
+  scopeImageCount: { type: Number, default: 0 },
   tags: { type: Array, default: () => [] },
   imageTags: { type: Object, default: () => ({}) },
   favoriteGroups: { type: Array, default: () => [] },
   imageNotes: { type: Object, default: () => ({}) },
   searchQuery: { type: String, default: '' },
+  availableModels: { type: Array, default: () => [] },
+  availableLoras: { type: Array, default: () => [] },
+  activeDateLabel: { type: String, default: '全部时间' },
+  activeModelFilter: { type: String, default: '' },
+  activeLoraFilter: { type: String, default: '' },
+  hasActiveWorkbenchFilters: { type: Boolean, default: false },
   currentPage: { type: Number, default: 1 },
   itemsPerPage: { type: Number, default: 50 },
   totalPages: { type: Number, default: 1 }
@@ -69,6 +76,10 @@ const emit = defineEmits([
   'items-per-page-change',
   'open-location',
   'update:search-query',
+  'update:model-filter',
+  'update:lora-filter',
+  'clear-workbench-filters',
+  'clear-all-filters',
 ])
 
 const lightboxOpen = ref(false)
@@ -89,6 +100,20 @@ const compareImageA = ref(null)
 const compareImageB = ref(null)
 const favoriteGroupsDialogOpen = ref(false)
 const favoriteDialogImage = ref(null)
+
+const hasTopFilters = computed(() =>
+  !!props.searchQuery || props.hasActiveWorkbenchFilters,
+)
+
+const emptyStateMessage = computed(() => {
+  if (props.searchQuery || props.hasActiveWorkbenchFilters) {
+    if (props.scopeImageCount > 0) {
+      return `当前目录原本有 ${props.scopeImageCount} 张图片，但被搜索或工作台筛选条件全部过滤掉了`
+    }
+    return '没有找到匹配当前搜索条件的图片'
+  }
+  return '该文件夹为空'
+})
 
 const handleCompare = () => {
     const paths = Array.from(props.selectedPaths)
@@ -344,99 +369,142 @@ watch(() => props.currentPage, () => {
     @drop="handleDrop"
   >
       <!-- Header -->
-      <header class="h-16 flex-none flex items-center justify-between px-6 bg-background/80 backdrop-blur-md border-b z-10 select-none">
-          <div class="flex items-center gap-4">
-              <div v-if="rootName === 'statistics'" class="flex flex-col justify-center">
-                 <h2 class="text-xl font-semibold tracking-tight">数据视界</h2>
-                 <p class="text-xs text-muted-foreground">生成历史时间线与趋势分析</p>
-              </div>
-              <div v-else class="flex flex-col justify-center">
-                 <h2 class="text-xl font-semibold tracking-tight">
-                    {{ rootLabel || rootName || '图片库' }}
-                    <span v-if="subLabel && subLabel !== '默认'" class="text-muted-foreground font-normal">
-                        / {{ subLabel }}
-                    </span>
-                    <span v-if="childLabel" class="text-muted-foreground font-normal">
-                        / {{ childLabel }}
-                    </span>
-                 </h2>
-                 <p class="mt-0.5 text-xs text-muted-foreground">
-                   {{ totalImages > 0 ? `当前结果 ${totalImages} 张` : (searchQuery ? '没有匹配当前搜索的图片' : '当前目录暂无图片') }}
-                 </p>
-              </div>
-          </div>
-          <div v-if="rootName !== 'statistics'" class="flex items-center gap-4">
-              <div class="relative hidden w-72 lg:block">
-                  <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    :model-value="searchQuery"
-                    placeholder="搜索文件名、Prompt、模型、LoRA..."
-                    class="h-10 rounded-2xl border-border/80 bg-background/90 pl-9 pr-10 shadow-none"
-                    @update:model-value="emit('update:search-query', $event)"
-                  />
-                  <button
-                    v-if="searchQuery"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                    type="button"
-                    title="清空搜索"
-                    @click="emit('update:search-query', '')"
-                  >
-                    <X class="h-4 w-4" />
-                  </button>
-              </div>
-              <div v-if="isSelectionMode" class="flex items-center gap-2 text-sm font-medium transition-colors" :class="selectedPaths.size > 0 ? 'text-primary bg-primary/10 px-3 py-1 rounded-full' : 'text-muted-foreground bg-muted/50 border border-dashed border-muted-foreground/30 px-3 py-1 rounded-full'">
-                  <span>{{ selectedPaths.size === 0 ? '批量模式：请点击选择图片' : `已选 ${selectedPaths.size} 张` }}</span>
-                  <template v-if="selectedPaths.size > 0">
-                      <Separator orientation="vertical" class="h-4 bg-primary/20" />
-                      <button 
-                        class="hover:text-foreground transition-colors flex items-center gap-1"
-                        title="导出选中图片"
-                        @click="exportDialogOpen = true"
-                      >
-                          <Download class="h-4 w-4" />
-                          导出
-                      </button>
-                  </template>
-              </div>
-              
-              <div class="flex items-center gap-1">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    @click="emit('view-favorites')"
-                    :class="rootName === 'favorites' ? 'text-red-500 bg-red-500/10' : 'text-muted-foreground hover:text-red-500'"
-                    title="收藏夹"
-                  >
-                      <Heart class="h-5 w-5" :class="{ 'fill-current': rootName === 'favorites' }" />
-                  </Button>
-
-                  <!-- Stacking Toggle -->
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    @click="toggleStacking"
-                    :class="isStackingEnabled ? 'text-primary bg-primary/10' : 'text-muted-foreground'"
-                    title="连拍叠图"
-                  >
-                    <Layers class="h-5 w-5" />
-                  </Button>
-
-                  <!-- Sort Dropdown -->
-                  <SortDropdown />
-
-                  <!-- Thumbnail size slider -->
-                  <div class="flex items-center gap-2 px-2">
-                    <Grid class="h-4 w-4 text-muted-foreground shrink-0" />
-                    <Slider
-                      v-model="thumbnailSize"
-                      :min="120"
-                      :max="500"
-                      :step="10"
-                      class="w-20"
-                    />
+      <header class="flex-none border-b bg-background/80 px-6 py-4 backdrop-blur-md z-10 select-none">
+          <div class="flex flex-col gap-4">
+            <div class="min-w-0">
+              <div class="flex items-start gap-4">
+                  <div v-if="rootName === 'statistics'" class="flex flex-col justify-center">
+                     <h2 class="text-xl font-semibold tracking-tight">数据视界</h2>
+                     <p class="text-xs text-muted-foreground">生成历史时间线与趋势分析</p>
                   </div>
+                  <div v-else class="min-w-0 flex-1">
+                     <h2 class="break-words text-[2rem] font-semibold leading-tight tracking-tight">
+                        {{ rootLabel || rootName || '图片库' }}
+                        <span v-if="subLabel && subLabel !== '默认'" class="text-muted-foreground font-normal">
+                            / {{ subLabel }}
+                        </span>
+                        <span v-if="childLabel" class="text-muted-foreground font-normal">
+                            / {{ childLabel }}
+                        </span>
+                     </h2>
+                     <p class="mt-0.5 text-xs text-muted-foreground">
+                       {{ totalImages > 0 ? `当前结果 ${totalImages} 张` : (hasTopFilters ? '当前目录有图片，但被搜索或筛选条件过滤了' : '当前目录暂无图片') }}
+                     </p>
+                  </div>
+              </div>
+            </div>
+              <div v-if="rootName !== 'statistics'" class="flex flex-col gap-3">
+                  <div class="flex flex-wrap items-center gap-3">
+                      <div class="relative w-full min-w-[260px] md:w-72">
+                          <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            :model-value="searchQuery"
+                            placeholder="搜索文件名、Prompt、模型、LoRA..."
+                            class="h-10 rounded-2xl border-border/80 bg-background/90 pl-9 pr-10 shadow-none"
+                            @update:model-value="emit('update:search-query', $event)"
+                          />
+                          <button
+                            v-if="searchQuery"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                            type="button"
+                            title="清空搜索"
+                            @click="emit('update:search-query', '')"
+                          >
+                            <X class="h-4 w-4" />
+                          </button>
+                      </div>
+                      <div v-if="isSelectionMode" class="flex items-center gap-2 text-sm font-medium transition-colors" :class="selectedPaths.size > 0 ? 'text-primary bg-primary/10 px-3 py-1 rounded-full' : 'text-muted-foreground bg-muted/50 border border-dashed border-muted-foreground/30 px-3 py-1 rounded-full'">
+                          <span>{{ selectedPaths.size === 0 ? '批量模式：请点击选择图片' : `已选 ${selectedPaths.size} 张` }}</span>
+                          <template v-if="selectedPaths.size > 0">
+                              <Separator orientation="vertical" class="h-4 bg-primary/20" />
+                              <button 
+                                class="hover:text-foreground transition-colors flex items-center gap-1"
+                                title="导出选中图片"
+                                @click="exportDialogOpen = true"
+                              >
+                                  <Download class="h-4 w-4" />
+                                  导出
+                              </button>
+                          </template>
+                      </div>
+                      <div class="flex items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            @click="emit('view-favorites')"
+                            :class="rootName === 'favorites' ? 'text-red-500 bg-red-500/10' : 'text-muted-foreground hover:text-red-500'"
+                            title="收藏夹"
+                          >
+                              <Heart class="h-5 w-5" :class="{ 'fill-current': rootName === 'favorites' }" />
+                          </Button>
 
-              <FilterPanel />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            @click="toggleStacking"
+                            :class="isStackingEnabled ? 'text-primary bg-primary/10' : 'text-muted-foreground'"
+                            title="连拍叠图"
+                          >
+                            <Layers class="h-5 w-5" />
+                          </Button>
+
+                          <SortDropdown />
+
+                          <div class="flex items-center gap-2 px-2">
+                            <Grid class="h-4 w-4 text-muted-foreground shrink-0" />
+                            <Slider
+                              v-model="thumbnailSize"
+                              :min="120"
+                              :max="500"
+                              :step="10"
+                              class="w-20"
+                            />
+                          </div>
+
+                          <FilterPanel />
+                      </div>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+                      日期：{{ activeDateLabel || '全部时间' }}
+                    </span>
+                    <select
+                      :value="activeModelFilter"
+                      class="h-9 min-w-[180px] rounded-full border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary"
+                      @change="emit('update:model-filter', $event.target.value)"
+                    >
+                      <option value="">全部模型</option>
+                      <option v-for="item in availableModels" :key="item.value || item.name" :value="item.value || item.name">
+                        {{ item.label || item.name }} ({{ item.count }})
+                      </option>
+                    </select>
+                    <select
+                      :value="activeLoraFilter"
+                      class="h-9 min-w-[180px] rounded-full border border-border bg-background px-3 text-sm text-foreground outline-none transition focus:border-primary"
+                      @change="emit('update:lora-filter', $event.target.value)"
+                    >
+                      <option value="">全部 LoRA</option>
+                      <option v-for="item in availableLoras" :key="item.value || item.name" :value="item.value || item.name">
+                        {{ item.label || item.name }} ({{ item.count }})
+                      </option>
+                    </select>
+                    <Button
+                      v-if="hasActiveWorkbenchFilters"
+                      variant="outline"
+                      class="h-9 rounded-full px-4"
+                      @click="emit('clear-workbench-filters')"
+                    >
+                      清空工作台筛选
+                    </Button>
+                    <Button
+                      v-if="hasTopFilters"
+                      variant="outline"
+                      class="h-9 rounded-full px-4"
+                      @click="emit('clear-all-filters')"
+                    >
+                      清空全部筛选
+                    </Button>
+                  </div>
               </div>
           </div>
       </header>
@@ -491,8 +559,16 @@ watch(() => props.currentPage, () => {
           />
       </div>
 
-      <div v-else class="flex-1 flex items-center justify-center text-muted-foreground pt-20">
-          {{ searchQuery ? '没有找到匹配当前搜索条件的图片' : '该文件夹为空' }}
+      <div v-else class="flex-1 flex flex-col items-center justify-center gap-4 px-6 pt-20 text-center text-muted-foreground">
+          <p>{{ emptyStateMessage }}</p>
+          <Button
+            v-if="hasTopFilters"
+            variant="outline"
+            class="rounded-full px-4"
+            @click="emit('clear-all-filters')"
+          >
+            清空搜索和筛选
+          </Button>
       </div>
 
       <Lightbox

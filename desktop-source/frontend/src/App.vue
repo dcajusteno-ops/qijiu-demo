@@ -5,6 +5,7 @@ import ImageGallery from './components/ImageGallery.vue'
 import Home from './components/Home.vue'
 import Documentation from './components/Documentation.vue'
 import ProfileCenter from './components/ProfileCenter.vue'
+import DateWorkbench from './components/DateWorkbench.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css' // Import sonner styles
@@ -68,6 +69,7 @@ const {
     activeSub,
     activeChild,
     fileTree,
+    scopeImageCount,
     currentImages,
     fetchImages,
     fetchFavorites,
@@ -106,6 +108,22 @@ const {
     fetchCustomRoots,
     imageNotes,
     fetchImageNotes,
+    availableModels,
+    availableLoras,
+    workbenchFilteredImages,
+    dateWorkbenchSummary,
+    activeDatePreset,
+    activeDateValue,
+    activeModelFilter,
+    activeLoraFilter,
+    activeDateLabel,
+    hasActiveWorkbenchFilters,
+    setActiveDatePreset,
+    setActiveDateValue,
+    setActiveModel,
+    setActiveLora,
+    clearWorkbenchFilters,
+    clearSearchQuery,
 } = useImages(showToast, confirm)
 
 // Selection State (Global or App level)
@@ -127,7 +145,7 @@ const getPreferredGalleryRoot = () => {
     if (fileTree.value.some(node => node.id === 'output')) {
         return 'output'
     }
-    const firstGalleryRoot = fileTree.value.find(node => node.id !== 'favorites')
+    const firstGalleryRoot = fileTree.value.find(node => !['favorites', 'statistics', 'date-workbench', 'dashboard', 'profile', 'documentation'].includes(node.id))
     return firstGalleryRoot?.id || 'output'
 }
 
@@ -179,6 +197,15 @@ const activeLocation = computed(() => {
 
 const updateSearchQuery = (value) => {
   searchQuery.value = value
+}
+
+const clearAllGalleryFilters = () => {
+    clearSearchQuery()
+    clearWorkbenchFilters()
+}
+
+const openWorkbenchGallery = () => {
+    setActiveView(getPreferredGalleryRoot())
 }
 
 const finalPaginatedImages = computed(() => paginatedImages.value)
@@ -277,6 +304,9 @@ const handleShortcutAction = async (actionId) => {
         break
     case 'switch_documentation':
         setActiveView('documentation')
+        break
+    case 'switch_date_workbench':
+        setActiveView('date-workbench')
         break
     case 'refresh_images':
         await handleRefresh()
@@ -413,6 +443,25 @@ onUnmounted(() => {
         <div v-else-if="activeRoot === 'documentation'" class="h-full overflow-hidden">
              <Documentation />
         </div>
+        <div v-else-if="activeRoot === 'date-workbench'" class="h-full overflow-hidden">
+             <DateWorkbench
+                :summary="dateWorkbenchSummary"
+                :available-models="availableModels"
+                :available-loras="availableLoras"
+                :active-date-preset="activeDatePreset"
+                :active-date-value="activeDateValue"
+                :active-model-filter="activeModelFilter"
+                :active-lora-filter="activeLoraFilter"
+                :active-date-label="activeDateLabel"
+                :filtered-count="workbenchFilteredImages.length"
+                @update:date-preset="setActiveDatePreset"
+                @update:date-value="setActiveDateValue"
+                @update:model-filter="setActiveModel"
+                @update:lora-filter="setActiveLora"
+                @clear-filters="clearWorkbenchFilters"
+                @open-gallery="openWorkbenchGallery"
+             />
+        </div>
         <ImageGallery
             v-else
             :images="finalPaginatedImages"
@@ -427,11 +476,18 @@ onUnmounted(() => {
             :target-folder-path="activeLocation.targetFolderPath"
             :is-selection-mode="isSelectionMode"
             :selected-paths="selectedPaths"
+            :scope-image-count="scopeImageCount"
             :tags="tags"
             :image-tags="imageTags"
             :favorite-groups="favoriteGroups"
             :image-notes="imageNotes"
             :search-query="searchQuery"
+            :available-models="availableModels"
+            :available-loras="availableLoras"
+            :active-date-label="activeDateLabel"
+            :active-model-filter="activeModelFilter"
+            :active-lora-filter="activeLoraFilter"
+            :has-active-workbench-filters="hasActiveWorkbenchFilters"
             :current-page="currentPage"
             :items-per-page="itemsPerPage"
             :total-pages="totalPages"
@@ -451,6 +507,10 @@ onUnmounted(() => {
             @items-per-page-change="setItemsPerPage"
             @open-location="openImageLocation"
             @update:search-query="updateSearchQuery"
+            @update:model-filter="setActiveModel"
+            @update:lora-filter="setActiveLora"
+            @clear-workbench-filters="clearWorkbenchFilters"
+            @clear-all-filters="clearAllGalleryFilters"
         />
     </div>
 

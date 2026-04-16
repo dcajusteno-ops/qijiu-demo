@@ -192,6 +192,11 @@ const openDocumentation = () => {
     closeUtilityMenu()
 }
 
+const openStatistics = () => {
+    emit('update:activeRoot', 'statistics')
+    closeUtilityMenu()
+}
+
 const cleanEmptyFolders = () => {
     emit('clean-empty-folders')
     closeUtilityMenu()
@@ -329,13 +334,13 @@ const handleDrawerClick = (subId) => {
             <div class="space-y-1">
                 <button 
                   class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors hover:bg-secondary text-left relative group"
-                  :class="activeRoot === 'statistics' ? 'bg-secondary text-primary' : 'text-foreground/80'"
-                  @click="$emit('update:activeRoot', 'statistics')"
-                  :title="collapsed ? '数据视界' : ''"
+                  :class="activeRoot === 'date-workbench' ? 'bg-secondary text-primary' : 'text-foreground/80'"
+                  @click="$emit('update:activeRoot', 'date-workbench')"
+                  :title="collapsed ? '日期产出工作台' : ''"
                 >
                   <div class="flex items-center gap-2">
-                    <BarChart3 class="h-4 w-4" :class="activeRoot === 'statistics' ? 'text-primary' : 'text-muted-foreground'" />
-                    <span v-if="!collapsed" class="truncate">数据视界</span>
+                    <Calendar class="h-4 w-4" :class="activeRoot === 'date-workbench' ? 'text-primary' : 'text-muted-foreground'" />
+                    <span v-if="!collapsed" class="truncate">日期产出</span>
                   </div>
                 </button>
             </div>
@@ -552,6 +557,10 @@ const handleDrawerClick = (subId) => {
                 <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openDocumentation">
                    <BookOpen class="h-4 w-4 text-muted-foreground" />
                    <span>使用文档</span>
+                </Button>
+                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openStatistics">
+                   <BarChart3 class="h-4 w-4 text-muted-foreground" />
+                   <span>数据视界</span>
                 </Button>
                 <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="cleanEmptyFolders">
                    <Eraser class="h-4 w-4 text-muted-foreground" />

@@ -42,6 +42,7 @@ type ImageFile struct {
 	Height     int    `json:"height"`
 	Prompt     string `json:"prompt,omitempty"`
 	Model      string `json:"model,omitempty"`
+	Loras      []string `json:"loras,omitempty"`
 	SearchText string `json:"searchText,omitempty"`
 }
 
@@ -2150,6 +2151,7 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 			Height:     height,
 			Prompt:     entry.Positive,
 			Model:      entry.Model,
+			Loras:      append([]string(nil), entry.Loras...),
 			SearchText: entry.SearchText,
 		})
 		return nil
