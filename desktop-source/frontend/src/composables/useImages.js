@@ -22,6 +22,7 @@ const filters = ref({
   size: { min: null, max: null },
   dimensions: { minW: null, minH: null },
 })
+const searchQuery = ref(localStorage.getItem('gallerySearchQuery') || '')
 
 const sortBy = ref(localStorage.getItem('sortBy') || 'time')
 const sortOrder = ref(localStorage.getItem('sortOrder') || 'desc')
@@ -36,6 +37,8 @@ const favoriteGroups = ref([])
 const normalizeFolderPath = (path) => (path || '')
   .replace(/\\/g, '/')
   .replace(/^\/+|\/+$/g, '')
+
+const normalizeSearchText = (value) => String(value ?? '').trim().toLowerCase()
 
 const getFavoritePathSet = (groups) => {
   const set = new Set()
@@ -676,6 +679,29 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
       }
     }
 
+    const normalizedQuery = normalizeSearchText(searchQuery.value)
+    if (normalizedQuery) {
+      const tagNameMap = new Map((tags.value || []).map((tag) => [tag.id, tag.name || '']))
+      imgs = imgs.filter((img) => {
+        const noteText = imageNotes.value?.[img.relPath] || ''
+        const tagTexts = (imageTags.value?.[img.relPath] || [])
+          .map((tagId) => tagNameMap.get(tagId) || '')
+          .filter(Boolean)
+
+        const searchParts = [
+          img.name,
+          img.relPath,
+          img.prompt,
+          img.model,
+          img.searchText,
+          noteText,
+          ...tagTexts,
+        ]
+
+        return searchParts.some((part) => normalizeSearchText(part).includes(normalizedQuery))
+      })
+    }
+
     return imgs
   })
 
@@ -709,6 +735,11 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
   }
 
   watch([activeRoot, activeSub, activeChild], () => {
+    resetPage()
+  })
+
+  watch(searchQuery, (value) => {
+    localStorage.setItem('gallerySearchQuery', value)
     resetPage()
   })
 
@@ -1016,6 +1047,7 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     getTagCount,
     sortBy,
     sortOrder,
+    searchQuery,
     setSortBy,
     setSortOrder,
     currentPage,

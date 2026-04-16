@@ -33,15 +33,16 @@ import (
 )
 
 type ImageFile struct {
-	Name    string `json:"name"`
-	Path    string `json:"path"`
-	RelPath string `json:"relPath"`
-	ModTime string `json:"modTime"`
-	Size    int64  `json:"size"`
-	Width   int    `json:"width"`
-	Height  int    `json:"height"`
-	Prompt  string `json:"prompt,omitempty"`
-	Model   string `json:"model,omitempty"`
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	RelPath    string `json:"relPath"`
+	ModTime    string `json:"modTime"`
+	Size       int64  `json:"size"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	Prompt     string `json:"prompt,omitempty"`
+	Model      string `json:"model,omitempty"`
+	SearchText string `json:"searchText,omitempty"`
 }
 
 type ImageMetaCacheEntry struct {
@@ -150,6 +151,62 @@ type PromptTemplate struct {
 	CreatedAt  string `json:"createdAt"`
 }
 
+type AutoRuleCondition struct {
+	Field    string `json:"field"`
+	Operator string `json:"operator"`
+	Value    string `json:"value"`
+}
+
+type AutoRuleAction struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type AutoRule struct {
+	ID             string              `json:"id"`
+	Name           string              `json:"name"`
+	Enabled        bool                `json:"enabled"`
+	MatchMode      string              `json:"matchMode"`
+	Conditions     []AutoRuleCondition `json:"conditions"`
+	Actions        []AutoRuleAction    `json:"actions"`
+	LastRunAt      string              `json:"lastRunAt,omitempty"`
+	LastMatchCount int                 `json:"lastMatchCount,omitempty"`
+	LastStatus     string              `json:"lastStatus,omitempty"`
+	LastError      string              `json:"lastError,omitempty"`
+	CreatedAt      string              `json:"createdAt,omitempty"`
+	UpdatedAt      string              `json:"updatedAt,omitempty"`
+}
+
+type AutoRulesStore struct {
+	Enabled bool       `json:"enabled"`
+	Rules   []AutoRule `json:"rules"`
+}
+
+type AutoRulesRunSummary struct {
+	TotalCount     int      `json:"totalCount"`
+	ProcessedCount int      `json:"processedCount"`
+	MatchedCount   int      `json:"matchedCount"`
+	UpdatedCount   int      `json:"updatedCount"`
+	ErrorCount     int      `json:"errorCount"`
+	RanAt          string   `json:"ranAt"`
+	Errors         []string `json:"errors,omitempty"`
+}
+
+type AutoRulesRunProgress struct {
+	Source          string `json:"source"`
+	Stage           string `json:"stage"`
+	Running         bool   `json:"running"`
+	TotalCount      int    `json:"totalCount"`
+	ProcessedCount  int    `json:"processedCount"`
+	MatchedCount    int    `json:"matchedCount"`
+	UpdatedCount    int    `json:"updatedCount"`
+	ErrorCount      int    `json:"errorCount"`
+	CurrentRelPath  string `json:"currentRelPath,omitempty"`
+	CurrentRuleName string `json:"currentRuleName,omitempty"`
+	RanAt           string `json:"ranAt,omitempty"`
+	Message         string `json:"message,omitempty"`
+}
+
 type FavoriteGroup struct {
 	ID    string   `json:"id"`
 	Name  string   `json:"name"`
@@ -167,22 +224,10 @@ type CacheClearResult struct {
 }
 
 const defaultFavoriteGroupID = "default"
-const defaultFavoriteGroupName = "默认收藏"
+const defaultFavoriteGroupName = "榛樿鏀惰棌"
+const profileAssetPrefix = "__profile__/"
 
 type ImageNotesMap map[string]string // relPath -> note text
-
-type SmartAlbum struct {
-	Field string   `json:"field"` // "model", "sampler", "lora", "dimensions"
-	Value string   `json:"value"` // e.g. "sdxl_base_1.0"
-	Count int      `json:"count"`
-	Paths []string `json:"paths"`
-}
-
-type SmartAlbumField struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Icon  string `json:"icon"`
-}
 
 type CustomRoot struct {
 	ID   string `json:"id"`
@@ -233,6 +278,8 @@ type App struct {
 	imageMetaCache         ImageMetaCache
 	imageMetaLoaded        bool
 	imageMetaWarmupRunning bool
+	autoRulesMu            sync.Mutex
+	autoRulesRunMu         sync.Mutex
 	watchMu                sync.Mutex
 	imageWatcher           *fsnotify.Watcher
 	imageWatchStop         chan struct{}
@@ -332,13 +379,13 @@ func NewApp() *App {
 	//
 	// Production layouts supported:
 	//   A) New layout:  comfy-manager/desktop-app.exe
-	//      → exeDir = comfy-manager/  → unifiedRoot = exeDir
+	//      鈫?exeDir = comfy-manager/  鈫?unifiedRoot = exeDir
 	//   B) Old layout:  comfy-manager/desktop-source/build/bin/app.exe
-	//      → exeDir = .../build/bin   → unifiedRoot = up 3 levels
+	//      鈫?exeDir = .../build/bin   鈫?unifiedRoot = up 3 levels
 	//
 	// Dev (wails dev): exe is in system temp; fall back to Getwd()
-	//   → Getwd() = comfy-manager/desktop-source/
-	//   → unifiedRoot = parent of Getwd() = comfy-manager/
+	//   鈫?Getwd() = comfy-manager/desktop-source/
+	//   鈫?unifiedRoot = parent of Getwd() = comfy-manager/
 
 	unifiedRoot := exeDir // default: assume exe is at unified root (layout A)
 
@@ -348,9 +395,9 @@ func NewApp() *App {
 		// Layout B: build/bin/app.exe inside desktop-source
 		unifiedRoot = filepath.Dir(filepath.Dir(exeParent)) // up 3
 	} else if strings.Contains(exePath, os.TempDir()) || strings.EqualFold(exeBase, "tmp") {
-		// Dev mode — fall back to working directory
+		// Dev mode 鈥?fall back to working directory
 		if wd, wdErr := os.Getwd(); wdErr == nil {
-			// Getwd() = .../desktop-source/ → parent = comfy-manager/
+			// Getwd() = .../desktop-source/ 鈫?parent = comfy-manager/
 			unifiedRoot = filepath.Dir(wd)
 		}
 	}
@@ -449,7 +496,7 @@ func (a *App) applyDirectoryBinding(rootDir, outputDir string) error {
 
 	rootAbs, err := normalizeDir(effectiveRoot)
 	if err != nil {
-		return fmt.Errorf("根目录无效: %w", err)
+		return fmt.Errorf("鏍圭洰褰曟棤鏁? %w", err)
 	}
 
 	effectiveOutput := strings.TrimSpace(outputDir)
@@ -459,11 +506,11 @@ func (a *App) applyDirectoryBinding(rootDir, outputDir string) error {
 
 	outputAbs, err := normalizeDir(effectiveOutput)
 	if err != nil {
-		return fmt.Errorf("output 目录无效: %w", err)
+		return fmt.Errorf("output 鐩綍鏃犳晥: %w", err)
 	}
 
 	if !isSubPath(rootAbs, outputAbs) {
-		return fmt.Errorf("output 目录必须位于根目录内")
+		return fmt.Errorf("output 鐩綍蹇呴』浣嶄簬鏍圭洰褰曞唴")
 	}
 
 	a.rootDir = rootAbs
@@ -482,9 +529,30 @@ func (a *App) resolveRootPath(relPath string) (string, error) {
 
 	absPath = filepath.Clean(absPath)
 	if !isSubPath(a.rootDir, absPath) {
-		return "", fmt.Errorf("路径不在根目录内")
+		return "", fmt.Errorf("璺緞涓嶅湪鏍圭洰褰曞唴")
 	}
 	return absPath, nil
+}
+
+func (a *App) resolveProfileAssetPath(relPath string) (string, error) {
+	cleaned := normalizeRelPath(strings.TrimPrefix(relPath, profileAssetPrefix))
+	if cleaned == "" {
+		return "", fmt.Errorf("profile asset path is empty")
+	}
+
+	absPath := filepath.Clean(filepath.Join(a.profileImageDir(), filepath.FromSlash(cleaned)))
+	if !isSubPath(a.profileImageDir(), absPath) {
+		return "", fmt.Errorf("profile asset path is invalid")
+	}
+	return absPath, nil
+}
+
+func isLegacyProfileAssetPath(relPath string) bool {
+	base := strings.ToLower(filepath.Base(filepath.FromSlash(relPath)))
+	if !strings.HasPrefix(base, "profile-image.") {
+		return false
+	}
+	return isSupportedProfileImageExt(filepath.Ext(base))
 }
 
 func (a *App) shouldSkipDir(path, name string) bool {
@@ -573,6 +641,13 @@ func (a *App) scheduleImagesChangedEvent() {
 	a.imageWatchDebounce = time.AfterFunc(350*time.Millisecond, func() {
 		runtime.EventsEmit(a.ctx, "images:changed")
 	})
+}
+
+func (a *App) emitAutoRulesProgress(progress AutoRulesRunProgress) {
+	if a.ctx == nil {
+		return
+	}
+	runtime.EventsEmit(a.ctx, "auto-rules:progress", progress)
 }
 
 func (a *App) addWatchTree(watcher *fsnotify.Watcher, root string, seen map[string]struct{}) error {
@@ -814,7 +889,21 @@ func (a *App) migrateLegacyPathData(settings *Settings) error {
 func (a *App) serveImage(w http.ResponseWriter, r *http.Request) {
 	path := normalizeRelPath(strings.TrimPrefix(r.URL.Path, "/"))
 
-	absPath, err := a.resolveRootPath(path)
+	var (
+		absPath string
+		err     error
+	)
+
+	switch {
+	case strings.HasPrefix(path, profileAssetPrefix):
+		absPath, err = a.resolveProfileAssetPath(path)
+	default:
+		absPath, err = a.resolveRootPath(path)
+		if err != nil && isLegacyProfileAssetPath(path) {
+			absPath, err = a.resolveProfileAssetPath(profileAssetPrefix + filepath.Base(filepath.FromSlash(path)))
+		}
+	}
+
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Invalid Path"))
@@ -836,6 +925,7 @@ func (a *App) promptToolLinksFile() string { return filepath.Join(a.dataDir, "pr
 func (a *App) promptTemplatesFile() string { return filepath.Join(a.dataDir, "prompt-templates.json") }
 func (a *App) customRootsFile() string     { return filepath.Join(a.dataDir, "custom-roots.json") }
 func (a *App) imageNotesFile() string      { return filepath.Join(a.dataDir, "image-notes.json") }
+func (a *App) autoRulesFile() string       { return filepath.Join(a.dataDir, "auto-rules.json") }
 func (a *App) imageMetaCacheFile() string {
 	return filepath.Join(a.dataDir, "image-meta-cache.json")
 }
@@ -915,6 +1005,942 @@ func uniqueNonEmptyStrings(items []string) []string {
 		result = append(result, trimmed)
 	}
 	return result
+}
+
+func normalizeSearchValue(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func autoRulePromptText(metadata ImageMetadata) string {
+	if strings.TrimSpace(metadata.Positive) != "" {
+		return metadata.Positive
+	}
+	return metadata.Prompt
+}
+
+func buildImageSearchText(name, relPath string, width, height int, metadata ImageMetadata) string {
+	parts := []string{
+		name,
+		relPath,
+		metadata.Model,
+		metadata.Sampler,
+		autoRulePromptText(metadata),
+		metadata.Negative,
+	}
+	if width > 0 && height > 0 {
+		parts = append(parts, fmt.Sprintf("%dx%d", width, height))
+	}
+	parts = append(parts, metadata.Loras...)
+	return strings.Join(uniqueNonEmptyStrings(parts), "\n")
+}
+
+func buildImageSearchTextFromCacheEntry(entry ImageMetaCacheEntry) string {
+	metadata := ImageMetadata{
+		RelPath:     entry.RelPath,
+		Width:       entry.Width,
+		Height:      entry.Height,
+		HasMetadata: entry.HasMetadata,
+		Prompt:      entry.Positive,
+		Positive:    entry.Positive,
+		Negative:    entry.Negative,
+		Model:       entry.Model,
+		Sampler:     entry.Sampler,
+		Loras:       append([]string(nil), entry.Loras...),
+	}
+	return buildImageSearchText(entry.Name, entry.RelPath, entry.Width, entry.Height, metadata)
+}
+
+func normalizeAutoRuleCondition(condition AutoRuleCondition) AutoRuleCondition {
+	field := strings.ToLower(strings.TrimSpace(condition.Field))
+	switch field {
+	case "model", "sampler", "lora", "dimensions", "filename", "prompt", "negative":
+	default:
+		field = "model"
+	}
+
+	operator := strings.ToLower(strings.TrimSpace(condition.Operator))
+	switch operator {
+	case "contains", "equals", "starts_with", "ends_with":
+	default:
+		operator = "contains"
+	}
+
+	return AutoRuleCondition{
+		Field:    field,
+		Operator: operator,
+		Value:    strings.TrimSpace(condition.Value),
+	}
+}
+
+func normalizeAutoRuleAction(action AutoRuleAction) AutoRuleAction {
+	actionType := strings.ToLower(strings.TrimSpace(action.Type))
+	switch actionType {
+	case "add_tag", "add_favorite_group", "move_to_folder":
+	default:
+		actionType = "add_tag"
+	}
+
+	return AutoRuleAction{
+		Type:  actionType,
+		Value: strings.TrimSpace(action.Value),
+	}
+}
+
+func normalizeAutoRule(rule AutoRule) AutoRule {
+	normalized := AutoRule{
+		ID:             strings.TrimSpace(rule.ID),
+		Name:           strings.TrimSpace(rule.Name),
+		Enabled:        rule.Enabled,
+		MatchMode:      strings.ToLower(strings.TrimSpace(rule.MatchMode)),
+		LastRunAt:      strings.TrimSpace(rule.LastRunAt),
+		LastMatchCount: rule.LastMatchCount,
+		LastStatus:     strings.TrimSpace(rule.LastStatus),
+		LastError:      strings.TrimSpace(rule.LastError),
+		CreatedAt:      strings.TrimSpace(rule.CreatedAt),
+		UpdatedAt:      strings.TrimSpace(rule.UpdatedAt),
+	}
+
+	if normalized.MatchMode != "any" {
+		normalized.MatchMode = "all"
+	}
+	if normalized.LastStatus == "" {
+		normalized.LastStatus = "idle"
+	}
+
+	for _, condition := range rule.Conditions {
+		next := normalizeAutoRuleCondition(condition)
+		if next.Value == "" {
+			continue
+		}
+		normalized.Conditions = append(normalized.Conditions, next)
+	}
+
+	for _, action := range rule.Actions {
+		next := normalizeAutoRuleAction(action)
+		if next.Value == "" {
+			continue
+		}
+		normalized.Actions = append(normalized.Actions, next)
+	}
+
+	return normalized
+}
+
+func normalizeAutoRulesStore(store AutoRulesStore) AutoRulesStore {
+	normalized := AutoRulesStore{
+		Enabled: store.Enabled,
+		Rules:   make([]AutoRule, 0, len(store.Rules)),
+	}
+	for _, rule := range store.Rules {
+		next := normalizeAutoRule(rule)
+		if next.Name == "" || len(next.Conditions) == 0 || len(next.Actions) == 0 {
+			continue
+		}
+		normalized.Rules = append(normalized.Rules, next)
+	}
+	return normalized
+}
+
+func defaultAutoRulesStore() AutoRulesStore {
+	now := time.Now().Format(time.RFC3339)
+	return AutoRulesStore{
+		Enabled: true,
+		Rules: []AutoRule{
+			{
+				ID:        "default-rule-pony-tag",
+				Name:      "Pony 鑷姩鎵撴爣",
+				Enabled:   true,
+				MatchMode: "all",
+				Conditions: []AutoRuleCondition{
+					{Field: "model", Operator: "contains", Value: "pony"},
+				},
+				Actions: []AutoRuleAction{
+					{Type: "add_tag", Value: "Pony"},
+				},
+				LastStatus: "idle",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			},
+			{
+				ID:        "default-rule-sdxl-tag",
+				Name:      "SDXL 鑷姩鎵撴爣",
+				Enabled:   true,
+				MatchMode: "all",
+				Conditions: []AutoRuleCondition{
+					{Field: "model", Operator: "contains", Value: "sdxl"},
+				},
+				Actions: []AutoRuleAction{
+					{Type: "add_tag", Value: "SDXL"},
+				},
+				LastStatus: "idle",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			},
+			{
+				ID:        "default-rule-detail-lora",
+				Name:      "缁嗚妭 LoRA 鑷姩鎵撴爣",
+				Enabled:   true,
+				MatchMode: "all",
+				Conditions: []AutoRuleCondition{
+					{Field: "lora", Operator: "contains", Value: "detail"},
+				},
+				Actions: []AutoRuleAction{
+					{Type: "add_tag", Value: "缁嗚妭澧炲己"},
+				},
+				LastStatus: "idle",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			},
+			{
+				ID:        "default-rule-euler-tag",
+				Name:      "Euler a 鑷姩鎵撴爣",
+				Enabled:   true,
+				MatchMode: "all",
+				Conditions: []AutoRuleCondition{
+					{Field: "sampler", Operator: "equals", Value: "Euler a"},
+				},
+				Actions: []AutoRuleAction{
+					{Type: "add_tag", Value: "Euler a"},
+				},
+				LastStatus: "idle",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			},
+			{
+				ID:        "default-rule-portrait-folder",
+				Name:      "绔栧浘鑷姩褰掓。",
+				Enabled:   false,
+				MatchMode: "all",
+				Conditions: []AutoRuleCondition{
+					{Field: "dimensions", Operator: "equals", Value: "1024x1536"},
+				},
+				Actions: []AutoRuleAction{
+					{Type: "move_to_folder", Value: "鏃ユ湡褰掓。/绔栧浘"},
+				},
+				LastStatus: "idle",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			},
+			{
+				ID:        "default-rule-landscape-folder",
+				Name:      "妯浘鑷姩褰掓。",
+				Enabled:   false,
+				MatchMode: "all",
+				Conditions: []AutoRuleCondition{
+					{Field: "dimensions", Operator: "equals", Value: "1536x1024"},
+				},
+				Actions: []AutoRuleAction{
+					{Type: "move_to_folder", Value: "鏃ユ湡褰掓。/妯浘"},
+				},
+				LastStatus: "idle",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			},
+		},
+	}
+}
+
+func (a *App) loadAutoRulesStoreUnlocked() (AutoRulesStore, error) {
+	data, err := os.ReadFile(a.autoRulesFile())
+	if err != nil {
+		if os.IsNotExist(err) {
+			store := defaultAutoRulesStore()
+			if saveErr := a.saveAutoRulesStoreUnlocked(store); saveErr != nil {
+				return store, nil
+			}
+			return store, nil
+		}
+		return AutoRulesStore{}, err
+	}
+
+	store := AutoRulesStore{}
+	if err := json.Unmarshal(data, &store); err != nil {
+		return AutoRulesStore{}, err
+	}
+	return normalizeAutoRulesStore(store), nil
+}
+
+func (a *App) saveAutoRulesStoreUnlocked(store AutoRulesStore) error {
+	normalized := normalizeAutoRulesStore(store)
+	data, _ := json.MarshalIndent(normalized, "", "  ")
+	return os.WriteFile(a.autoRulesFile(), data, 0644)
+}
+
+func (a *App) GetAutoRules() (AutoRulesStore, error) {
+	a.autoRulesMu.Lock()
+	defer a.autoRulesMu.Unlock()
+
+	return a.loadAutoRulesStoreUnlocked()
+}
+
+func (a *App) SetAutoRulesEnabled(enabled bool) (AutoRulesStore, error) {
+	a.autoRulesMu.Lock()
+	defer a.autoRulesMu.Unlock()
+
+	store, err := a.loadAutoRulesStoreUnlocked()
+	if err != nil {
+		return AutoRulesStore{}, err
+	}
+	store.Enabled = enabled
+	if err := a.saveAutoRulesStoreUnlocked(store); err != nil {
+		return AutoRulesStore{}, err
+	}
+	return normalizeAutoRulesStore(store), nil
+}
+
+func (a *App) CreateAutoRule(rule AutoRule) (AutoRule, error) {
+	a.autoRulesMu.Lock()
+	defer a.autoRulesMu.Unlock()
+
+	store, err := a.loadAutoRulesStoreUnlocked()
+	if err != nil {
+		return AutoRule{}, err
+	}
+
+	normalized := normalizeAutoRule(rule)
+	if normalized.Name == "" {
+		return AutoRule{}, fmt.Errorf("rule name is required")
+	}
+	if len(normalized.Conditions) == 0 {
+		return AutoRule{}, fmt.Errorf("at least one condition is required")
+	}
+	if len(normalized.Actions) == 0 {
+		return AutoRule{}, fmt.Errorf("at least one action is required")
+	}
+	now := time.Now().Format(time.RFC3339)
+	normalized.ID = uuid.New().String()
+	normalized.CreatedAt = now
+	normalized.UpdatedAt = now
+	normalized.LastStatus = "idle"
+
+	store.Rules = append([]AutoRule{normalized}, store.Rules...)
+	if err := a.saveAutoRulesStoreUnlocked(store); err != nil {
+		return AutoRule{}, err
+	}
+	return normalized, nil
+}
+
+func (a *App) UpdateAutoRule(rule AutoRule) (AutoRule, error) {
+	a.autoRulesMu.Lock()
+	defer a.autoRulesMu.Unlock()
+
+	store, err := a.loadAutoRulesStoreUnlocked()
+	if err != nil {
+		return AutoRule{}, err
+	}
+
+	normalized := normalizeAutoRule(rule)
+	if normalized.ID == "" {
+		return AutoRule{}, fmt.Errorf("rule id is required")
+	}
+	if normalized.Name == "" {
+		return AutoRule{}, fmt.Errorf("rule name is required")
+	}
+	if len(normalized.Conditions) == 0 {
+		return AutoRule{}, fmt.Errorf("at least one condition is required")
+	}
+	if len(normalized.Actions) == 0 {
+		return AutoRule{}, fmt.Errorf("at least one action is required")
+	}
+
+	found := false
+	for i := range store.Rules {
+		if store.Rules[i].ID != normalized.ID {
+			continue
+		}
+		normalized.CreatedAt = store.Rules[i].CreatedAt
+		normalized.LastRunAt = store.Rules[i].LastRunAt
+		normalized.LastMatchCount = store.Rules[i].LastMatchCount
+		normalized.LastStatus = store.Rules[i].LastStatus
+		normalized.LastError = store.Rules[i].LastError
+		normalized.UpdatedAt = time.Now().Format(time.RFC3339)
+		store.Rules[i] = normalized
+		found = true
+		break
+	}
+	if !found {
+		return AutoRule{}, fmt.Errorf("rule not found")
+	}
+
+	if err := a.saveAutoRulesStoreUnlocked(store); err != nil {
+		return AutoRule{}, err
+	}
+	return normalized, nil
+}
+
+func (a *App) DeleteAutoRule(id string) error {
+	a.autoRulesMu.Lock()
+	defer a.autoRulesMu.Unlock()
+
+	store, err := a.loadAutoRulesStoreUnlocked()
+	if err != nil {
+		return err
+	}
+
+	filtered := make([]AutoRule, 0, len(store.Rules))
+	found := false
+	for _, rule := range store.Rules {
+		if rule.ID == id {
+			found = true
+			continue
+		}
+		filtered = append(filtered, rule)
+	}
+	if !found {
+		return fmt.Errorf("rule not found")
+	}
+
+	store.Rules = filtered
+	return a.saveAutoRulesStoreUnlocked(store)
+}
+
+type autoRuleMatchContext struct {
+	RelPath  string
+	FileName string
+	Width    int
+	Height   int
+	Metadata ImageMetadata
+}
+
+func autoRuleFieldValue(ctx autoRuleMatchContext, field string) string {
+	switch field {
+	case "model":
+		return ctx.Metadata.Model
+	case "sampler":
+		return ctx.Metadata.Sampler
+	case "lora":
+		return strings.Join(ctx.Metadata.Loras, "\n")
+	case "dimensions":
+		if ctx.Width > 0 && ctx.Height > 0 {
+			return fmt.Sprintf("%dx%d", ctx.Width, ctx.Height)
+		}
+		return ""
+	case "filename":
+		return ctx.FileName
+	case "prompt":
+		return autoRulePromptText(ctx.Metadata)
+	case "negative":
+		return ctx.Metadata.Negative
+	default:
+		return ""
+	}
+}
+
+func matchesAutoRuleCondition(ctx autoRuleMatchContext, condition AutoRuleCondition) bool {
+	left := normalizeSearchValue(autoRuleFieldValue(ctx, condition.Field))
+	right := normalizeSearchValue(condition.Value)
+	if left == "" || right == "" {
+		return false
+	}
+
+	switch condition.Operator {
+	case "equals":
+		return left == right
+	case "starts_with":
+		return strings.HasPrefix(left, right)
+	case "ends_with":
+		return strings.HasSuffix(left, right)
+	default:
+		return strings.Contains(left, right)
+	}
+}
+
+func matchesAutoRule(ctx autoRuleMatchContext, rule AutoRule) bool {
+	if len(rule.Conditions) == 0 {
+		return false
+	}
+
+	if rule.MatchMode == "any" {
+		for _, condition := range rule.Conditions {
+			if matchesAutoRuleCondition(ctx, condition) {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, condition := range rule.Conditions {
+		if !matchesAutoRuleCondition(ctx, condition) {
+			return false
+		}
+	}
+	return true
+}
+
+func hasMoveAction(actions []AutoRuleAction) bool {
+	for _, action := range actions {
+		if action.Type == "move_to_folder" {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) ensureTagAssigned(relPath, tagName string) (bool, error) {
+	normalizedPath := normalizeRelPath(relPath)
+	trimmedName := strings.TrimSpace(tagName)
+	if normalizedPath == "" || trimmedName == "" {
+		return false, fmt.Errorf("tag target is invalid")
+	}
+
+	tagMutex.Lock()
+	defer tagMutex.Unlock()
+
+	tags, err := a.loadTags()
+	if err != nil {
+		return false, err
+	}
+
+	tagID := ""
+	for _, tag := range tags {
+		if strings.EqualFold(strings.TrimSpace(tag.Name), trimmedName) {
+			tagID = tag.ID
+			break
+		}
+	}
+	if tagID == "" {
+		newTag := Tag{
+			ID:       uuid.New().String(),
+			Name:     trimmedName,
+			Color:    "#64748b",
+			Category: "default",
+		}
+		tags = append(tags, newTag)
+		if err := a.saveTags(tags); err != nil {
+			return false, err
+		}
+		tagID = newTag.ID
+	}
+
+	imageTags, err := a.loadImageTags()
+	if err != nil {
+		return false, err
+	}
+	current := imageTags[normalizedPath]
+	if contains(current, tagID) {
+		return false, nil
+	}
+	imageTags[normalizedPath] = append(current, tagID)
+	return true, a.saveImageTags(imageTags)
+}
+
+func (a *App) ensureFavoriteGroupAssigned(relPath, groupName string) (bool, error) {
+	normalizedPath := normalizeRelPath(relPath)
+	trimmedName := strings.TrimSpace(groupName)
+	if normalizedPath == "" || trimmedName == "" {
+		return false, fmt.Errorf("favorite group target is invalid")
+	}
+
+	groups, err := a.loadFavoriteGroups()
+	if err != nil {
+		return false, err
+	}
+
+	index := -1
+	for i, group := range groups {
+		if strings.EqualFold(strings.TrimSpace(group.Name), trimmedName) {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		groups = append(groups, FavoriteGroup{
+			ID:    uuid.New().String(),
+			Name:  trimmedName,
+			Paths: []string{},
+		})
+		index = len(groups) - 1
+	}
+
+	if contains(groups[index].Paths, normalizedPath) {
+		if len(groups) == 1 {
+			return false, nil
+		}
+		return false, a.saveFavoriteGroups(groups)
+	}
+
+	groups[index].Paths = append(groups[index].Paths, normalizedPath)
+	groups[index].Paths = uniqueNonEmptyStrings(groups[index].Paths)
+	return true, a.saveFavoriteGroups(groups)
+}
+
+func (a *App) remapManagedImageReferences(oldRelPath, newRelPath string) error {
+	oldRelPath = normalizeRelPath(oldRelPath)
+	newRelPath = normalizeRelPath(newRelPath)
+	if oldRelPath == "" || newRelPath == "" || oldRelPath == newRelPath {
+		return nil
+	}
+
+	imageTags, err := a.loadImageTags()
+	if err != nil {
+		return err
+	}
+	if tagIDs, ok := imageTags[oldRelPath]; ok {
+		imageTags[newRelPath] = uniqueNonEmptyStrings(append(imageTags[newRelPath], tagIDs...))
+		delete(imageTags, oldRelPath)
+		if err := a.saveImageTags(imageTags); err != nil {
+			return err
+		}
+	}
+
+	notes, err := a.loadImageNotes()
+	if err != nil {
+		return err
+	}
+	if note, ok := notes[oldRelPath]; ok {
+		if strings.TrimSpace(notes[newRelPath]) == "" {
+			notes[newRelPath] = note
+		}
+		delete(notes, oldRelPath)
+		if err := a.saveImageNotes(notes); err != nil {
+			return err
+		}
+	}
+
+	groups, err := a.loadFavoriteGroups()
+	if err != nil {
+		return err
+	}
+	groupsChanged := false
+	for i := range groups {
+		replaced := false
+		paths := make([]string, 0, len(groups[i].Paths))
+		for _, path := range groups[i].Paths {
+			if path == oldRelPath {
+				paths = append(paths, newRelPath)
+				replaced = true
+				continue
+			}
+			paths = append(paths, path)
+		}
+		if replaced {
+			groups[i].Paths = uniqueNonEmptyStrings(paths)
+			groupsChanged = true
+		}
+	}
+	if groupsChanged {
+		if err := a.saveFavoriteGroups(groups); err != nil {
+			return err
+		}
+	}
+
+	a.ensureImageMetaCacheLoaded()
+	cache := a.snapshotImageMetaCache()
+	if entry, ok := cache[oldRelPath]; ok {
+		delete(cache, oldRelPath)
+		entry.RelPath = newRelPath
+		entry.Name = filepath.Base(newRelPath)
+		cache[newRelPath] = entry
+		a.replaceImageMetaCache(cache)
+		if err := a.saveImageMetaCache(cache); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (a *App) moveManagedImageToFolder(relPath, targetFolder string) (string, bool, error) {
+	normalizedPath := normalizeRelPath(relPath)
+	if normalizedPath == "" {
+		return "", false, fmt.Errorf("invalid image path")
+	}
+
+	sourcePath, err := a.resolveRootPath(normalizedPath)
+	if err != nil {
+		return "", false, err
+	}
+	targetFolder = normalizeRelPath(targetFolder)
+
+	targetPath, err := a.resolveRootPath(targetFolder)
+	if err != nil {
+		return "", false, err
+	}
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
+		return "", false, err
+	}
+
+	fileName := filepath.Base(sourcePath)
+	destPath := filepath.Join(targetPath, fileName)
+	if samePath(sourcePath, destPath) {
+		return normalizedPath, false, nil
+	}
+
+	if _, err := os.Stat(destPath); err == nil {
+		ext := filepath.Ext(fileName)
+		name := strings.TrimSuffix(fileName, ext)
+		timestamp := time.Now().Format("20060102_150405")
+		destPath = filepath.Join(targetPath, fmt.Sprintf("%s_%s%s", name, timestamp, ext))
+	}
+
+	if err := moveFile(sourcePath, destPath); err != nil {
+		return "", false, err
+	}
+
+	relative, err := filepath.Rel(a.rootDir, destPath)
+	if err != nil {
+		return "", false, err
+	}
+	newRelPath := normalizeRelPath(relative)
+	if err := a.remapManagedImageReferences(normalizedPath, newRelPath); err != nil {
+		return "", false, err
+	}
+
+	return newRelPath, true, nil
+}
+
+func (a *App) updateImageMetaCacheEntry(relPath string, info fs.FileInfo, metadata ImageMetadata) error {
+	normalized := normalizeRelPath(relPath)
+	if normalized == "" || info == nil {
+		return nil
+	}
+
+	a.ensureImageMetaCacheLoaded()
+	cache := a.snapshotImageMetaCache()
+	entry := cache[normalized]
+	entry.Name = filepath.Base(normalized)
+	entry.RelPath = normalized
+	entry.ModTime = info.ModTime().UTC().Format(time.RFC3339Nano)
+	entry.Size = info.Size()
+	entry.Width = metadata.Width
+	entry.Height = metadata.Height
+	entry.MetadataScanned = true
+	entry.HasMetadata = metadata.HasMetadata
+	entry.HasWorkflow = strings.TrimSpace(metadata.Workflow) != ""
+	entry.Positive = metadata.Positive
+	entry.Negative = metadata.Negative
+	entry.Model = metadata.Model
+	entry.Sampler = metadata.Sampler
+	entry.Loras = append([]string(nil), metadata.Loras...)
+	entry.SearchText = buildImageSearchText(entry.Name, normalized, metadata.Width, metadata.Height, metadata)
+	cache[normalized] = entry
+	a.replaceImageMetaCache(cache)
+	return a.saveImageMetaCache(cache)
+}
+
+func (a *App) buildAutoRuleMatchContext(relPath string) (autoRuleMatchContext, error) {
+	metadata, err := a.GetImageMetadata(relPath)
+	if err != nil {
+		return autoRuleMatchContext{}, err
+	}
+	return autoRuleMatchContext{
+		RelPath:  metadata.RelPath,
+		FileName: filepath.Base(metadata.RelPath),
+		Width:    metadata.Width,
+		Height:   metadata.Height,
+		Metadata: metadata,
+	}, nil
+}
+
+func (a *App) executeAutoRuleActions(relPath string, actions []AutoRuleAction) (string, bool, bool, error) {
+	currentPath := normalizeRelPath(relPath)
+	updated := false
+	stopAfterRule := false
+
+	for _, action := range actions {
+		switch action.Type {
+		case "add_tag":
+			changed, err := a.ensureTagAssigned(currentPath, action.Value)
+			if err != nil {
+				return currentPath, updated, stopAfterRule, err
+			}
+			updated = updated || changed
+		case "add_favorite_group":
+			changed, err := a.ensureFavoriteGroupAssigned(currentPath, action.Value)
+			if err != nil {
+				return currentPath, updated, stopAfterRule, err
+			}
+			updated = updated || changed
+		case "move_to_folder":
+			nextPath, moved, err := a.moveManagedImageToFolder(currentPath, action.Value)
+			if err != nil {
+				return currentPath, updated, true, err
+			}
+			currentPath = nextPath
+			updated = updated || moved
+			stopAfterRule = true
+		default:
+			return currentPath, updated, stopAfterRule, fmt.Errorf("unsupported action: %s", action.Type)
+		}
+	}
+
+	if hasMoveAction(actions) {
+		stopAfterRule = true
+	}
+
+	return currentPath, updated, stopAfterRule, nil
+}
+
+func (a *App) runAutoRulesForPaths(paths []string, source string) (AutoRulesRunSummary, error) {
+	summary := AutoRulesRunSummary{
+		RanAt: time.Now().Format(time.RFC3339),
+	}
+
+	normalizedPaths := uniqueNonEmptyStrings(paths)
+	summary.TotalCount = len(normalizedPaths)
+	emitProgress := func(stage string, running bool, currentRelPath, currentRuleName, message string) {
+		a.emitAutoRulesProgress(AutoRulesRunProgress{
+			Source:          source,
+			Stage:           stage,
+			Running:         running,
+			TotalCount:      summary.TotalCount,
+			ProcessedCount:  summary.ProcessedCount,
+			MatchedCount:    summary.MatchedCount,
+			UpdatedCount:    summary.UpdatedCount,
+			ErrorCount:      summary.ErrorCount,
+			CurrentRelPath:  currentRelPath,
+			CurrentRuleName: currentRuleName,
+			RanAt:           summary.RanAt,
+			Message:         message,
+		})
+	}
+	if len(normalizedPaths) == 0 {
+		emitProgress("completed", false, "", "", "娌℃湁鍙鐞嗙殑鍥剧墖")
+		return summary, nil
+	}
+
+	a.autoRulesRunMu.Lock()
+	defer a.autoRulesRunMu.Unlock()
+	emitProgress("started", true, "", "", "开始执行自动规则")
+
+	a.autoRulesMu.Lock()
+	store, err := a.loadAutoRulesStoreUnlocked()
+	a.autoRulesMu.Unlock()
+	if err != nil {
+		emitProgress("failed", false, "", "", err.Error())
+		return summary, err
+	}
+	if !store.Enabled || len(store.Rules) == 0 {
+		emitProgress("completed", false, "", "", "褰撳墠娌℃湁鍙墽琛岀殑瑙勫垯")
+		return summary, nil
+	}
+
+	for i := range store.Rules {
+		if !store.Rules[i].Enabled {
+			continue
+		}
+		store.Rules[i].LastRunAt = summary.RanAt
+		store.Rules[i].LastMatchCount = 0
+		store.Rules[i].LastStatus = "success"
+		store.Rules[i].LastError = ""
+		store.Rules[i].UpdatedAt = time.Now().Format(time.RFC3339)
+	}
+
+	lastProgressEmitAt := time.Time{}
+	emitRunningProgress := func(force bool, currentRelPath, currentRuleName string) {
+		if !force && !lastProgressEmitAt.IsZero() && time.Since(lastProgressEmitAt) < 120*time.Millisecond {
+			return
+		}
+		lastProgressEmitAt = time.Now()
+		emitProgress("running", true, currentRelPath, currentRuleName, "")
+	}
+
+	for _, relPath := range normalizedPaths {
+		currentRelPath := normalizeRelPath(relPath)
+		currentRuleName := ""
+		ctx, err := a.buildAutoRuleMatchContext(relPath)
+		if err != nil {
+			summary.ErrorCount++
+			summary.Errors = append(summary.Errors, fmt.Sprintf("%s: %v", relPath, err))
+			summary.ProcessedCount++
+			emitRunningProgress(summary.ProcessedCount >= summary.TotalCount, currentRelPath, currentRuleName)
+			continue
+		}
+
+		imageUpdated := false
+		currentPath := ctx.RelPath
+
+		for i := range store.Rules {
+			rule := &store.Rules[i]
+			if !rule.Enabled {
+				continue
+			}
+			if !matchesAutoRule(ctx, *rule) {
+				continue
+			}
+
+			summary.MatchedCount++
+			rule.LastMatchCount++
+			currentRuleName = rule.Name
+
+			nextPath, updated, stopAfterRule, actionErr := a.executeAutoRuleActions(currentPath, rule.Actions)
+			if actionErr != nil {
+				rule.LastStatus = "error"
+				rule.LastError = actionErr.Error()
+				summary.ErrorCount++
+				summary.Errors = append(summary.Errors, fmt.Sprintf("%s / %s: %v", rule.Name, currentPath, actionErr))
+				if stopAfterRule {
+					break
+				}
+				continue
+			}
+
+			currentPath = nextPath
+			imageUpdated = imageUpdated || updated
+
+			if currentPath != ctx.RelPath {
+				nextCtx, rebuildErr := a.buildAutoRuleMatchContext(currentPath)
+				if rebuildErr != nil {
+					rule.LastStatus = "error"
+					rule.LastError = rebuildErr.Error()
+					summary.ErrorCount++
+					summary.Errors = append(summary.Errors, fmt.Sprintf("%s / %s: %v", rule.Name, currentPath, rebuildErr))
+					break
+				}
+				ctx = nextCtx
+			}
+
+			if stopAfterRule {
+				break
+			}
+		}
+
+		if imageUpdated {
+			summary.UpdatedCount++
+		}
+		summary.ProcessedCount++
+		emitRunningProgress(summary.ProcessedCount >= summary.TotalCount, currentPath, currentRuleName)
+	}
+
+	a.autoRulesMu.Lock()
+	saveErr := a.saveAutoRulesStoreUnlocked(store)
+	a.autoRulesMu.Unlock()
+	if saveErr != nil {
+		emitProgress("failed", false, "", "", saveErr.Error())
+		return summary, saveErr
+	}
+
+	if summary.UpdatedCount > 0 {
+		a.scheduleImagesChangedEvent()
+	}
+	emitProgress("completed", false, "", "", "")
+
+	return summary, nil
+}
+
+func (a *App) scheduleAutoRulesRun(paths []string) {
+	normalizedPaths := uniqueNonEmptyStrings(paths)
+	if len(normalizedPaths) == 0 {
+		return
+	}
+
+	go func(items []string) {
+		if _, err := a.runAutoRulesForPaths(items, "background"); err != nil {
+			log.Printf("auto rules run failed: %v", err)
+		}
+	}(normalizedPaths)
+}
+
+func (a *App) RunAutoRulesNow() (AutoRulesRunSummary, error) {
+	paths := make([]string, 0)
+	err := a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
+		paths = append(paths, relPath)
+		return nil
+	})
+	if err != nil {
+		return AutoRulesRunSummary{}, err
+	}
+	return a.runAutoRulesForPaths(paths, "manual")
 }
 
 func isSupportedProfileImageExt(ext string) bool {
@@ -1028,12 +2054,14 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 	images := []ImageFile{}
 	newCache := make(ImageMetaCache, len(cachedMeta))
 	warmupTasks := make([]imageMetaWarmupTask, 0)
+	autoRuleCandidates := make([]string, 0)
 	cacheChanged := len(cachedMeta) == 0
 
 	err := a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
 		modTime := info.ModTime().UTC().Format(time.RFC3339Nano)
 		name := filepath.Base(path)
 		width, height := 0, 0
+		needsAutoRuleCheck := false
 
 		if cached, ok := cachedMeta[relPath]; ok && cached.ModTime == modTime && cached.Size == info.Size() {
 			if cached.Width > 0 || cached.Height > 0 {
@@ -1056,6 +2084,7 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 		} else if sortBy == "dimensions" {
 			width, height = readImageDimensions(path)
 			cacheChanged = true
+			needsAutoRuleCheck = true
 		} else {
 			warmupTasks = append(warmupTasks, imageMetaWarmupTask{
 				Path: path,
@@ -1067,6 +2096,7 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 				},
 			})
 			cacheChanged = true
+			needsAutoRuleCheck = true
 		}
 
 		entry := ImageMetaCacheEntry{
@@ -1101,18 +2131,26 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 		} else {
 			cacheChanged = true
 		}
+		if entry.SearchText == "" {
+			entry.SearchText = buildImageSearchTextFromCacheEntry(entry)
+			cacheChanged = true
+		}
 		newCache[relPath] = entry
+		if needsAutoRuleCheck {
+			autoRuleCandidates = append(autoRuleCandidates, relPath)
+		}
 
 		images = append(images, ImageFile{
-			Name:    name,
-			Path:    relPath,
-			RelPath: relPath,
-			ModTime: info.ModTime().Format(time.RFC3339),
-			Size:    info.Size(),
-			Width:   width,
-			Height:  height,
-			Prompt:  entry.Positive,
-			Model:   entry.Model,
+			Name:       name,
+			Path:       relPath,
+			RelPath:    relPath,
+			ModTime:    info.ModTime().Format(time.RFC3339),
+			Size:       info.Size(),
+			Width:      width,
+			Height:     height,
+			Prompt:     entry.Positive,
+			Model:      entry.Model,
+			SearchText: entry.SearchText,
 		})
 		return nil
 	})
@@ -1132,6 +2170,9 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 	}
 	if sortBy != "dimensions" {
 		a.scheduleImageMetaWarmup(warmupTasks)
+	}
+	if len(autoRuleCandidates) > 0 {
+		a.scheduleAutoRulesRun(autoRuleCandidates)
 	}
 
 	sort.Slice(images, func(i, j int) bool {
@@ -3050,6 +4091,7 @@ func (a *App) GetImageMetadata(relPath string) (ImageMetadata, error) {
 	}
 
 	if strings.ToLower(filepath.Ext(absPath)) != ".png" {
+		_ = a.updateImageMetaCacheEntry(normalized, info, metadata)
 		return metadata, nil
 	}
 
@@ -3058,7 +4100,9 @@ func (a *App) GetImageMetadata(relPath string) (ImageMetadata, error) {
 		return metadata, err
 	}
 
-	return buildImageMetadata(normalized, width, height, textChunks), nil
+	metadata = buildImageMetadata(normalized, width, height, textChunks)
+	_ = a.updateImageMetaCacheEntry(normalized, info, metadata)
+	return metadata, nil
 }
 
 func (a *App) CopyText(text string) error {
@@ -3318,12 +4362,7 @@ func (a *App) saveUserProfileImage(sourcePath string) (UserProfile, error) {
 		return settings.UserProfile, err
 	}
 
-	relPath, err := filepath.Rel(a.rootDir, targetPath)
-	if err != nil {
-		return settings.UserProfile, err
-	}
-
-	settings.UserProfile.ImagePath = normalizeRelPath(relPath)
+	settings.UserProfile.ImagePath = normalizeRelPath(profileAssetPrefix + targetName)
 	settings.UserProfile = normalizeUserProfile(settings.UserProfile)
 	if err := a.saveSettings(settings); err != nil {
 		return settings.UserProfile, err
@@ -3334,7 +4373,7 @@ func (a *App) saveUserProfileImage(sourcePath string) (UserProfile, error) {
 
 func (a *App) SelectUserProfileImage() (UserProfile, error) {
 	options := runtime.OpenDialogOptions{
-		Title: "选择个人中心图片",
+		Title: "閫夋嫨涓汉涓績鍥剧墖",
 		Filters: []runtime.FileFilter{
 			{
 				DisplayName: "Image Files (*.png;*.jpg;*.jpeg;*.webp;*.gif)",
@@ -3453,30 +4492,25 @@ func (a *App) BatchMove(paths []string, targetFolder string) (int, error) {
 	if err := os.MkdirAll(targetPath, 0755); err != nil {
 		return 0, err
 	}
+	if !isSubPath(a.rootDir, filepath.Clean(targetPath)) {
+		return 0, fmt.Errorf("target folder must stay inside root directory")
+	}
+	targetRel, err := filepath.Rel(a.rootDir, targetPath)
+	if err != nil {
+		return 0, err
+	}
+	normalizedTargetFolder := normalizeRelPath(targetRel)
 
 	successCount := 0
+	updated := false
 	for _, relPath := range paths {
-		sourcePath, err := a.resolveRootPath(relPath)
-		if err != nil {
-			continue
-		}
-		fileName := filepath.Base(sourcePath)
-		destPath := filepath.Join(targetPath, fileName)
-
-		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
-			continue
-		}
-
-		if _, err := os.Stat(destPath); err == nil {
-			ext := filepath.Ext(fileName)
-			name := strings.TrimSuffix(fileName, ext)
-			timestamp := time.Now().Format("20060102_150405")
-			destPath = filepath.Join(targetPath, fmt.Sprintf("%s_%s%s", name, timestamp, ext))
-		}
-
-		if err := moveFile(sourcePath, destPath); err == nil {
+		if _, moved, err := a.moveManagedImageToFolder(relPath, normalizedTargetFolder); err == nil {
 			successCount++
+			updated = updated || moved
 		}
+	}
+	if updated {
+		a.scheduleImagesChangedEvent()
 	}
 
 	return successCount, nil
@@ -3635,6 +4669,7 @@ func (a *App) UploadImages(paths []string, targetFolder string) (*UploadResult, 
 	}
 
 	result := &UploadResult{}
+	importedRelPaths := make([]string, 0, len(paths))
 	for _, srcPath := range paths {
 		// Validate source file exists
 		info, err := os.Stat(srcPath)
@@ -3689,6 +4724,13 @@ func (a *App) UploadImages(paths []string, targetFolder string) (*UploadResult, 
 		}
 
 		result.Count++
+		if rel, err := filepath.Rel(a.rootDir, destPath); err == nil {
+			importedRelPaths = append(importedRelPaths, normalizeRelPath(rel))
+		}
+	}
+	if len(importedRelPaths) > 0 {
+		a.scheduleAutoRulesRun(importedRelPaths)
+		a.scheduleImagesChangedEvent()
 	}
 
 	return result, nil
@@ -3916,7 +4958,7 @@ func (a *App) AddCustomRoot(name, relPath, icon string) (CustomRoot, error) {
 	}
 	info, err := os.Stat(abs)
 	if err != nil || !info.IsDir() {
-		return CustomRoot{}, fmt.Errorf("文件夹不存在: %s", relPath)
+		return CustomRoot{}, fmt.Errorf("鏂囦欢澶逛笉瀛樺湪: %s", relPath)
 	}
 
 	roots, _ := a.loadCustomRoots()
@@ -3976,7 +5018,7 @@ func (a *App) UpdateCustomRoot(id, name, icon string) error {
 	}
 
 	if !updated {
-		return fmt.Errorf("鑷畾涔夌洰褰曚笉瀛樺湪")
+		return fmt.Errorf("自定义目录不存在")
 	}
 
 	err := a.saveCustomRoots(roots)
@@ -4280,131 +5322,4 @@ func (a *App) DeletePromptTemplate(id string) error {
 		}
 	}
 	return a.savePromptTemplates(newTemplates)
-}
-
-// --- Smart Albums ---
-
-func (a *App) GetSmartAlbumFields() []SmartAlbumField {
-	return []SmartAlbumField{
-		{Key: "model", Label: "模型", Icon: "Cpu"},
-		{Key: "sampler", Label: "采样器", Icon: "FlaskConical"},
-		{Key: "lora", Label: "LoRA", Icon: "Puzzle"},
-		{Key: "dimensions", Label: "尺寸", Icon: "Maximize"},
-	}
-}
-
-func (a *App) GetSmartAlbums(field string) ([]SmartAlbum, error) {
-	a.ensureImageMetaCacheLoaded()
-	cache := a.snapshotImageMetaCache()
-
-	// For dimensions, cache already has width/height from GetImages.
-	// For model/sampler/lora, we need to scan PNG metadata if not yet cached.
-	needsMetaScan := field == "model" || field == "sampler" || field == "lora"
-
-	if needsMetaScan {
-		type scanTask struct {
-			relPath string
-			absPath string
-		}
-		var tasks []scanTask
-		for relPath, entry := range cache {
-			if entry.MetadataScanned {
-				continue
-			}
-			ext := strings.ToLower(filepath.Ext(relPath))
-			if ext != ".png" {
-				continue
-			}
-			absPath, err := a.resolveRootPath(relPath)
-			if err != nil {
-				continue
-			}
-			if _, err := os.Stat(absPath); err != nil {
-				continue
-			}
-			tasks = append(tasks, scanTask{relPath: relPath, absPath: absPath})
-		}
-
-		if len(tasks) > 0 {
-			updated := make(map[string]ImageMetaCacheEntry)
-			for _, task := range tasks {
-				textChunks, err := parsePNGTextChunks(task.absPath)
-				if err != nil {
-					continue
-				}
-				meta := buildImageMetadata(task.relPath, 0, 0, textChunks)
-				if entry, ok := cache[task.relPath]; ok {
-					entry.MetadataScanned = true
-					entry.HasMetadata = meta.HasMetadata
-					entry.HasWorkflow = meta.Workflow != ""
-					entry.Positive = meta.Positive
-					entry.Negative = meta.Negative
-					entry.Model = meta.Model
-					entry.Sampler = meta.Sampler
-					if len(meta.Loras) > 0 {
-						entry.Loras = meta.Loras
-					}
-					searchParts := []string{meta.Model, meta.Sampler}
-					searchParts = append(searchParts, meta.Loras...)
-					entry.SearchText = strings.Join(searchParts, " ")
-					cache[task.relPath] = entry
-					updated[task.relPath] = entry
-				}
-			}
-			if len(updated) > 0 {
-				// Write back to in-memory cache
-				a.imageMetaMu.Lock()
-				for k, v := range updated {
-					a.imageMetaCache[k] = v
-				}
-				a.imageMetaMu.Unlock()
-				// Persist to disk asynchronously
-				go func() {
-					if err := a.saveImageMetaCache(a.snapshotImageMetaCache()); err != nil {
-						log.Printf("failed to save smart album metadata scan: %v", err)
-					}
-				}()
-			}
-		}
-	}
-
-	groups := map[string][]string{} // value -> paths
-
-	for relPath, entry := range cache {
-		switch field {
-		case "model":
-			if entry.Model != "" {
-				groups[entry.Model] = append(groups[entry.Model], relPath)
-			}
-		case "sampler":
-			if entry.Sampler != "" {
-				groups[entry.Sampler] = append(groups[entry.Sampler], relPath)
-			}
-		case "lora":
-			for _, lora := range entry.Loras {
-				groups[lora] = append(groups[lora], relPath)
-			}
-		case "dimensions":
-			if entry.Width > 0 && entry.Height > 0 {
-				dim := fmt.Sprintf("%d × %d", entry.Width, entry.Height)
-				groups[dim] = append(groups[dim], relPath)
-			}
-		}
-	}
-
-	albums := make([]SmartAlbum, 0, len(groups))
-	for value, paths := range groups {
-		albums = append(albums, SmartAlbum{
-			Field: field,
-			Value: value,
-			Count: len(paths),
-			Paths: paths,
-		})
-	}
-
-	sort.Slice(albums, func(i, j int) bool {
-		return albums[i].Count > albums[j].Count
-	})
-
-	return albums, nil
 }

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, provide, onMounted, onUnmounted } from 'vue'
 import AppSidebar from './components/AppSidebar.vue'
 import ImageGallery from './components/ImageGallery.vue'
@@ -90,6 +90,7 @@ const {
     removeTagFromImage,
     sortBy,
     sortOrder,
+    searchQuery,
     setSortBy,
     setSortOrder,
     currentPage,
@@ -111,8 +112,6 @@ const {
 const isSelectionMode = ref(false)
 const selectedPaths = ref(new Set())
 
-// Smart Album filter state
-const smartAlbumFilter = ref(null)
 const isSidebarCollapsed = ref(false)
 const toggleSidebar = () => {
     isSidebarCollapsed.value = !isSidebarCollapsed.value
@@ -178,66 +177,18 @@ const activeLocation = computed(() => {
     }
 })
 
-const handleSmartAlbumSelect = (filter) => {
-  if (!filter) {
-    smartAlbumFilter.value = null
-    return
-  }
-  if (smartAlbumFilter.value?.field === filter.field && smartAlbumFilter.value?.value === filter.value) {
-    smartAlbumFilter.value = null
-    return
-  }
-  smartAlbumFilter.value = filter
-  if (activeRoot.value === 'dashboard' || activeRoot.value === 'documentation') {
-    activeRoot.value = 'output'
-    activeSub.value = ''
-    activeChild.value = ''
-  }
+const updateSearchQuery = (value) => {
+  searchQuery.value = value
 }
 
-const refreshSmartAlbumFilter = async () => {
-  if (!smartAlbumFilter.value) return
-  try {
-    const albums = await App.GetSmartAlbums(smartAlbumFilter.value.field)
-    const match = (albums || []).find(
-      a => a.value === smartAlbumFilter.value.value
-    )
-    if (match) {
-      smartAlbumFilter.value = {
-        ...smartAlbumFilter.value,
-        paths: match.paths,
-      }
-    } else {
-      smartAlbumFilter.value = null
-    }
-  } catch (e) {
-    console.error('Failed to refresh smart album filter:', e)
-  }
-}
+const finalPaginatedImages = computed(() => paginatedImages.value)
 
-const finalPaginatedImages = computed(() => {
-  if (!smartAlbumFilter.value) return paginatedImages.value
-  // Smart album paths come from all images across all folders,
-  // so filter from the full image list, not just the current page/folder
-  const filterPaths = new Set(smartAlbumFilter.value.paths)
-  const matched = images.value.filter(img => filterPaths.has(img.relPath))
-  const startIndex = (currentPage.value - 1) * itemsPerPage.value
-  const endIndex = startIndex + itemsPerPage.value
-  return matched.slice(startIndex, endIndex)
-})
-
-const finalTotalImages = computed(() => {
-  if (!smartAlbumFilter.value) return currentImages.value.length
-  const filterPaths = new Set(smartAlbumFilter.value.paths)
-  return images.value.filter(img => filterPaths.has(img.relPath)).length
-})
+const finalTotalImages = computed(() => currentImages.value.length)
 
 import { watch } from 'vue'
 watch([activeRoot, activeSub, activeChild], () => {
     isSelectionMode.value = false
     selectedPaths.value.clear()
-    // 清除智能筛选状态
-    smartAlbumFilter.value = null
 })
 
 const toggleSelectionMode = () => {
@@ -382,8 +333,8 @@ const deleteSelected = async () => {
 
 const handleRefresh = async () => {
     await fetchImages()
+    await fetchTags()
     await fetchImageTags()
-    await refreshSmartAlbumFilter()
 }
 
 let unsubscribeImagesChanged = null
@@ -433,7 +384,6 @@ onUnmounted(() => {
         :collapsed="isSidebarCollapsed"
         :custom-roots="customRoots"
         :favorite-groups="favoriteGroups"
-        :active-smart-album="smartAlbumFilter"
         @update:activeRoot="toggleRoot"
         @update:activeSub="(val) => activeSub = val"
         @update:activeChild="(val) => activeChild = val"
@@ -451,7 +401,6 @@ onUnmounted(() => {
         @favorite-group-change="handleFavoriteGroupsChanged"
         @clear-preview-cache="handleClearPreviewCache"
         @organize-files="handleOrganizeFiles"
-        @smart-album-select="handleSmartAlbumSelect"
     />
     
     <div class="flex-1 h-screen overflow-hidden transition-all duration-300">
@@ -482,7 +431,7 @@ onUnmounted(() => {
             :image-tags="imageTags"
             :favorite-groups="favoriteGroups"
             :image-notes="imageNotes"
-            :smart-album-filter="smartAlbumFilter"
+            :search-query="searchQuery"
             :current-page="currentPage"
             :items-per-page="itemsPerPage"
             :total-pages="totalPages"
@@ -501,7 +450,7 @@ onUnmounted(() => {
             @page-change="setPage"
             @items-per-page-change="setItemsPerPage"
             @open-location="openImageLocation"
-            @clear-smart-album-filter="smartAlbumFilter = null"
+            @update:search-query="updateSearchQuery"
         />
     </div>
 
@@ -523,3 +472,4 @@ onUnmounted(() => {
     </AlertDialog>
   </div>
 </template>
+

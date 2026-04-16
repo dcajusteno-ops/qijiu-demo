@@ -78,12 +78,20 @@ export function CopyText(arg1) {
   return window['go']['main']['App']['CopyText'](arg1);
 }
 
+export function CreateAutoRule(arg1) {
+  return window['go']['main']['App']['CreateAutoRule'](arg1);
+}
+
 export function CreateFavoriteGroup(arg1) {
   return window['go']['main']['App']['CreateFavoriteGroup'](arg1);
 }
 
 export function CreateTag(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateTag'](arg1, arg2, arg3);
+}
+
+export function DeleteAutoRule(arg1) {
+  return window['go']['main']['App']['DeleteAutoRule'](arg1);
 }
 
 export function DeleteCustomRoot(arg1) {
@@ -128,6 +136,10 @@ export function ExportImages(arg1, arg2, arg3) {
 
 export function ExtractIcon(arg1) {
   return window['go']['main']['App']['ExtractIcon'](arg1);
+}
+
+export function GetAutoRules() {
+  return window['go']['main']['App']['GetAutoRules']();
 }
 
 export function GetCustomRoots() {
@@ -186,14 +198,6 @@ export function GetShortcutSettings() {
   return window['go']['main']['App']['GetShortcutSettings']();
 }
 
-export function GetSmartAlbumFields() {
-  return window['go']['main']['App']['GetSmartAlbumFields']();
-}
-
-export function GetSmartAlbums(arg1) {
-  return window['go']['main']['App']['GetSmartAlbums'](arg1);
-}
-
 export function GetStatistics(arg1) {
   return window['go']['main']['App']['GetStatistics'](arg1);
 }
@@ -246,6 +250,10 @@ export function RestoreTrash(arg1) {
   return window['go']['main']['App']['RestoreTrash'](arg1);
 }
 
+export function RunAutoRulesNow() {
+  return window['go']['main']['App']['RunAutoRulesNow']();
+}
+
 export function RunLauncherTool(arg1) {
   return window['go']['main']['App']['RunLauncherTool'](arg1);
 }
@@ -274,12 +282,20 @@ export function SelectUserProfileImage() {
   return window['go']['main']['App']['SelectUserProfileImage']();
 }
 
+export function SetAutoRulesEnabled(arg1) {
+  return window['go']['main']['App']['SetAutoRulesEnabled'](arg1);
+}
+
 export function SetImageFavoriteGroups(arg1, arg2) {
   return window['go']['main']['App']['SetImageFavoriteGroups'](arg1, arg2);
 }
 
 export function SetImageNote(arg1, arg2) {
   return window['go']['main']['App']['SetImageNote'](arg1, arg2);
+}
+
+export function UpdateAutoRule(arg1) {
+  return window['go']['main']['App']['UpdateAutoRule'](arg1);
 }
 
 export function UpdateCustomRoot(arg1, arg2, arg3) {

@@ -95,12 +95,16 @@ export const GetImageNotes = async () => callApp('GetImageNotes')
 export const SetImageNote = async (relPath, note) => callApp('SetImageNote', relPath, note)
 export const DeleteImageNote = async (relPath) => callApp('DeleteImageNote', relPath)
 
-// Smart Albums
-export const GetSmartAlbumFields = async () => callApp('GetSmartAlbumFields')
-export const GetSmartAlbums = async (field) => callApp('GetSmartAlbums', field)
-
 // Prompt Templates
 export const GetPromptTemplates = async () => callApp('GetPromptTemplates')
 export const AddPromptTemplate = async (data) => callApp('AddPromptTemplate', data)
 export const UpdatePromptTemplate = async (id, data) => callApp('UpdatePromptTemplate', id, data)
 export const DeletePromptTemplate = async (id) => callApp('DeletePromptTemplate', id)
+
+// Auto Rules
+export const GetAutoRules = async () => callApp('GetAutoRules')
+export const SetAutoRulesEnabled = async (enabled) => callApp('SetAutoRulesEnabled', enabled)
+export const CreateAutoRule = async (rule) => callApp('CreateAutoRule', rule)
+export const UpdateAutoRule = async (rule) => callApp('UpdateAutoRule', rule)
+export const DeleteAutoRule = async (id) => callApp('DeleteAutoRule', id)
+export const RunAutoRulesNow = async () => callApp('RunAutoRulesNow')

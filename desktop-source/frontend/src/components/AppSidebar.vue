@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -35,12 +35,7 @@ import {
   BarChart3,
   Link,
   FolderSymlink,
-  Cpu,
-  Puzzle,
-  Maximize,
   Bookmark,
-  Sparkles,
-  Search,
   FolderTree,
   Keyboard,
   UserRound,
@@ -54,7 +49,6 @@ import PromptTemplateDialog from './PromptTemplateDialog.vue'
 import ShortcutSettingsDialog from './ShortcutSettingsDialog.vue'
 import { TerminalSquare } from 'lucide-vue-next'
 import { availableIcons } from '@/lib/icons'
-import * as App from '@/api'
 
 const props = defineProps({
   fileTree: { type: Array, required: true },
@@ -68,7 +62,6 @@ const props = defineProps({
   collapsed: { type: Boolean, default: false },
   customRoots: { type: Array, default: () => [] },
   favoriteGroups: { type: Array, default: () => [] },
-  activeSmartAlbum: { type: Object, default: null },
 })
 
 const emit = defineEmits([
@@ -89,7 +82,6 @@ const emit = defineEmits([
   'favorite-group-change',
   'clear-preview-cache',
   'organize-files',
-  'smart-album-select',
 ])
 
 const getIcon = (node) => {
@@ -185,69 +177,6 @@ const showPromptTemplateDialog = ref(false)
 const showShortcutDialog = ref(false)
 const isTagsCollapsed = ref(false)
 const showUtilityMenu = ref(false)
-
-// Smart Albums state
-const isSmartAlbumsCollapsed = ref(false)
-const smartAlbumFields = ref([])
-const smartAlbumsData = ref({}) // field -> albums[]
-const smartAlbumsLoading = ref({})
-const smartAlbumSearch = ref({}) // field -> search text
-
-const smartAlbumFieldIcons = {
-  model: Cpu,
-  sampler: FlaskConical,
-  lora: Puzzle,
-  dimensions: Maximize,
-}
-
-const openSmartAlbumPopover = async (fieldKey) => {
-  if (!smartAlbumsData.value[fieldKey]) {
-    smartAlbumsLoading.value[fieldKey] = true
-    try {
-      const albums = await App.GetSmartAlbums(fieldKey)
-      smartAlbumsData.value[fieldKey] = albums || []
-      smartAlbumSearch.value[fieldKey] = ''
-    } catch (e) {
-      console.error('Failed to fetch smart albums:', e)
-    } finally {
-      smartAlbumsLoading.value[fieldKey] = false
-    }
-  }
-}
-
-const filteredSmartAlbums = (fieldKey) => {
-  const albums = smartAlbumsData.value[fieldKey] || []
-  const search = (smartAlbumSearch.value[fieldKey] || '').trim().toLowerCase()
-  if (!search) return albums
-  return albums.filter(a => a.value.toLowerCase().includes(search))
-}
-
-const handleSmartAlbumClick = (album) => {
-  emit('smart-album-select', { field: album.field, value: album.value, paths: album.paths })
-}
-
-const clearSmartAlbumFilter = () => {
-  emit('smart-album-select', null)
-}
-
-// Refresh smart album data (clear cache so next open re-fetches)
-const refreshSmartAlbums = () => {
-  smartAlbumsData.value = {}
-}
-
-// Auto-refresh smart albums when files change
-watch(() => props.fileTree, () => {
-  refreshSmartAlbums()
-}, { deep: true })
-
-onMounted(async () => {
-  try {
-    const fields = await App.GetSmartAlbumFields()
-    smartAlbumFields.value = fields || []
-  } catch (e) {
-    console.error('Failed to fetch smart album fields:', e)
-  }
-})
 
 const closeUtilityMenu = () => {
     showUtilityMenu.value = false
@@ -584,101 +513,6 @@ const handleDrawerClick = (subId) => {
                 >
                   <X class="h-4 w-4" />
                 </Button>
-            </div>
-          </div>
-
-          <Separator v-if="!collapsed" class="my-2" />
-
-          <!-- Smart Albums Section -->
-          <div v-if="!collapsed && smartAlbumFields.length > 0" class="space-y-1">
-            <button
-              class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors hover:bg-secondary text-left"
-              @click="isSmartAlbumsCollapsed = !isSmartAlbumsCollapsed"
-            >
-              <div class="flex items-center gap-2">
-                <Sparkles class="h-4 w-4 text-purple-500" />
-                <span>智能相册</span>
-              </div>
-              <ChevronDown v-if="!isSmartAlbumsCollapsed" class="h-4 w-4 text-muted-foreground" />
-              <ChevronRight v-else class="h-4 w-4 text-muted-foreground" />
-            </button>
-
-            <div v-if="!isSmartAlbumsCollapsed" class="space-y-0.5 pl-1">
-              <Popover
-                v-for="field in smartAlbumFields"
-                :key="field.key"
-              >
-                <PopoverTrigger as-child>
-                  <button
-                    class="w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-md transition-colors hover:bg-secondary/50 text-left"
-                    :class="activeSmartAlbum?.field === field.key ? 'bg-primary/10 text-primary font-medium' : 'text-foreground/80'"
-                    @click="openSmartAlbumPopover(field.key)"
-                  >
-                    <div class="flex items-center gap-2">
-                      <component :is="smartAlbumFieldIcons[field.key] || Folder" class="h-3.5 w-3.5" />
-                      <span>{{ field.label }}</span>
-                    </div>
-                    <ChevronRight class="h-3 w-3 text-muted-foreground" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent side="right" align="center" :side-offset="12" class="w-72 p-0 max-h-[70vh] flex flex-col overflow-hidden ml-2 mb-2">
-                  <!-- Header with search -->
-                  <div class="shrink-0 bg-background border-b px-3 py-2 z-10">
-                    <div class="flex items-center gap-2 mb-2">
-                      <component :is="smartAlbumFieldIcons[field.key] || Folder" class="h-4 w-4 text-purple-500" />
-                      <span class="text-sm font-medium">{{ field.label }}</span>
-                      <span v-if="smartAlbumsData[field.key]" class="text-[10px] text-muted-foreground ml-auto">{{ smartAlbumsData[field.key].length }} 项</span>
-                    </div>
-                    <div class="relative">
-                      <input
-                        v-model="smartAlbumSearch[field.key]"
-                        type="text"
-                        :placeholder="`搜索${field.label}...`"
-                        class="w-full h-7 px-2 pl-7 text-xs rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <Search class="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                    </div>
-                  </div>
-                  <!-- Loading -->
-                  <div v-if="smartAlbumsLoading[field.key]" class="flex items-center justify-center py-8">
-                    <div class="flex items-center gap-2 text-xs text-muted-foreground">
-                      <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      <span>加载中...</span>
-                    </div>
-                  </div>
-                  <!-- Album list -->
-                  <div v-else class="flex-1 overflow-y-auto min-h-0">
-                    <div class="p-1">
-                      <button
-                        v-for="album in filteredSmartAlbums(field.key)"
-                        :key="album.value"
-                        class="w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-md transition-colors hover:bg-secondary/50 text-left"
-                        :class="activeSmartAlbum?.field === album.field && activeSmartAlbum?.value === album.value ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground'"
-                        @click="handleSmartAlbumClick(album)"
-                      >
-                        <span class="truncate mr-2">{{ album.value }}</span>
-                        <span class="text-[10px] opacity-60 shrink-0">{{ album.count }}</span>
-                      </button>
-                      <div v-if="filteredSmartAlbums(field.key).length === 0" class="px-3 py-4 text-xs text-muted-foreground text-center">
-                        无匹配结果
-                      </div>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              <!-- Clear Smart Album Filter -->
-              <div v-if="activeSmartAlbum" class="pt-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="w-full justify-start h-7 text-xs font-medium gap-2 hover:bg-destructive/10 hover:text-destructive transition-all rounded-md"
-                  @click="clearSmartAlbumFilter"
-                >
-                  <X class="h-3 w-3" />
-                  清除智能筛选
-                </Button>
-              </div>
             </div>
           </div>
         </div>

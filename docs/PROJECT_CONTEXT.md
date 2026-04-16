@@ -1,505 +1,344 @@
-# Comfy Manager - 开发者上下文与项目总览（可持续维护版）
+# Comfy Manager - 开发者上下文与项目总览
 
-> **致 AI 编辑器/开发者：**
-> 本文档用于让 AI 在不全量扫描仓库的情况下快速理解 Comfy Manager 的架构、关键数据流、核心模块与维护方式。
->
-> **使用方式建议：**
-> 1) 先读本文件，再按“快速定位索引”跳转到目标代码；
-> 2) 改动完成后，仅更新受影响章节与“变更记录模板”条目；
-> 3) 避免每次重写整篇，保持文档长期可演进。
-
----
+> 这份文档给后续维护者和 AI 编辑器快速建立上下文用，不需要每次全量扫仓库。
 
 ## 1. 项目定位
 
 **Comfy Manager（灵动图库）** 是一个基于 **Wails v2（Go + Vue 3）** 的桌面图像管理器，面向 ComfyUI 输出图片场景。
 
+当前版本：`v1.7.0`
+
 核心能力：
+
 - 图片扫描、排序、分页展示
 - PNG 元数据解析（ComfyUI / WebUI）
+- 搜索 MVP：文件名、路径、Prompt、模型、LoRA、采样器、Negative、尺寸、标签、笔记
+- 自动规则引擎：自动打标、加入收藏分组、移动目录
+- 个人中心：资料编辑、默认进入页、展示图、规则控制入口
+- 数据视界：生成历史时间线、趋势图、活跃热图、节点回溯
 - 标签与收藏分组管理
-- 回收站（软删除 / 恢复 / 清空 / 保留期）
+- 回收站（软删除、恢复、清空、保留期）
 - 自定义根目录（多目录纳管）
-- 智能相册（模型 / 采样器 / LoRA / 尺寸）
-- 数据视界（生成历史时间线 / 趋势图 / 活跃热图 / 节点回溯）
-- 个人中心（资料编辑 / 默认进入页 / 单张展示图 / 创作摘要）
-- 全局快捷键（系统级快捷键动作与设置）
+- 全局快捷键
 - 外部工具启动器与提示词工具链接
-- 缩略图/预览缓存管理
+- 缩略图 / 预览缓存管理
 
----
+明确说明：
+
+- `v1.7.0` 已删除“智能相册”模块，相关筛选能力改由“搜索 MVP + 自动规则引擎”承接
 
 ## 2. 技术栈与运行模型
 
 ### 2.1 后端
-- **语言/框架**：Go + Wails v2
-- **关键依赖**：
+
+- 语言 / 框架：Go + Wails v2
+- 关键依赖：
   - `fsnotify`：文件系统监听
-  - `golang.org/x/image`：图像解码支持（含 webp）
+  - `golang.org/x/image`：图像解码支持
   - `google/uuid`：ID 生成
-- **后端职责**：
-  - 文件扫描、移动、删除、恢复
-  - PNG 文本块解析与元数据建模
-  - JSON 数据持久化
-  - 目录监听并向前端发事件
-  - 通过自定义 `AssetServer` 读取磁盘图片
+
+后端职责：
+
+- 文件扫描、移动、删除、恢复
+- PNG 文本块解析与元数据建模
+- JSON 数据持久化
+- 目录监听并向前端发事件
+- 通过自定义 `AssetServer` 读取磁盘图片
+- 执行自动规则并发出进度事件
 
 ### 2.2 前端
-- **框架**：Vue 3（Composition API）
-- **构建**：Vite
-- **UI**：Tailwind CSS 4 + shadcn-vue + lucide-vue-next + vue-sonner
-- **状态组织**：无 Vuex/Pinia，核心集中在 `useImages.js`
+
+- 框架：Vue 3（Composition API）
+- 构建：Vite
+- UI：Tailwind CSS 4 + shadcn-vue + lucide-vue-next + vue-sonner
+- 状态组织：无 Vuex / Pinia，核心集中在 `useImages.js`
 
 ### 2.3 通信模型
+
 - 前端通过 `frontend/src/api.js` 调用 `window.go.main.App.*`
-- 后端通过 Wails runtime 事件推送 `images:changed`
-- 前端 `App.vue` 监听事件并刷新图片/标签关联
+- 后端通过 Wails runtime 推送事件：
+  - `images:changed`
+  - `auto-rules:progress`
+- 前端在 `App.vue` 中监听刷新事件，在 `AutoRulesPanel.vue` 中监听规则进度事件
 
----
-
-## 3. 目录结构（高价值部分）
+## 3. 目录结构
 
 ```text
 comfy-manager/
 ├── docs/
-│   └── PROJECT_CONTEXT.md          # 本文档
-├── data/                           # 运行期数据（持久化 JSON）
-├── .trash/                         # 回收站目录（应用根下）
-├── desktop-app.exe                 # 发布产物
+│   ├── README.md
+│   ├── RELEASE.md
+│   ├── PROJECT_CONTEXT.md
+│   └── V1.7_SEARCH_AND_RULES_PLAN.md
+├── data/
+├── .trash/
+├── desktop-app.exe
 └── desktop-source/
-    ├── app.go                      # 后端核心业务（绝大多数接口）
-    ├── main.go                     # Wails 启动与 AssetServer 配置
+    ├── app.go
+    ├── main.go
     ├── go.mod
     └── frontend/
         ├── src/
-        │   ├── api.js              # JS API 桥
-        │   ├── App.vue             # 根组件与跨模块编排
+        │   ├── api.js
+        │   ├── App.vue
         │   ├── composables/
-        │   │   ├── useImages.js    # 前端状态中枢
-        │   │   └── useImageStacks.js
-        │   ├── components/         # 业务组件
-        │   ├── style.css           # 主题变量/Tailwind tokens
-        │   └── theme.js            # 明暗切换与 ViewTransition
-        └── wailsjs/                # 自动生成绑定（勿手改）
+        │   │   └── useImages.js
+        │   └── components/
+        └── wailsjs/
 ```
 
----
+## 4. 后端核心架构
 
-## 4. 后端核心架构（`desktop-source/app.go`）
+主文件：`desktop-source/app.go`
 
 ### 4.1 App 生命周期与目录绑定
 
 `NewApp()` 会推导运行目录并确定：
-- `appDir`：应用根（comfy-manager）
-- `imageDir`：默认受管图片目录（通常上级 output）
+
+- `appDir`：应用根目录
+- `imageDir`：默认受管图片目录
 - `rootDir`：用于相对路径安全解析的根目录
 - `dataDir`：JSON 数据目录
 
-关键点：
-- 支持旧/新发布目录结构
-- 支持开发模式（临时目录启动时回退 `Getwd`）
-- 启动时尝试迁移旧路径数据与旧回收站
-- `startup()` 中启动 watcher、清理过期回收站、清理孤儿标签
-
-### 4.2 路径安全与规范化
+### 4.2 路径安全
 
 关键函数：
+
 - `normalizeRelPath`
 - `resolveRootPath`
 - `isSubPath`
 - `normalizeDir`
 
-设计目标：
-- 所有对外文件操作都基于 `relPath`
-- 强制路径在 `rootDir` 范围内，避免越界访问
+规则：
 
-### 4.3 图片扫描 + 元数据缓存
+- 所有文件操作优先使用 `relPath`
+- 所有磁盘访问必须经过后端路径校验
+
+### 4.3 图片扫描与元数据缓存
 
 主入口：`GetImages(sortBy, sortOrder)`
 
 流程：
-1. 遍历 `managedImageRoots()`（主目录 + custom roots）
-2. 仅处理图片后缀（png/jpg/jpeg/webp/gif）
-3. 尝试命中 `image-meta-cache.json`
-4. 需要时读取尺寸、异步 warmup
-5. 返回前端 `ImageFile[]`
 
-缓存字段（`ImageMetaCacheEntry`）包含：
+1. 遍历 `managedImageRoots()`
+2. 仅处理图片后缀（png / jpg / jpeg / webp / gif）
+3. 尝试命中 `image-meta-cache.json`
+4. 需要时读取尺寸或补扫元数据
+5. 生成 `ImageFile[]`
+6. 同步填充 `searchText`
+
+缓存字段 `ImageMetaCacheEntry` 现在包含：
+
 - 尺寸、基础文件信息
-- 是否已扫描元数据
-- positive/negative/model/sampler/loras/searchText
+- `positive / negative / model / sampler / loras`
+- `searchText`
 
 ### 4.4 PNG 元数据解析
 
-核心：`GetImageMetadata(relPath)`
-- 非 png 仅返回基础信息
-- png 读取 tEXt/zTXt/iTXt 等文本块后，构建统一 `ImageMetadata`
-- 用于 Lightbox 详情展示与智能相册统计
+主入口：`GetImageMetadata(relPath)`
+
+- 非 PNG 返回基础信息
+- PNG 会解析文本块并构建统一 `ImageMetadata`
+- 解析结果会回写缓存，供搜索与自动规则使用
 
 ### 4.5 文件监听与前端刷新
 
 - `restartImageWatcher()` 递归监听所有纳管目录
-- 忽略目录：`node_modules`、`.git`、`.trash`、应用自身目录
 - `scheduleImagesChangedEvent()` 防抖 350ms 发 `images:changed`
-- 前端收到后统一 `handleRefresh`
+- 前端收到后统一执行 `handleRefresh()`
 
-### 4.6 业务能力分组（后端接口）
+### 4.6 自动规则引擎
 
-1) **目录与绑定**
-- `GetDirectoryBinding` / `SaveDirectoryBinding`
-- `GetCustomRoots` / `AddCustomRoot` / `UpdateCustomRoot` / `DeleteCustomRoot`
-- `GetRelativePath` / `GetSubFolders`
+核心结构：
 
-2) **图片与文件操作**
-- `GetImages`
-- `DeleteImage`（移动到 `.trash`）
-- `BatchMove`
-- `ExportImages` / `UploadImages`
-- `OpenImageLocation` / `OpenFile`
+- `AutoRuleCondition`
+- `AutoRuleAction`
+- `AutoRule`
+- `AutoRulesStore`
+- `AutoRulesRunSummary`
+- `AutoRulesRunProgress`
 
-3) **标签系统**
-- `GetTags` / `CreateTag` / `UpdateTag` / `DeleteTag` / `BatchDeleteTags`
-- `GetImageTags` / `AddTagToImage` / `RemoveTagFromImage`
-- `BatchAddTag` / `BatchRemoveTag`
-- `CleanupTags`
+核心方法：
 
-4) **收藏系统（分组化）**
-- `GetFavoriteGroups` / `CreateFavoriteGroup` / `UpdateFavoriteGroup` / `DeleteFavoriteGroup`
-- `SetImageFavoriteGroups` / `AddImageToFavoriteGroup` / `RemoveImageFromFavoriteGroup`
-- 兼容接口：`GetFavorites` / `AddFavorite` / `RemoveFavorite`
+- `GetAutoRules`
+- `SetAutoRulesEnabled`
+- `CreateAutoRule`
+- `UpdateAutoRule`
+- `DeleteAutoRule`
+- `RunAutoRulesNow`
+- `runAutoRulesForPaths`
+- `executeAutoRuleActions`
 
-5) **回收站**
-- `GetTrashList`
-- `RestoreTrash` / `BatchRestoreTrash`
-- `BatchDeleteTrash` / `EmptyTrash`
-- `GetTrashSettings` / `SaveTrashSettings`
-- 启动时 `cleanExpiredTrash`
+支持条件字段：
 
-6) **扩展能力**
-- 图片笔记：`GetImageNotes` / `SetImageNote` / `DeleteImageNote`
-- 启动器：`GetLauncherTools` / `AddLauncherTool` / `UpdateLauncherTool` / `DeleteLauncherTool` / `RunLauncherTool` / `ExtractIcon`
-- 提示词工具链接：`GetPromptToolLinks` / `AddPromptToolLink` / `UpdatePromptToolLink` / `DeletePromptToolLink`
-- 个人中心：`GetUserProfile` / `SaveUserProfile`
-- 统计：`GetStatistics`
-- 智能相册：`GetSmartAlbumFields` / `GetSmartAlbums`
-- 缓存管理：`ClearPreviewCache`
-- 系统能力：`CopyText` / `GetShortcutSettings` / `SaveShortcutSettings` / `GetShortcutActions`
+- `model`
+- `sampler`
+- `lora`
+- `dimensions`
+- `filename`
+- `prompt`
+- `negative`
 
----
+支持动作：
 
-## 5. 前端架构与关键数据流
+- `add_tag`
+- `add_favorite_group`
+- `move_to_folder`
+
+### 4.7 个人中心展示图
+
+展示图不再依赖普通图库 `rootDir` 解析，当前通过独立资源前缀处理：
+
+- `__profile__/...`
+
+这样即使展示图落在 `data/profile/` 目录，也能正常显示。
+
+## 5. 前端架构
 
 ### 5.1 根组件编排（`frontend/src/App.vue`）
 
 职责：
-- 建立全局 confirm/toast 注入
-- 组装侧栏、主页、文档页、画廊页
-- 管理全局选择模式与批量删除
-- 监听 Wails 事件并执行刷新
-- 承接智能相册过滤状态
 
-导航特点：
-- **未使用 Vue Router**
+- 注入全局 `confirm` / `toast`
+- 组装侧栏、首页、文档页、画廊页、个人中心页
+- 监听 `images:changed` 事件统一刷新
+- 管理全局选择模式与批量删除
+
+说明：
+
+- 未使用 Vue Router
 - 通过 `activeRoot / activeSub / activeChild` 实现多视图切换
 
 ### 5.2 状态中枢（`frontend/src/composables/useImages.js`）
 
 这是最核心的前端业务层，管理：
+
 - 图片、标签、图片-标签映射
 - 收藏与收藏分组
 - 自定义根目录
 - 图片笔记
-- 筛选、排序、分页、堆叠
+- 搜索、排序、分页
 - 动态 `fileTree` 构建
 
-重要 computed：
-- `fileTree`：按业务规则构建侧边树（output/日期归档/OXYZ/修复/收藏夹/custom roots）
-- `currentImages`：根据当前导航节点收集图片
-- `finalImages`：叠加标签与高级筛选
-- `stackedImages`：按 prompt+model 或文件名启发式聚合
-- `paginatedImages`
+`v1.7.0` 关键点：
+
+- 搜索逻辑已接入 `img.searchText`
+- 搜索覆盖 LoRA / 采样器 / Negative / 尺寸等元数据
 
 ### 5.3 前端 API 桥（`frontend/src/api.js`）
 
-- 提供统一 `callApp(method, ...args)`
-- 抛出“非桌面环境”与“接口缺失”错误
-- 暴露完整后端方法集合，供 composable/组件调用
+- 统一 `callApp(method, ...args)`
+- 对外暴露完整 Wails 调用
+- 已包含自动规则与个人中心相关接口
 
 ### 5.4 核心组件职责
 
-- `AppSidebar.vue`：主导航、标签入口、回收站/启动器/自定义根目录入口、智能相册入口
-- `ImageGallery.vue`：画廊主体、卡片网格、选择模式、分页、批处理入口
-- `ImageCard.vue`：单图卡片，含 3D 倾斜、收藏/标签/笔记状态
+- `AppSidebar.vue`：主导航、标签入口、常用操作、自定义根目录入口
+- `ImageGallery.vue`：画廊主体、搜索框、卡片网格、选择模式、分页、批处理入口
+- `ImageCard.vue`：单图卡片
 - `Lightbox.vue`：大图浏览、元数据详情、标签与收藏管理、笔记编辑
-- `BatchActionsPanel.vue`：批量加标签/移除标签/收藏等
-- `FilterPanel.vue`：日期/大小/尺寸过滤 + 堆叠开关
-- `TrashDialog.vue`：回收站管理与设置
-- `LauncherDialog.vue`：外部工具配置与运行
-- `StatisticsDashboard.vue` / `Home.vue` / `ProfileCenter.vue`：主页、统计与个人中心展示
+- `AutoRulesPanel.vue`：自动规则列表、执行进度、搜索、过滤、立即执行
+- `AutoRulesDialog.vue`：规则创建 / 编辑弹窗
+- `ProfileCenter.vue`：资料编辑、默认进入页、展示图、自动规则入口
+- `StatisticsDashboard.vue` / `Home.vue`：首页与数据视界
 
----
-
-## 6. 数据持久化说明（`comfy-manager/data`）
+## 6. 数据持久化
 
 常见文件：
+
 - `favorites.json`：收藏分组与路径
 - `tags.json`：标签定义
 - `image-tags.json`：图片-标签映射
 - `image-notes.json`：图片笔记
 - `custom-roots.json`：自定义根目录
-- `settings.json`：设置（含回收站保留期、路径绑定、快捷键配置、个人中心资料与展示图路径）
-- `trash-metadata.json`：回收站原路径/删除时间
+- `settings.json`：设置、快捷键、个人中心资料
+- `auto-rules.json`：自动规则配置
+- `trash-metadata.json`：回收站原路径、删除时间
 - `image-meta-cache.json`：图片元数据缓存
-- `launcher-tools.json`：外部工具
-- `prompt-tool-links.json`：提示词工具链接
-- `prompt-templates.json`：提示词模板
-- `icons/`：提取图标缓存
-- `image-variants/preview|thumb/`：预览与缩略图缓存
-
-回收站位置：
-- 当前：`comfy-manager/.trash`
-- 兼容：存在旧路径迁移逻辑（legacy trash）
-
----
 
 ## 7. 核心业务链路速查
 
 ### 7.1 图片刷新链路
-`fsnotify 事件` → `scheduleImagesChangedEvent()` → Wails `images:changed` → `App.vue handleRefresh()` → `fetchImages + fetchImageTags`
 
-### 7.2 删除链路（软删除）
-前端触发删除 → `DeleteImage(relPath)` → 移入 `.trash` + 写 `trash-metadata.json` → 发刷新事件
+`fsnotify` 事件 -> `scheduleImagesChangedEvent()` -> Wails `images:changed` -> `App.vue handleRefresh()` -> `fetchImages / fetchTags / fetchImageTags`
 
-### 7.3 智能相册链路
-前端请求字段/分组 → 后端按 `imageMetaCache` 聚合 → model/sampler/lora 缺缓存时触发扫描 → 返回分组计数+路径
+### 7.2 搜索链路
+
+`GetImages()` 生成 `searchText` -> 前端 `useImages.js` 汇总文件名 / Prompt / 模型 / `searchText` / 标签 / 笔记 -> `ImageGallery.vue` 输入框触发过滤
+
+### 7.3 自动规则链路
+
+导入图片或手动执行 -> `runAutoRulesForPaths()` -> 条件匹配 -> 动作执行 -> 发出 `auto-rules:progress` -> 有更新时发出 `images:changed`
 
 ### 7.4 标签链路
-创建/更新/删除标签（`tags.json`） + 图片打标（`image-tags.json`） + 前端过滤/计数联动
 
----
+创建 / 更新 / 删除标签（`tags.json`） + 图片打标（`image-tags.json`） + 前端统计与筛选联动
 
-## 8. 开发与扩展指南（面向后续维护）
+## 8. 开发注意事项
 
-### 8.1 新增后端能力（推荐步骤）
-1. 在 `app.go` 新增方法（注意参数/返回可 JSON 序列化）
-2. 重新生成/编译 Wails 绑定
-3. 在 `frontend/src/api.js` 暴露包装函数
-4. 在 composable 或组件中接入
-5. 若影响文件结构或缓存，补充刷新事件与文档
+### 8.1 修改前端状态逻辑
 
-### 8.2 修改前端状态逻辑的注意点
-- 优先改 `useImages.js`，不要在组件中分散复制状态逻辑
-- 涉及列表规模逻辑时注意 computed 成本（分页默认 50）
-- 对 `activeRoot/activeSub/activeChild` 的变更需同步考虑分页重置与选择模式清空
+- 优先改 `useImages.js`
+- 不要把同一份筛选逻辑复制到多个组件
 
-### 8.3 路径与安全约束
-- 前后端传输优先使用 `relPath`
-- 涉及磁盘访问必须通过后端 `resolveRootPath` 系列校验
-- 禁止在前端拼接绝对路径执行敏感操作
+### 8.2 修改自动规则
 
-### 8.4 缓存一致性
-- 文件操作后应触发刷新（或依赖 watcher 事件）
-- 元数据缓存写回采用“按需 + 异步 warmup”策略
-- 智能相册依赖 metadata 缓存，不命中时会补扫
+- 规则条件、动作、默认规则都在 `app.go`
+- 改规则时同时检查：
+  - `auto-rules.json` 兼容性
+  - 前端表单字段
+  - `auto-rules:progress` 事件结构
 
----
+### 8.3 修改个人中心展示图
 
-## 9. AI 快速定位索引
+- 展示图资源路径走 `__profile__/...`
+- 不要再假设展示图一定在图库根目录内
+
+## 9. 快速定位索引
 
 ### 后端
-- 启动与绑定：`desktop-source/main.go`
+
 - 核心业务：`desktop-source/app.go`
-  - 图片列表：`GetImages`
-  - 元数据：`GetImageMetadata`
-  - 删除/回收站：`DeleteImage` / `GetTrashList` / `RestoreTrash`
-  - 标签：`GetTags` / `AddTagToImage`
-  - 收藏分组：`GetFavoriteGroups` / `AddImageToFavoriteGroup`
-  - 智能相册：`GetSmartAlbums`
+- 启动入口：`desktop-source/main.go`
 
 ### 前端
+
 - 根编排：`desktop-source/frontend/src/App.vue`
-- 状态核心：`desktop-source/frontend/src/composables/useImages.js`
+- 状态中枢：`desktop-source/frontend/src/composables/useImages.js`
 - API 桥：`desktop-source/frontend/src/api.js`
 - 侧栏：`desktop-source/frontend/src/components/AppSidebar.vue`
 - 画廊：`desktop-source/frontend/src/components/ImageGallery.vue`
-- 灯箱：`desktop-source/frontend/src/components/Lightbox.vue`
+- 自动规则：`desktop-source/frontend/src/components/AutoRulesPanel.vue`
+- 自动规则弹窗：`desktop-source/frontend/src/components/AutoRulesDialog.vue`
 - 个人中心：`desktop-source/frontend/src/components/ProfileCenter.vue`
 
----
+## 10. 变更记录
 
-## 10. 可持续编辑机制（每次改动后只更新这里）
-
-> 目标：避免“整篇重写”，只增量维护。
-
-### 10.1 变更记录模板
-
-在每次功能开发/重构后，追加一条：
-
-```markdown
-- **YYYY-MM-DD | 主题**
-  - 影响范围：后端/前端/数据结构/缓存/事件
-  - 变更文件：
-    - path/to/fileA
-    - path/to/fileB
-  - 行为变化：
-    - 旧行为 -> 新行为
-  - 兼容性：是否影响旧数据/旧路径/旧接口
-  - AI 提示：下次若修改 X，优先查看某函数/组件
-```
-
-### 10.2 文档同步清单
-
-发生以下变化时，务必同步本文件：
-- 新增/删除后端公开方法
-- 新增/变更 data 目录 JSON 结构
-- 新增 watcher 行为、事件名或刷新机制
-- `useImages.js` 的核心状态模型变更
-- 导航根节点规则（fileTree）变更
-- 智能相册字段或聚合逻辑变更
-
----
-
-## 11. 最近变更记录
+- **2026-04-16 | v1.7.0 - 搜索 MVP 与自动规则引擎**
+  - 影响范围：后端 / 前端 / 数据结构 / 事件 / 发布产物 / 文档
+  - 变更重点：
+    - 新增搜索 MVP，前端正式接入 `searchText`
+    - 新增自动规则引擎、默认规则、立即执行进度反馈
+    - 自动规则控制收敛进个人中心页面
+    - 删除智能相册模块与相关接口
+    - 修复个人中心展示图资源路径问题
+  - 关键文件：
+    - `desktop-source/app.go`
+    - `desktop-source/frontend/src/composables/useImages.js`
+    - `desktop-source/frontend/src/components/AutoRulesPanel.vue`
+    - `desktop-source/frontend/src/components/AutoRulesDialog.vue`
+    - `desktop-source/frontend/src/components/ProfileCenter.vue`
+    - `docs/README.md`
+    - `docs/RELEASE.md`
+    - `docs/PROJECT_CONTEXT.md`
+    - `desktop-app.exe`
 
 - **2026-04-15 | v1.6.0 - 个人中心与数据视界细化**
-  - 影响范围：后端/前端/设置结构/发布产物/文档
-  - 变更文件：
-    - `desktop-source/app.go`
-    - `desktop-source/frontend/src/api.js`
-    - `desktop-source/frontend/src/App.vue`
-    - `desktop-source/frontend/src/components/AppSidebar.vue`
-    - `desktop-source/frontend/src/components/ImageGallery.vue`
-    - `desktop-source/frontend/src/components/StatisticsDashboard.vue`
-    - `desktop-source/frontend/src/components/ProfileCenter.vue`
-    - `desktop-source/frontend/src/style.css`
-    - `docs/RELEASE.md`
-    - `docs/README.md`
-    - `docs/PROJECT_CONTEXT.md`
-    - `desktop-app.exe`
-  - 行为变化：
-    - 新增“个人中心”一级页面，支持编辑昵称、简介、主页链接、每日目标、默认进入页和单张展示图
-    - `settings.json` 新增 `userProfile` 持久化结构，应用启动时会按用户配置自动进入对应页面，并保存展示图路径
-    - 个人中心聚合今日出图、本月产出、创作节奏、收藏分组、标签数量与主题切换入口，并经过多轮重排，调整为更紧凑的左主内容 + 右侧功能栏布局
-    - 个人中心支持单张图片上传覆盖、调用项目内置主题切换逻辑，并统一侧栏入口与大部分文本不可选行为
-    - “数据视界”支持时间线与节点详情分栏独立滚动，节点详情顶部的作品规模与空间占用固定显示，不再随作品列表一起滚动
-  - 兼容性：
-    - 旧 `settings.json` 会自动补齐默认个人资料，不影响现有快捷键、回收站和路径绑定配置
-    - 不影响既有图库、标签、收藏、回收站与提示词模板数据
-  - AI 提示：
-    - 若继续扩展个人中心字段或展示图逻辑，优先查看 `app.go` 中的 `UserProfile`、`normalizeUserProfile`、`SelectUserProfileImage` 与 `ProfileCenter.vue`
-    - 若调整默认进入页行为，优先查看 `App.vue` 的启动初始化逻辑
-    - 若继续调整统计页滚动与节点详情布局，优先查看 `StatisticsDashboard.vue` 中时间线容器与详情容器的 `xl:flex / xl:overflow-y-auto` 结构
+  - 新增个人中心页面与资料编辑
+  - 优化数据视界节点详情与布局
 
-- **2026-04-15 | v1.5 - 数据视界重构与全局快捷键**
-  - 影响范围：后端/前端/发布产物/设置结构
-  - 变更文件：
-    - `desktop-source/shortcuts.go`
-    - `desktop-source/hotkeys_windows.go`
-    - `desktop-source/hotkeys_stub.go`
-    - `desktop-source/app.go`
-    - `desktop-source/frontend/src/components/ShortcutSettingsDialog.vue`
-    - `desktop-source/frontend/src/lib/shortcuts.js`
-    - `desktop-source/frontend/src/App.vue`
-    - `desktop-source/frontend/src/api.js`
-    - `desktop-source/frontend/src/components/AppSidebar.vue`
-    - `desktop-source/frontend/src/components/ImageGallery.vue`
-    - `desktop-source/frontend/src/components/StatisticsDashboard.vue`
-    - `desktop-app.exe`
-  - 行为变化：
-    - 新增系统级全局快捷键设置，支持切换总览、图库、收藏、文档，以及刷新图库、折叠侧栏、切换批量模式
-    - `settings.json` 新增快捷键配置持久化，应用启动时自动注册已保存的快捷键
-    - 新增“数据视界”模块，支持生成历史时间线、趋势图、活跃热图与时间节点回看
-    - 趋势图支持默认铺满卡片宽度与悬浮读数，统计页整体布局改为更简洁的信息结构
-  - 兼容性：
-    - 旧 `settings.json` 会自动补齐默认快捷键配置
-    - 不影响既有图库、标签、收藏、回收站与提示词模板数据
-  - AI 提示：
-    - 修改快捷键时优先查看 `shortcuts.go` 的动作目录与 `hotkeys_windows.go` 的注册逻辑
-    - 修改统计页时优先查看 `StatisticsDashboard.vue` 的趋势图宽度计算、时间线分组与 hover 提示状态
+- **2026-04-15 | v1.5.0 - 数据视界与全局快捷键**
+  - 新增数据视界
+  - 新增系统级快捷键设置与动作
 
-- **2026-04-14 | v1.4.1 - 修复提示词模板弹窗交互，统一发布产物命名**
-  - 影响范围：前端/发布流程/桌面产物
-  - 变更文件：
-    - `desktop-source/frontend/src/components/PromptTemplateDialog.vue`
-    - `desktop-source/frontend/src/components/ui/input/Input.vue`
-    - `desktop-source/wails.json`
-    - `desktop-app.exe`
-  - 行为变化：
-    - 修复提示词输入框聚焦时左右边框看起来消失的问题
-    - 新增模板后保持表单打开，支持连续添加
-    - 模板数量增多时，左侧底部“添加模板”按钮保持固定可见
-    - 隐藏右侧表单滚动条，但保留滚轮滚动能力
-    - Wails 构建输出文件名统一为 `desktop-app.exe`，与仓库根目录发布文件一致
-  - 兼容性：
-    - 不影响既有 `data/prompt-templates.json` 数据
-    - 发布流程中复制源文件由 `comfy-manager-wails.exe` 调整为 `desktop-app.exe`
-  - AI 提示：
-    - 以后改提示词模板弹窗时，优先检查左侧列表容器的 `min-h-0/flex` 约束与右侧表单的保存后状态切换逻辑
-
-- **2026-04-14 | v1.4.0 - 修复智能筛选路径叠加问题，改进侧边栏导航逻辑**
-  - 影响范围：前端
-  - 变更文件：
-    - `desktop-source/frontend/src/App.vue`
-    - `desktop-source/frontend/src/components/AppSidebar.vue`
-    - `desktop-source/frontend/src/composables/useImages.js`
-  - 行为变化：
-    - 修复智能筛选激活状态下点击侧边栏目录时路径叠加问题
-    - 侧边栏根目录切换逻辑优化：如果已在该根目录，则切换到dashboard而非空值
-    - 切换导航节点时自动清除智能筛选状态，避免残留筛选影响新视图
-    - 智能相册弹出框增加 `ml-2 mb-2` 边距，优化视觉对齐
-  - 兼容性：
-    - 不影响旧数据/旧接口
-  - AI 提示：
-    - 修改侧边栏导航逻辑时注意 `toggleRoot` 函数中的状态切换策略，确保清除所有可能残留的筛选状态
-
-- **2026-04-13 | v1.3.0 - 智能筛选自动刷新、按日期整理文件、导出移动模式、图片上传**
-  - 影响范围：后端/前端/事件刷新
-  - 变更文件：
-    - `desktop-source/app.go`（新增 `UploadImages`、`OrganizeFiles`）
-    - `desktop-source/frontend/src/App.vue`（新增 `refreshSmartAlbumFilter`、`handleOrganizeFiles`，`handleRefresh` 调用刷新智能筛选）
-    - `desktop-source/frontend/src/api.js`（新增 `OrganizeFiles`、`UploadImages`）
-    - `desktop-source/frontend/src/components/AppSidebar.vue`（智能相册弹出框居中对齐+边距，新增”按日期整理文件”按钮）
-    - `desktop-source/frontend/src/components/ExportDialog.vue`（导出支持移动模式，含二次确认）
-  - 行为变化：
-    - 智能筛选激活时，`images:changed` 事件触发后会自动重新获取筛选路径，新图片即时显示
-    - 智能相册弹出框改为 `align=”center”` 居中对齐，增加 `ml-2 mb-2` 边距
-    - 新增按日期整理文件功能（散落图片移动到年/月子文件夹）
-    - 导出弹窗恢复移动模式选项，含二次确认弹窗
-    - 新增 `UploadImages` 后端接口（从外部目录导入图片）
-  - 兼容性：
-    - 不影响旧数据/旧接口
-  - AI 提示：
-    - 修改智能筛选相关逻辑时，注意 `refreshSmartAlbumFilter` 在 `handleRefresh` 中被调用；若筛选不存在匹配项会自动清除
-
-- **2026-04-12 | v1.2.0 - 提示词模板库**
-  - 影响范围：后端/前端/数据结构
-  - 变更文件：
-    - `desktop-source/app.go`
-    - `desktop-source/frontend/src/api.js`
-    - `desktop-source/frontend/src/components/PromptTemplateDialog.vue`（新增）
-    - `desktop-source/frontend/src/components/Lightbox.vue`
-    - `desktop-source/frontend/src/components/AppSidebar.vue`
-  - 行为变化：
-    - 新增 PromptTemplate 实体（CRUD + JSON 持久化）
-    - Lightbox 正向/反向 Prompt 区域新增”存为模板”按钮
-    - 侧栏工具菜单新增”提示词模板”入口
-    - 新增 PromptTemplateDialog 模板管理弹窗（搜索/分类/复制/编辑/删除）
-  - 兼容性：
-    - 新增 `data/prompt-templates.json`，不影响旧数据
-  - AI 提示：
-    - 模板 CRUD 模式同 PromptToolLink，无 mutex
-
-- **2026-04-12 | 文档重建（结构化可持续维护版）**
-  - 影响范围：文档
-  - 变更文件：
-    - `docs/PROJECT_CONTEXT.md`
-  - 行为变化：
-    - 旧版偏概览 -> 新版包含架构、链路、索引、维护模板
-  - 兼容性：
-    - 无代码行为变更
-  - AI 提示：
-    - 先读”第9节快速定位索引”，再进入代码修改。
-
----
-
-*Generated/Updated by Claude Code (Opus 4.6) on 2026-04-15*
+*Updated for v1.7.0 on 2026-04-16*

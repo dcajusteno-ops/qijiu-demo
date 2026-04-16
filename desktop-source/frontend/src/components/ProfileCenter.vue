@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import AutoRulesPanel from './AutoRulesPanel.vue'
 import { isDark, toggleTheme } from '@/theme'
 import * as App from '@/api'
 import {
@@ -451,6 +452,8 @@ onMounted(loadProfile)
               <p class="mt-4 text-xs leading-6 text-muted-foreground">{{ item.caption }}</p>
             </article>
           </div>
+
+          <AutoRulesPanel />
 
           <Card class="rounded-[30px] border-border/70 bg-card shadow-none">
           <CardHeader class="space-y-2">

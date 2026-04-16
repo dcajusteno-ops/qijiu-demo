@@ -40,9 +40,13 @@ export function ClearUserProfileImage():Promise<main.UserProfile>;
 
 export function CopyText(arg1:string):Promise<void>;
 
+export function CreateAutoRule(arg1:main.AutoRule):Promise<main.AutoRule>;
+
 export function CreateFavoriteGroup(arg1:string):Promise<main.FavoriteGroup>;
 
 export function CreateTag(arg1:string,arg2:string,arg3:string):Promise<main.Tag>;
+
+export function DeleteAutoRule(arg1:string):Promise<void>;
 
 export function DeleteCustomRoot(arg1:string):Promise<void>;
 
@@ -65,6 +69,8 @@ export function EmptyTrash():Promise<number>;
 export function ExportImages(arg1:Array<string>,arg2:string,arg3:boolean):Promise<number>;
 
 export function ExtractIcon(arg1:string):Promise<string>;
+
+export function GetAutoRules():Promise<main.AutoRulesStore>;
 
 export function GetCustomRoots():Promise<Array<main.CustomRoot>>;
 
@@ -94,10 +100,6 @@ export function GetShortcutActions():Promise<Array<main.ShortcutAction>>;
 
 export function GetShortcutSettings():Promise<main.ShortcutSettings>;
 
-export function GetSmartAlbumFields():Promise<Array<main.SmartAlbumField>>;
-
-export function GetSmartAlbums(arg1:string):Promise<Array<main.SmartAlbum>>;
-
 export function GetStatistics(arg1:string):Promise<main.Stats>;
 
 export function GetSubFolders(arg1:string):Promise<Array<string>>;
@@ -124,6 +126,8 @@ export function RemoveTagFromImage(arg1:string,arg2:string):Promise<void>;
 
 export function RestoreTrash(arg1:string):Promise<string>;
 
+export function RunAutoRulesNow():Promise<main.AutoRulesRunSummary>;
+
 export function RunLauncherTool(arg1:string):Promise<void>;
 
 export function SaveDirectoryBinding(arg1:string,arg2:string):Promise<main.DirectoryBinding>;
@@ -138,9 +142,13 @@ export function SelectFolder():Promise<string>;
 
 export function SelectUserProfileImage():Promise<main.UserProfile>;
 
+export function SetAutoRulesEnabled(arg1:boolean):Promise<main.AutoRulesStore>;
+
 export function SetImageFavoriteGroups(arg1:string,arg2:Array<string>):Promise<void>;
 
 export function SetImageNote(arg1:string,arg2:string):Promise<void>;
+
+export function UpdateAutoRule(arg1:main.AutoRule):Promise<main.AutoRule>;
 
 export function UpdateCustomRoot(arg1:string,arg2:string,arg3:string):Promise<void>;
 

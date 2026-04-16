@@ -15,9 +15,10 @@ import FavoriteGroupsDialog from './FavoriteGroupsDialog.vue'
 // import StatisticsPanel from './StatisticsPanel.vue' - replaced by dashboard
 import StatisticsDashboard from './StatisticsDashboard.vue'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
-import { Heart, Grid, Download, BarChart3, Upload, Layers, X } from 'lucide-vue-next'
+import { Heart, Grid, Download, BarChart3, Upload, Layers, Search, X } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import * as App from '@/api'
 import { useImages } from '@/composables/useImages'
@@ -46,7 +47,7 @@ const props = defineProps({
   imageTags: { type: Object, default: () => ({}) },
   favoriteGroups: { type: Array, default: () => [] },
   imageNotes: { type: Object, default: () => ({}) },
-  smartAlbumFilter: { type: Object, default: null },
+  searchQuery: { type: String, default: '' },
   currentPage: { type: Number, default: 1 },
   itemsPerPage: { type: Number, default: 50 },
   totalPages: { type: Number, default: 1 }
@@ -67,7 +68,7 @@ const emit = defineEmits([
   'page-change',
   'items-per-page-change',
   'open-location',
-  'clear-smart-album-filter',
+  'update:search-query',
 ])
 
 const lightboxOpen = ref(false)
@@ -358,21 +359,31 @@ watch(() => props.currentPage, () => {
                     <span v-if="childLabel" class="text-muted-foreground font-normal">
                         / {{ childLabel }}
                     </span>
-                    <span v-if="smartAlbumFilter" class="text-purple-500 font-normal">
-                        / 智能筛选: {{ smartAlbumFilter.value }}
-                    </span>
                  </h2>
-                 <button
-                   v-if="smartAlbumFilter"
-                   class="mt-0.5 flex items-center gap-1 text-xs text-purple-500 hover:text-purple-700 transition-colors w-fit"
-                   @click="emit('clear-smart-album-filter')"
-                 >
-                   <X class="h-3 w-3" />
-                   清除智能筛选
-                 </button>
+                 <p class="mt-0.5 text-xs text-muted-foreground">
+                   {{ totalImages > 0 ? `当前结果 ${totalImages} 张` : (searchQuery ? '没有匹配当前搜索的图片' : '当前目录暂无图片') }}
+                 </p>
               </div>
           </div>
           <div v-if="rootName !== 'statistics'" class="flex items-center gap-4">
+              <div class="relative hidden w-72 lg:block">
+                  <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    :model-value="searchQuery"
+                    placeholder="搜索文件名、Prompt、模型、LoRA..."
+                    class="h-10 rounded-2xl border-border/80 bg-background/90 pl-9 pr-10 shadow-none"
+                    @update:model-value="emit('update:search-query', $event)"
+                  />
+                  <button
+                    v-if="searchQuery"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    type="button"
+                    title="清空搜索"
+                    @click="emit('update:search-query', '')"
+                  >
+                    <X class="h-4 w-4" />
+                  </button>
+              </div>
               <div v-if="isSelectionMode" class="flex items-center gap-2 text-sm font-medium transition-colors" :class="selectedPaths.size > 0 ? 'text-primary bg-primary/10 px-3 py-1 rounded-full' : 'text-muted-foreground bg-muted/50 border border-dashed border-muted-foreground/30 px-3 py-1 rounded-full'">
                   <span>{{ selectedPaths.size === 0 ? '批量模式：请点击选择图片' : `已选 ${selectedPaths.size} 张` }}</span>
                   <template v-if="selectedPaths.size > 0">
@@ -481,7 +492,7 @@ watch(() => props.currentPage, () => {
       </div>
 
       <div v-else class="flex-1 flex items-center justify-center text-muted-foreground pt-20">
-          该文件夹为空
+          {{ searchQuery ? '没有找到匹配当前搜索条件的图片' : '该文件夹为空' }}
       </div>
 
       <Lightbox
