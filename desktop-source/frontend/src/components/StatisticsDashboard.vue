@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import Lightbox from './Lightbox.vue'
 import { useImages } from '@/composables/useImages'
 import * as App from '@/api'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
 import {
   ArrowUpRight,
   BarChart3,
@@ -92,8 +93,8 @@ const lightboxIndex = ref(0)
 
 const chartHeight = 280
 const chartPadding = { top: 18, right: 18, bottom: 42, left: 52 }
-let pollingInterval = null
 let chartResizeObserver = null
+let unsubscribeImagesChanged = null
 
 const dayFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
@@ -229,12 +230,16 @@ onMounted(async () => {
   await loadStats()
   await nextTick()
   setupChartResizeObserver()
-  pollingInterval = setInterval(loadStats, 8000)
+  unsubscribeImagesChanged = EventsOn('images:changed', async () => {
+    await Promise.all([fetchImages(), loadStats(), fetchTags(), fetchImageTags(), fetchImageNotes()])
+  })
 })
 
 onUnmounted(() => {
-  if (pollingInterval) clearInterval(pollingInterval)
   if (chartResizeObserver) chartResizeObserver.disconnect()
+  if (typeof unsubscribeImagesChanged === 'function') {
+    unsubscribeImagesChanged()
+  }
 })
 
 const sortedImages = computed(() =>

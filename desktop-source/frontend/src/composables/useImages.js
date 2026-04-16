@@ -1026,9 +1026,7 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
 
   const startPolling = () => {
     fetchImages().then(initAutoSelect)
-    return setInterval(() => {
-      fetchImages().then(initAutoSelect)
-    }, 5000)
+    return null
   }
 
   const handleDelete = async (img) => {

@@ -27,6 +27,7 @@ import { ImageIcon, HardDrive, Heart, Tag, ArrowRight, Sparkles, Maximize2, BarC
 import { toast } from 'vue-sonner' // Import toast
 import PromptToolsDropdown from '@/components/PromptToolsDropdown.vue'
 import * as App from '@/api'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
 
 // Custom Confirm Dialog Logic
 const deleteDialogOpen = ref(false)
@@ -169,8 +170,7 @@ const recentFavorites = computed(() => {
 
 // --- Lightbox & Interaction ---
 const loading = computed(() => imagesLoading.value || statsLoading.value)
-
-let pollInterval = null
+let unsubscribeImagesChanged = null
 
 // Lightbox State
 const lightboxOpen = ref(false)
@@ -209,17 +209,18 @@ const handleNavigate = (direction) => {
 onMounted(() => {
   pickGreetingMessage()
   loadStats()
-  // Ensure we have images. If empty (e.g. reload on dashboard), trigger fetch.
-  // App.vue calls startPolling, but we might check here to be safe or show loading state.
   if (images.value.length === 0) {
-      // Just manually call fetch once to speed up initial paint if polling hasn't hit yet
       fetchImages() 
   }
-  pollInterval = setInterval(loadStats, 30000) // Poll stats every 30s
+  unsubscribeImagesChanged = EventsOn('images:changed', async () => {
+    await Promise.all([fetchImages(), loadStats()])
+  })
 })
 
 onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval)
+  if (typeof unsubscribeImagesChanged === 'function') {
+    unsubscribeImagesChanged()
+  }
 })
 
 const plugin = Autoplay({

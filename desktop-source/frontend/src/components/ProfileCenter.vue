@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { toast } from 'vue-sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import AutoRulesPanel from './AutoRulesPanel.vue'
 import { isDark, toggleTheme } from '@/theme'
 import * as App from '@/api'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
 import {
   BarChart3,
   BookOpen,
@@ -93,6 +94,7 @@ const activitySummary = ref({
 const tagCount = ref(0)
 const favoriteGroupCount = ref(0)
 const enabledShortcutCount = ref(0)
+let unsubscribeImagesChanged = null
 
 const normalizeProfile = (value = {}) => {
   const fallback = defaultProfile()
@@ -335,7 +337,18 @@ const formatSize = (bytes) => {
   return `${size.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
 }
 
-onMounted(loadProfile)
+onMounted(async () => {
+  await loadProfile()
+  unsubscribeImagesChanged = EventsOn('images:changed', async () => {
+    await loadProfile()
+  })
+})
+
+onUnmounted(() => {
+  if (typeof unsubscribeImagesChanged === 'function') {
+    unsubscribeImagesChanged()
+  }
+})
 </script>
 
 <template>
