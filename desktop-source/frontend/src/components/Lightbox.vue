@@ -20,6 +20,7 @@ import {
   ChevronDown,
   StickyNote,
   Bookmark,
+  Sparkles,
 } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -42,7 +43,7 @@ const props = defineProps({
   openTagsOnMount: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'navigate', 'toggle-favorite', 'add-tag', 'remove-tag', 'delete', 'open-location', 'favorite-groups-changed'])
+const emit = defineEmits(['close', 'navigate', 'toggle-favorite', 'add-tag', 'remove-tag', 'delete', 'open-location', 'favorite-groups-changed', 'open-prompt-assistant'])
 
 const stackViewOpen = ref(false)
 const currentStackImage = ref(null)
@@ -466,6 +467,14 @@ onUnmounted(() => {
         >
           <Download class="h-6 w-6" />
         </a>
+
+        <button
+          class="rounded-full p-2 text-white/70 transition-opacity hover:bg-white/10 hover:text-emerald-300"
+          title="提示词提示器"
+          @click="$emit('open-prompt-assistant', { initialPositive: metadata?.positive || '', initialNegative: metadata?.negative || '', sourcePath: currentDisplayImage?.relPath || '', contextLabel: currentDisplayImage?.name || '' })"
+        >
+          <Sparkles class="h-6 w-6" />
+        </button>
 
         <button
           class="rounded-full p-2 text-white/50 transition-all hover:bg-white/10 hover:text-white"

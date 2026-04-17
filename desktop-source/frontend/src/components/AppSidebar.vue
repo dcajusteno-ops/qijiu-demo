@@ -38,6 +38,7 @@ import {
   FolderTree,
   UserRound,
   Workflow,
+  Search,
 } from 'lucide-vue-next'
 import TrashDialog from './TrashDialog.vue'
 import LauncherDialog from './LauncherDialog.vue'
@@ -83,6 +84,7 @@ const emit = defineEmits([
   'clear-preview-cache',
   'organize-files',
   'open-current-output',
+  'open-prompt-assistant',
 ])
 
 const utilityMenuCatalog = [
@@ -121,6 +123,12 @@ const utilityMenuCatalog = [
     label: '提示词模板',
     icon: Bookmark,
     action: () => openPromptTemplates(),
+  },
+  {
+    id: 'prompt-assistant',
+    label: '提示词提示器',
+    icon: Search,
+    action: () => openPromptAssistant(),
   },
   {
     id: 'auto-rules',
@@ -311,6 +319,11 @@ const openLauncher = () => {
 
 const openPromptTemplates = () => {
     showPromptTemplateDialog.value = true
+    closeUtilityMenu()
+}
+
+const openPromptAssistant = () => {
+    emit('open-prompt-assistant')
     closeUtilityMenu()
 }
 

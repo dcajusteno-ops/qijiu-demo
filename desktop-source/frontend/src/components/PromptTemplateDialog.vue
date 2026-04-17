@@ -201,9 +201,19 @@ const confirmDeleteTemplate = async () => {
   }
 }
 
+
+const normalizeTemplateContent = (template) => {
+  const content = String(template?.content || '').trim()
+  if (!content || template?.type !== 'other') return content
+
+  return content
+    .replace(/^\s*(positive|negative|\u6b63\u5411|\u53cd\u5411)\s*[:\uFF1A]\s*/gim, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
 const copyContent = async (template) => {
   try {
-    await App.CopyText(template.content)
+    await App.CopyText(normalizeTemplateContent(template))
     toast.success('已复制到剪贴板')
   } catch {
     toast.error('复制失败')
@@ -326,7 +336,7 @@ watch(() => props.open, async (newVal) => {
                   </div>
 
                   <div class="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap break-words line-clamp-2">
-                    {{ truncate(template.content, 120) }}
+                    {{ truncate(normalizeTemplateContent(template), 120) }}
                   </div>
                 </div>
 

@@ -9,6 +9,7 @@ import ProfileCenter from './components/ProfileCenter.vue'
 import DateWorkbench from './components/DateWorkbench.vue'
 import AutoRulesPanel from './components/AutoRulesPanel.vue'
 import StatisticsDashboard from './components/StatisticsDashboard.vue'
+import PromptAssistantPage from './components/PromptAssistantPage.vue'
 import DirectoryBindingDialog from './components/DirectoryBindingDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
@@ -137,6 +138,13 @@ const selectedPaths = ref(new Set())
 
 const isSidebarCollapsed = ref(false)
 const showInitialDirectoryBinding = ref(false)
+const promptAssistantContext = ref({
+    initialPositive: '',
+    initialNegative: '',
+    sourcePath: '',
+    contextLabel: '',
+    revision: 0,
+})
 const toggleSidebar = () => {
     isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
@@ -151,8 +159,19 @@ const getPreferredGalleryRoot = () => {
     if (fileTree.value.some(node => node.id === 'output')) {
         return 'output'
     }
-    const firstGalleryRoot = fileTree.value.find(node => !['favorites', 'statistics', 'date-workbench', 'dashboard', 'profile', 'documentation'].includes(node.id))
+    const firstGalleryRoot = fileTree.value.find(node => !['favorites', 'statistics', 'date-workbench', 'dashboard', 'profile', 'documentation', 'prompt-assistant'].includes(node.id))
     return firstGalleryRoot?.id || 'output'
+}
+
+const openPromptAssistantPage = (context = {}) => {
+    promptAssistantContext.value = {
+        initialPositive: String(context?.initialPositive || ''),
+        initialNegative: String(context?.initialNegative || ''),
+        sourcePath: String(context?.sourcePath || ''),
+        contextLabel: String(context?.contextLabel || ''),
+        revision: promptAssistantContext.value.revision + 1,
+    }
+    setActiveView('prompt-assistant')
 }
 
 const getNodeLabel = (node, fallback = '') => node?.displayName || node?.name || fallback
@@ -492,6 +511,7 @@ onUnmounted(() => {
         @clear-preview-cache="handleClearPreviewCache"
         @organize-files="handleOrganizeFiles"
         @open-current-output="handleOpenCurrentOutput"
+        @open-prompt-assistant="openPromptAssistantPage"
     />
     
     <div class="flex-1 h-screen overflow-hidden transition-all duration-300">
@@ -532,6 +552,15 @@ onUnmounted(() => {
                 @update:lora-filter="setActiveLora"
                 @clear-filters="clearWorkbenchFilters"
                 @open-gallery="openWorkbenchGallery"
+             />
+        </div>
+        <div v-else-if="activeRoot === 'prompt-assistant'" class="h-full overflow-hidden">
+             <PromptAssistantPage
+                :initial-positive="promptAssistantContext.initialPositive"
+                :initial-negative="promptAssistantContext.initialNegative"
+                :source-path="promptAssistantContext.sourcePath"
+                :context-label="promptAssistantContext.contextLabel"
+                :context-revision="promptAssistantContext.revision"
              />
         </div>
         <ImageGallery
@@ -583,6 +612,7 @@ onUnmounted(() => {
             @update:lora-filter="setActiveLora"
             @clear-workbench-filters="clearWorkbenchFilters"
             @clear-all-filters="clearAllGalleryFilters"
+            @open-prompt-assistant="openPromptAssistantPage"
         />
     </div>
 

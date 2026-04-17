@@ -314,6 +314,66 @@ export namespace main {
 	        this.args = source["args"];
 	    }
 	}
+	export class PromptAssistantState {
+	    favoriteIds: string[];
+	    recentIds: string[];
+	    activeSource?: string;
+	    activeCategory?: string;
+	    activeSubcategory?: string;
+	    activeScope?: string;
+	    viewMode?: string;
+	    activeEditor?: string;
+	    itemsPerPage?: number;
+	    currentPage?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptAssistantState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.favoriteIds = source["favoriteIds"];
+	        this.recentIds = source["recentIds"];
+	        this.activeSource = source["activeSource"];
+	        this.activeCategory = source["activeCategory"];
+	        this.activeSubcategory = source["activeSubcategory"];
+	        this.activeScope = source["activeScope"];
+	        this.viewMode = source["viewMode"];
+	        this.activeEditor = source["activeEditor"];
+	        this.itemsPerPage = source["itemsPerPage"];
+	        this.currentPage = source["currentPage"];
+	    }
+	}
+	export class PromptLibraryEntry {
+	    id: string;
+	    source: string;
+	    category: string;
+	    subcategory: string;
+	    scope: string;
+	    text_en: string;
+	    text_zh: string;
+	    preview: string;
+	    extra_id: string;
+	    search_text: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptLibraryEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.source = source["source"];
+	        this.category = source["category"];
+	        this.subcategory = source["subcategory"];
+	        this.scope = source["scope"];
+	        this.text_en = source["text_en"];
+	        this.text_zh = source["text_zh"];
+	        this.preview = source["preview"];
+	        this.extra_id = source["extra_id"];
+	        this.search_text = source["search_text"];
+	    }
+	}
 	export class PromptTemplate {
 	    id: string;
 	    name: string;

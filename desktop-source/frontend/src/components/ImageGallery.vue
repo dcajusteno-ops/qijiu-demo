@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
-import { Heart, Grid, Download, BarChart3, Upload, Layers, Search, X } from 'lucide-vue-next'
+import { Heart, Grid, Download, BarChart3, Upload, Layers, Search, Sparkles, X } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import * as App from '@/api'
 import { useImages } from '@/composables/useImages'
@@ -80,6 +80,7 @@ const emit = defineEmits([
   'update:lora-filter',
   'clear-workbench-filters',
   'clear-all-filters',
+  'open-prompt-assistant',
 ])
 
 const lightboxOpen = ref(false)
@@ -462,6 +463,17 @@ watch(() => props.currentPage, () => {
                           </div>
 
                           <FilterPanel />
+
+                          <PromptToolsDropdown />
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="提示词提示器"
+                            @click="emit('open-prompt-assistant', { contextLabel: rootLabel || rootName || '当前图库', sourcePath: targetFolderPath || '' })"
+                          >
+                            <Sparkles class="h-5 w-5 text-muted-foreground" />
+                          </Button>
                       </div>
                   </div>
                   <div class="flex flex-wrap items-center gap-2">
@@ -589,6 +601,7 @@ watch(() => props.currentPage, () => {
         @delete="(img) => { emit('delete', img); lightboxOpen = false }"
         @open-location="(img) => emit('open-location', img)"
         @favorite-groups-changed="emit('favorite-groups-changed')"
+        @open-prompt-assistant="emit('open-prompt-assistant', $event)"
       />
       <FavoriteGroupsDialog
         :open="favoriteGroupsDialogOpen"

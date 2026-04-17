@@ -12,6 +12,7 @@ import {
   HelpCircle,
   Keyboard,
   LayoutDashboard,
+  PencilRuler,
   Search,
   Settings2,
   Tag,
@@ -41,6 +42,11 @@ const featureCards = [
     description: '支持按文件名、路径、Prompt、模型、LoRA、标签和笔记进行搜索。',
   },
   {
+    icon: PencilRuler,
+    title: '提示词编辑器',
+    description: '围绕本地词库完成搜索、筛选、分页浏览、正反向 Prompt 拼装、自定义词条和模板保存。',
+  },
+  {
     icon: FolderTree,
     title: '目录管理',
     description: '支持默认目录、日期归档目录、自定义目录并行浏览，也支持重新绑定任意 output 目录。',
@@ -48,7 +54,7 @@ const featureCards = [
   {
     icon: Heart,
     title: '收藏与分组',
-    description: '可以把喜欢的图片加入收藏夹，并继续按分组做精细整理。',
+    description: '可以把喜欢的图片或提示词加入收藏，并继续按分组做精细整理。',
   },
   {
     icon: Tag,
@@ -90,19 +96,19 @@ const quickGuides = [
     ],
   },
   {
+    title: '使用提示词编辑器',
+    steps: [
+      '从工具菜单、图库顶部或 Lightbox 打开“提示词编辑器”。',
+      '先选择正向或反向编辑区，再用搜索、分类和分页缩小词条范围。',
+      '把最终结果保存成模板，后续就能直接复制复用。',
+    ],
+  },
+  {
     title: '整理目录与常用工具',
     steps: [
       '打开“工具菜单 -> 设置”，进入设置中心。',
       '在“工具菜单”中调整工具顺序与显示，在“文件夹维护”中执行清理或按日期整理。',
       '如果 output 位置变了，可在工具菜单里重新绑定目录。',
-    ],
-  },
-  {
-    title: '批量整理图片',
-    steps: [
-      '点击左下角“批量模式”。',
-      '选中多张图片后，可以导出、移动、加标签、收藏或删除。',
-      '删除的图片会先进入回收站，不会立即永久丢失。',
     ],
   },
 ]
@@ -125,12 +131,12 @@ const faqs = [
     a: '从 v2.0 开始，程序不再默认猜测 exe 上一级目录，而是要求绑定真实的 ComfyUI output 目录，这样才能适配任意安装位置。',
   },
   {
-    q: '日期产出工作台和日期归档目录有什么区别？',
-    a: '日期产出工作台更像快速筛选台，适合看最近产出；日期归档目录是目录树视角，适合按年和具体日期慢慢翻。',
+    q: '提示词编辑器的数据来自哪里？',
+    a: '运行时读取的是项目内 `data/prompt-library/` 下的清洗副本，而不是原始抓取目录；这样更稳定，也便于后续更新和回滚。',
   },
   {
-    q: '工具菜单太长怎么办？',
-    a: '可以打开“设置中心 -> 工具菜单”，调整顺序，并隐藏不常用入口。设置按钮会固定保留在最上方。',
+    q: '为什么我删除了自定义提示词，收藏也会变化？',
+    a: '因为自定义提示词删除后，程序会同步清理已失效的收藏和最近记录，避免状态残留导致数量和列表不一致。',
   },
 ]
 </script>
@@ -141,7 +147,7 @@ const faqs = [
       <BookOpen class="mr-3 h-5 w-5 text-primary" />
       <div class="flex items-center gap-3">
         <h1 class="text-xl font-bold tracking-tight">使用文档</h1>
-        <Badge variant="outline" class="rounded-full px-3 py-1 text-xs">v2.0.1</Badge>
+        <Badge variant="outline" class="rounded-full px-3 py-1 text-xs">v2.1.0</Badge>
       </div>
     </div>
 
@@ -153,10 +159,10 @@ const faqs = [
               <Clock3 class="h-4 w-4" />
               <span>当前版本说明</span>
             </div>
-            <h2 class="text-3xl font-semibold tracking-tight">v2.0.1 使用说明</h2>
+            <h2 class="text-3xl font-semibold tracking-tight">v2.1.0 使用说明</h2>
             <p class="max-w-3xl text-sm leading-7 text-muted-foreground">
-              这一版重点补齐了软件内的中文使用文档，并和外部 README、发布文档保持一致。
-              如果你主要通过内置“使用文档”了解功能，现在看到的内容已经对齐当前版本。
+              这一版重点补齐了提示词编辑器，把看图、找词、拼 Prompt、存模板串成了一个本地工作流。
+              你在软件内看到的文档内容，已经和外部 README、发布说明同步到当前版本。
             </p>
           </div>
         </section>
@@ -265,7 +271,7 @@ const faqs = [
         </section>
 
         <div class="pt-4 text-center text-sm text-muted-foreground">
-          Comfy Manager v2.0.1 · 面向 ComfyUI 出图整理工作流
+          Comfy Manager v2.1.0 · 面向 ComfyUI 出图整理与提示词工作流
         </div>
       </div>
     </div>

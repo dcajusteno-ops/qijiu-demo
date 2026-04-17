@@ -1,11 +1,11 @@
-﻿# Comfy Manager 项目上下文
+# Comfy Manager 项目上下文
 
-当前稳定版本：`v2.0.1`  
-更新时间：`2026-04-17`
+当前稳定版本：`v2.1.0`  
+更新时间：`2026-04-18`
 
 ## 1. 项目定位
 
-**Comfy Manager（灵动图库）** 是一个基于 **Wails v2 + Go + Vue 3** 的桌面图片管理器，服务于 ComfyUI 出图后的浏览、筛选、整理与归档场景。
+**Comfy Manager（灵动图库）** 是一个基于 **Wails v2 + Go + Vue 3** 的桌面图片管理器，服务于 ComfyUI 出图后的浏览、筛选、整理、归档与提示词复用场景。
 
 项目当前的核心目标：
 
@@ -14,29 +14,28 @@
 - 按日期、模型、LoRA、标签、收藏、笔记等维度筛选图片
 - 提供“日期产出工作台”，快速回看最近产出
 - 提供自动规则引擎，自动打标、归类与后处理
-- 通过自定义目录、日期归档目录和默认目录统一组织侧边栏结构
+- 提供提示词编辑器，完成“看图 -> 找词 -> 拼 Prompt -> 存模板”的本地闭环
 
-## 2. v2.0.1 版本重点
+## 2. v2.1.0 版本重点
 
-### 2.0 核心升级
+### 本次新增
 
-- 新增 **任意位置绑定 ComfyUI output 目录**，首次进入强制用户选择真实输出目录
-- 新增 **设置中心**，把主题、快捷键、缓存、文件夹维护、工具菜单配置整合到统一浮层
-- 新增 **工具菜单自定义**：支持顺序调整、显示/隐藏，设置项固定置顶
-- 新增 **日期产出工作台日期范围筛选**，支持开始日期与结束日期
-- 新增 **默认目录 / 日期归档目录 / 自定义目录** 并行管理模型
-- 自定义目录支持侧边栏显示开关、顺序调整、多层折叠显示
+- 新增独立页面式 **提示词编辑器**
+- 新增运行时词库目录：`data/prompt-library/`
+- 新增词库清洗脚本：`tools/build_prompt_library.py`
+- 新增提示词筛选下拉组件：`PromptFilterSelect.vue`
+- 新增自定义提示词持久化、查重、删除
+- 新增提示词收藏、最近使用、分页状态持久化
+- 新增组合模板保存与复用
 
 ### 本次重点修复
 
-- 修复软件内置“使用文档”页面未更新的问题
-- 修复内置文档页中的中文乱码与旧版本内容残留
-- 修复首页“查看全部 / 查看更多”跳转到空页面的问题
-- 修复日期工作台与图库页之间的筛选联动断裂
-- 修复工具菜单与设置中心入口分散的问题
-- 修复部分中文乱码、错误提示乱码、自定义目录名称乱码
-- 修复 Lightbox 详情中的尺寸文本与按钮文案异常
-- 修复全局快捷键文案和配置页的中英文混杂问题
+- 修复提示词编辑器从弹窗切换到页面后布局过于拥挤的问题
+- 修复自定义提示词删除确认弹窗样式不统一的问题
+- 修复删除自定义提示词后收藏 / 最近状态残留的问题
+- 修复筛选下拉超出软件可视区域的问题
+- 修复模板组合内容复制时混入 `Positive:` / `Negative:` 标签的问题
+- 修复提示词分页和部分编辑状态未持久化的问题
 
 ## 3. 技术栈
 
@@ -73,8 +72,17 @@ comfy-manager/
 ├─ docs/
 │  ├─ README.md
 │  ├─ RELEASE.md
-│  └─ PROJECT_CONTEXT.md
+│  ├─ PROJECT_CONTEXT.md
+│  └─ V2.1.0_PROMPT_ASSISTANT_TASK.md
 ├─ data/
+│  ├─ prompt-library/
+│  │  ├─ all_prompts_merged.cleaned.json
+│  │  └─ manifest.cleaned.json
+│  ├─ custom-prompt-entries.json
+│  ├─ prompt-assistant-state.json
+│  └─ prompt-templates.json
+├─ tools/
+│  └─ build_prompt_library.py
 ├─ .trash/
 ├─ desktop-app.exe
 └─ desktop-source/
@@ -93,16 +101,13 @@ comfy-manager/
    │  │  │  └─ utilityMenu.js
    │  │  └─ components/
    │  │     ├─ AppSidebar.vue
-   │  │     ├─ SettingsCenterDialog.vue
-   │  │     ├─ DirectoryBindingDialog.vue
-   │  │     ├─ DateWorkbench.vue
-   │  │     ├─ Home.vue
+   │  │     ├─ Documentation.vue
    │  │     ├─ ImageGallery.vue
    │  │     ├─ Lightbox.vue
-   │  │     ├─ Documentation.vue
-   │  │     ├─ ProfileCenter.vue
-   │  │     ├─ StatisticsDashboard.vue
-   │  │     └─ AutoRulesPanel.vue
+   │  │     ├─ PromptAssistantPage.vue
+   │  │     ├─ PromptFilterSelect.vue
+   │  │     ├─ PromptTemplateDialog.vue
+   │  │     └─ SettingsCenterDialog.vue
    │  └─ wailsjs/
    └─ build/
 ```
@@ -117,19 +122,17 @@ comfy-manager/
 - 解析 PNG 元数据、模型、LoRA、工作流节点数等
 - 维护图片元数据缓存
 - 维护目录绑定、自定义目录、收藏夹、标签、笔记、规则
+- 维护提示词词库、自定义提示词、提示词模板、提示词工作台状态
 - 提供图片删除、恢复、清理缓存、清理空目录、日期整理等能力
 
-关键数据结构：
+v2.1.0 关键数据结构：
 
-- `ImageFile`
-- `ImageMetadata`
-- `ImageMetaCacheEntry`
-- `AutoRule`
+- `PromptLibraryEntry`
+- `PromptAssistantState`
+- `PromptTemplate`
 - `FavoriteGroup`
 - `CustomRoot`
 - `DirectoryBinding`
-- `UtilityMenuState`
-- `ShortcutSettings`
 
 ## 6. 前端核心结构
 
@@ -137,11 +140,10 @@ comfy-manager/
 
 根组件，负责：
 
-- 注入全局 `toast` 与 `confirm`
+- 注入全局 `toast`
 - 统一装配侧边栏、主页、图库、工作台、设置相关页面
 - 处理根级视图跳转
-- 监听 `images:changed` 和 `shortcut:triggered`
-- 协调日期工作台与图库筛选状态
+- 协调日期工作台、图库、提示词编辑器之间的入口联动
 
 ### `frontend/src/composables/useImages.js`
 
@@ -153,52 +155,33 @@ comfy-manager/
 - 侧边栏目录树生成
 - 当前图库结果集计算
 
-v2.0.1 关键状态：
+### `frontend/src/components/PromptAssistantPage.vue`
 
-- `activeDatePreset`
-- `activeDateStart`
-- `activeDateEnd`
-- `activeModelFilter`
-- `activeLoraFilter`
-- `availableModels`
-- `availableLoras`
-- `dateWorkbenchSummary`
+v2.1.0 的提示词核心页面，负责：
 
-### `frontend/src/components/AppSidebar.vue`
+- 正向 / 反向 Prompt 编辑区
+- 词库搜索、筛选、分页浏览
+- 常用预设词包
+- 自定义提示词新增、删除
+- 收藏、最近、模板保存
+- 与图库 / Lightbox 上下文联动
 
-负责：
+### `frontend/src/components/PromptFilterSelect.vue`
 
-- 主导航与目录树显示
-- 标签区与标签筛选
-- 工具菜单浮层
-- 设置中心、自定义目录、目录绑定等入口
+用于替代系统原生下拉，解决：
 
-v2.0.1 调整：
+- 下拉内容超出软件窗口
+- 超长分类项显示不稳定
+- 筛选下拉与整体页面风格不一致
 
-- 标签区新增高度限制与独立滚动
-- 工具菜单从静态列表改为配置化渲染
-- “按日期整理文件”移入设置中心
-
-### `frontend/src/components/SettingsCenterDialog.vue`
+### `frontend/src/components/PromptTemplateDialog.vue`
 
 负责：
 
-- 外观模式
-- 收藏分组
-- 快捷键设置
-- 缓存清理
-- 文件夹维护
-- 工具菜单顺序与显示配置
-
-### `frontend/src/components/DateWorkbench.vue`
-
-负责：
-
-- 日期产出统计卡片
-- 日期范围选择
-- 模型 / LoRA 快捷筛选
-- 最近活跃日期入口
-- 一键跳回图库继续浏览
+- 提示词模板查看、搜索、分类
+- 复制模板内容
+- 模板新增、编辑、删除
+- 组合模板与正向 / 反向模板复用
 
 ## 7. 数据持久化
 
@@ -213,12 +196,16 @@ v2.0.1 调整：
 - `auto-rules.json`
 - `trash-metadata.json`
 - `image-meta-cache.json`
+- `prompt-templates.json`
+- `custom-prompt-entries.json`
+- `prompt-assistant-state.json`
 
-v2.0.1 重点新增 / 调整：
+v2.1.0 重点新增 / 调整：
 
-- `settings.json` 中新增工具菜单配置
-- `custom-roots.json` 中维护内置日期归档目录和自定义目录顺序
-- 目录绑定信息不再依赖 exe 上级目录推断，而是显式配置
+- `data/prompt-library/` 作为运行时正式词库目录
+- `custom-prompt-entries.json` 用于保存“我的词库”
+- `prompt-assistant-state.json` 用于保存收藏、最近、分页和筛选状态
+- 删除自定义提示词时，需要同步清理收藏与最近中的失效 id
 
 ## 8. 核心业务链路
 
@@ -226,40 +213,25 @@ v2.0.1 重点新增 / 调整：
 
 `fsnotify` -> `images:changed` -> 前端页面订阅刷新
 
-当前主要依赖该事件的页面：
-
-- `Home.vue`
-- `ProfileCenter.vue`
-- `StatisticsDashboard.vue`
-- 主图库页
-
 ### 日期工作台链路
 
 `GetImages()` -> `useImages.js` 提取日期目录 -> `dateWorkbenchSummary` 统计 -> `DateWorkbench.vue` 展示 -> 一键跳回图库
 
-### 模型 / LoRA 筛选链路
+### 提示词编辑器链路
 
-后端解析 metadata -> 前端归一化聚合模型与 LoRA -> 工作台或图库选择筛选 -> 结果重新计算
+`data/prompt-library/all_prompts_merged.cleaned.json` -> `app.go` 加载词库 -> `PromptAssistantPage.vue` 搜索 / 筛选 / 分页 -> 拼装正向 / 反向 Prompt -> 保存模板
 
-### 自定义目录链路
+### 自定义提示词链路
 
-目录绑定确定根路径 -> `custom-roots.json` 提供自定义目录定义 -> `useImages.js` 构建侧边栏树 -> 用户切换目录查看
+用户新增词条 -> 后端查重 -> 写入 `custom-prompt-entries.json` -> 前端并入当前词库 -> 可收藏 / 可再次编辑使用
 
 ## 9. 开发注意事项
 
-- 涉及筛选逻辑，优先检查 `useImages.js`
-- 涉及日期产出工作台，优先检查：
-  - `DateWorkbench.vue`
-  - `dateWorkbench.js`
-  - `App.vue`
-- 涉及工具菜单显示，优先检查：
-  - `AppSidebar.vue`
-  - `SettingsCenterDialog.vue`
-  - `utilityMenu.js`
-- 涉及中文乱码，优先检查：
-  - Go 源文件字符串字面量
-  - 前端新增组件编码
-  - 历史数据文件中的目录名与显示名回退逻辑
+- 涉及筛选逻辑，优先检查 `useImages.js` 和 `PromptAssistantPage.vue`
+- 涉及提示词状态持久化，优先检查 `app.go` 中的 `PromptAssistantState`
+- 涉及提示词下拉溢出，优先检查 `PromptFilterSelect.vue`
+- 涉及模板复制异常，优先检查 `PromptTemplateDialog.vue`
+- 涉及中文乱码，优先检查文件编码和字符串字面量，不要先怀疑 JSON 数据损坏
 
 ## 10. 发布要求
 
@@ -273,6 +245,14 @@ v2.0.1 重点新增 / 调整：
 
 ## 11. 最近变更记录
 
+### 2026-04-18 | v2.1.0
+
+- 新增提示词编辑器独立页面
+- 新增清洗后提示词词库副本与清洗脚本
+- 新增自定义提示词、预设词包、分页、收藏、最近、模板复用
+- 修复提示词编辑器多轮布局问题并统一删除确认弹窗
+- 更新软件内置文档、README 与发布文档
+
 ### 2026-04-17 | v2.0.1
 
 - 更新软件内置“使用文档”页面
@@ -285,21 +265,4 @@ v2.0.1 重点新增 / 调整：
 - 新增设置中心，统一承载工具与系统设置
 - 新增工具菜单配置化能力
 - 新增日期工作台日期范围筛选
-- 优化默认目录、日期归档目录、自定义目录的侧边栏结构
-- 修复首页跳转空页、部分筛选联动异常和多处中文乱码
 
-### 2026-04-16 | v1.8.1
-
-- 修复自动刷新问题
-- 去除前端轮询，改为事件驱动刷新
-- 更新中文文档页面
-
-### 2026-04-16 | v1.8.0
-
-- 新增日期产出工作台
-- 新增模型 / LoRA 筛选
-
-### 2026-04-16 | v1.7.0
-
-- 新增搜索 MVP
-- 新增自动规则引擎

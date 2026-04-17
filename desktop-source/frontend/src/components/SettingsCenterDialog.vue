@@ -103,6 +103,7 @@ const utilityMenuCatalog = [
   { id: 'statistics', label: '数据视界', description: '查看图像统计面板' },
   { id: 'launcher', label: '外部工具', description: '打开外部工具入口' },
   { id: 'prompt-templates', label: '提示词模板', description: '管理常用提示词模板' },
+  { id: 'prompt-assistant', label: '提示词提示器', description: '搜索词库并拼装 Prompt' },
   { id: 'auto-rules', label: '自动规则引擎', description: '执行自动规则处理' },
   { id: 'open-output', label: '打开当前 output', description: '打开当前绑定的输出目录' },
   { id: 'switch-output', label: '切换 output 位置', description: '重新绑定 ComfyUI output' },

@@ -1,0 +1,37 @@
+{
+  "created_at": "2026-04-17T13:15:03.798986+00:00",
+  "output_dir": "D:\\AiImg\\ComfyUI-aki-v3\\ComfyUI\\output\\comfy-manager\\提示词\\downloaded_prompt_data",
+  "sources": {
+    "gwliang": {
+      "url": "https://prompt.gwliang.com/",
+      "output_file": "D:\\AiImg\\ComfyUI-aki-v3\\ComfyUI\\output\\comfy-manager\\提示词\\downloaded_prompt_data\\gwliang.prompts.json",
+      "count": 3707
+    },
+    "newzone": {
+      "url": "https://prompt.newzone.top/app/zh",
+      "output_file": "D:\\AiImg\\ComfyUI-aki-v3\\ComfyUI\\output\\comfy-manager\\提示词\\downloaded_prompt_data\\newzone.prompts.json",
+      "count": 4934
+    },
+    "qpipi": {
+      "url": "https://prompt.qpipi.com/",
+      "output_file": "D:\\AiImg\\ComfyUI-aki-v3\\ComfyUI\\output\\comfy-manager\\提示词\\downloaded_prompt_data\\qpipi.prompts.json",
+      "count": 1383
+    },
+    "aitag": {
+      "url": "https://aitag.top/",
+      "output_file": "D:\\AiImg\\ComfyUI-aki-v3\\ComfyUI\\output\\comfy-manager\\提示词\\downloaded_prompt_data\\aitag.prompts.json",
+      "count": 2485
+    },
+    "local_sd_prompt_editor": {
+      "source_file": "F:\\0-代码\\html\\AI画风\\sd提示词编辑器.html",
+      "output_file": "D:\\AiImg\\ComfyUI-aki-v3\\ComfyUI\\output\\comfy-manager\\提示词\\downloaded_prompt_data\\local_sd_prompt_editor.prompts.json",
+      "count": 4714,
+      "negative_default_count": 30
+    }
+  },
+  "merged": {
+    "json_file": "D:\\AiImg\\ComfyUI-aki-v3\\ComfyUI\\output\\comfy-manager\\提示词\\downloaded_prompt_data\\all_prompts_merged.json",
+    "csv_file": "D:\\AiImg\\ComfyUI-aki-v3\\ComfyUI\\output\\comfy-manager\\提示词\\downloaded_prompt_data\\all_prompts_merged.csv",
+    "count": 17253
+  }
+}
