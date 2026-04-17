@@ -20,30 +20,34 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	_ "golang.org/x/image/webp"
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 type ImageFile struct {
-	Name       string `json:"name"`
-	Path       string `json:"path"`
-	RelPath    string `json:"relPath"`
-	ModTime    string `json:"modTime"`
-	Size       int64  `json:"size"`
-	Width      int    `json:"width"`
-	Height     int    `json:"height"`
-	Prompt     string `json:"prompt,omitempty"`
-	Model      string `json:"model,omitempty"`
+	Name       string   `json:"name"`
+	Path       string   `json:"path"`
+	RelPath    string   `json:"relPath"`
+	ModTime    string   `json:"modTime"`
+	Size       int64    `json:"size"`
+	Width      int      `json:"width"`
+	Height     int      `json:"height"`
+	Prompt     string   `json:"prompt,omitempty"`
+	Model      string   `json:"model,omitempty"`
 	Loras      []string `json:"loras,omitempty"`
-	SearchText string `json:"searchText,omitempty"`
+	SearchText string   `json:"searchText,omitempty"`
 }
 
 type ImageMetaCacheEntry struct {
@@ -111,9 +115,11 @@ type Settings struct {
 	TrashRetentionDays int              `json:"trashRetentionDays"`
 	RootDir            string           `json:"rootDir,omitempty"`
 	OutputDir          string           `json:"outputDir,omitempty"`
+	OutputConfigured   bool             `json:"outputConfigured,omitempty"`
 	PathVersion        int              `json:"pathVersion,omitempty"`
 	ShortcutSettings   ShortcutSettings `json:"shortcutSettings,omitempty"`
 	UserProfile        UserProfile      `json:"userProfile,omitempty"`
+	UtilityMenu        UtilityMenuState `json:"utilityMenu,omitempty"`
 }
 
 type UserProfile struct {
@@ -125,6 +131,16 @@ type UserProfile struct {
 	DailyGoal          int    `json:"dailyGoal,omitempty"`
 	PreferredStartPage string `json:"preferredStartPage,omitempty"`
 	ImagePath          string `json:"imagePath,omitempty"`
+}
+
+type UtilityMenuItem struct {
+	ID      string `json:"id"`
+	Visible bool   `json:"visible"`
+	Order   int    `json:"order,omitempty"`
+}
+
+type UtilityMenuState struct {
+	Items []UtilityMenuItem `json:"items,omitempty"`
 }
 
 type LauncherTool struct {
@@ -225,16 +241,25 @@ type CacheClearResult struct {
 }
 
 const defaultFavoriteGroupID = "default"
-const defaultFavoriteGroupName = "榛樿鏀惰棌"
+const defaultFavoriteGroupName = "Default Favorites"
 const profileAssetPrefix = "__profile__/"
 
 type ImageNotesMap map[string]string // relPath -> note text
 
 type CustomRoot struct {
-	ID   string `json:"id"`
-	Name string `json:"name"` // 侧边栏显示名称
-	Path string `json:"path"` // 相对于 imageDir 的路径
-	Icon string `json:"icon"` // Lucide 图标名称
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Icon      string `json:"icon"`
+	Order     int    `json:"order,omitempty"`
+	Enabled   bool   `json:"enabled"`
+	Locked    bool   `json:"locked,omitempty"`
+	IsBuiltin bool   `json:"isBuiltin,omitempty"`
+}
+
+type customRootsStore struct {
+	Version int          `json:"version"`
+	Roots   []CustomRoot `json:"roots"`
 }
 
 type TrashItem struct {
@@ -261,11 +286,14 @@ type DirectoryBinding struct {
 	RootDir       string `json:"rootDir"`
 	OutputDir     string `json:"outputDir"`
 	OutputRelPath string `json:"outputRelPath"`
+	Configured    bool   `json:"configured"`
 }
 
 var tagMutex sync.Mutex
 
 const pathVersionRootRelative = 2
+const customRootsVersion = 2
+const builtinDateArchiveRootID = "builtin-date-archive"
 
 // App struct
 type App struct {
@@ -380,13 +408,13 @@ func NewApp() *App {
 	//
 	// Production layouts supported:
 	//   A) New layout:  comfy-manager/desktop-app.exe
-	//      鈫?exeDir = comfy-manager/  鈫?unifiedRoot = exeDir
+	//      闂?exeDir = comfy-manager/  闂?unifiedRoot = exeDir
 	//   B) Old layout:  comfy-manager/desktop-source/build/bin/app.exe
-	//      鈫?exeDir = .../build/bin   鈫?unifiedRoot = up 3 levels
+	//      闂?exeDir = .../build/bin   闂?unifiedRoot = up 3 levels
 	//
 	// Dev (wails dev): exe is in system temp; fall back to Getwd()
-	//   鈫?Getwd() = comfy-manager/desktop-source/
-	//   鈫?unifiedRoot = parent of Getwd() = comfy-manager/
+	//   闂?Getwd() = comfy-manager/desktop-source/
+	//   闂?unifiedRoot = parent of Getwd() = comfy-manager/
 
 	unifiedRoot := exeDir // default: assume exe is at unified root (layout A)
 
@@ -396,9 +424,9 @@ func NewApp() *App {
 		// Layout B: build/bin/app.exe inside desktop-source
 		unifiedRoot = filepath.Dir(filepath.Dir(exeParent)) // up 3
 	} else if strings.Contains(exePath, os.TempDir()) || strings.EqualFold(exeBase, "tmp") {
-		// Dev mode 鈥?fall back to working directory
+		// Dev mode 闂?fall back to working directory
 		if wd, wdErr := os.Getwd(); wdErr == nil {
-			// Getwd() = .../desktop-source/ 鈫?parent = comfy-manager/
+			// Getwd() = .../desktop-source/ 闂?parent = comfy-manager/
 			unifiedRoot = filepath.Dir(wd)
 		}
 	}
@@ -425,13 +453,22 @@ func NewApp() *App {
 	}
 
 	settings, _ := app.loadSettings()
-	if err := app.applyDirectoryBinding(settings.RootDir, settings.OutputDir); err != nil {
-		log.Printf("failed to apply saved directory binding, using detected defaults: %v", err)
-		app.rootDir = defaultOutputDir
-		app.imageDir = defaultOutputDir
+	if settings.OutputConfigured {
+		if err := app.applyDirectoryBinding(settings.RootDir, settings.OutputDir); err != nil {
+			log.Printf("failed to apply saved directory binding: %v", err)
+			app.rootDir = ""
+			app.imageDir = ""
+			settings.OutputConfigured = false
+			settings.RootDir = ""
+			settings.OutputDir = ""
+			_ = app.saveSettings(settings)
+		}
+	} else {
+		app.rootDir = ""
+		app.imageDir = ""
 	}
 
-	if (strings.TrimSpace(settings.RootDir) != "" || strings.TrimSpace(settings.OutputDir) != "") && settings.PathVersion < pathVersionRootRelative {
+	if settings.OutputConfigured && (strings.TrimSpace(settings.RootDir) != "" || strings.TrimSpace(settings.OutputDir) != "") && settings.PathVersion < pathVersionRootRelative {
 		if err := app.migrateLegacyPathData(&settings); err != nil {
 			log.Printf("failed to migrate legacy paths: %v", err)
 		} else {
@@ -481,12 +518,19 @@ func (a *App) shutdown(ctx context.Context) {
 }
 
 func (a *App) outputRelPath() string {
+	if strings.TrimSpace(a.rootDir) == "" || strings.TrimSpace(a.imageDir) == "" {
+		return ""
+	}
 	rel, err := filepath.Rel(a.rootDir, a.imageDir)
 	if err != nil {
 		return ""
 	}
 	rel = normalizeRelPath(rel)
 	return rel
+}
+
+func (a *App) hasDirectoryBinding() bool {
+	return strings.TrimSpace(a.rootDir) != "" && strings.TrimSpace(a.imageDir) != ""
 }
 
 func (a *App) applyDirectoryBinding(rootDir, outputDir string) error {
@@ -497,7 +541,7 @@ func (a *App) applyDirectoryBinding(rootDir, outputDir string) error {
 
 	rootAbs, err := normalizeDir(effectiveRoot)
 	if err != nil {
-		return fmt.Errorf("鏍圭洰褰曟棤鏁? %w", err)
+		return fmt.Errorf("failed to normalize root directory: %w", err)
 	}
 
 	effectiveOutput := strings.TrimSpace(outputDir)
@@ -507,11 +551,11 @@ func (a *App) applyDirectoryBinding(rootDir, outputDir string) error {
 
 	outputAbs, err := normalizeDir(effectiveOutput)
 	if err != nil {
-		return fmt.Errorf("output 鐩綍鏃犳晥: %w", err)
+		return fmt.Errorf("invalid output directory: %w", err)
 	}
 
 	if !isSubPath(rootAbs, outputAbs) {
-		return fmt.Errorf("output 鐩綍蹇呴』浣嶄簬鏍圭洰褰曞唴")
+		return fmt.Errorf("output directory must stay inside the selected root directory")
 	}
 
 	a.rootDir = rootAbs
@@ -521,7 +565,44 @@ func (a *App) applyDirectoryBinding(rootDir, outputDir string) error {
 	return nil
 }
 
+func (a *App) validateDirectoryBinding(rootDir, outputDir string) (string, string, error) {
+	effectiveRoot := strings.TrimSpace(rootDir)
+	if effectiveRoot == "" {
+		effectiveRoot = a.imageDir
+	}
+
+	rootAbs, err := normalizeDir(effectiveRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid root directory: %w", err)
+	}
+
+	effectiveOutput := strings.TrimSpace(outputDir)
+	if effectiveOutput == "" {
+		effectiveOutput = rootAbs
+	}
+
+	outputAbs, err := normalizeDir(effectiveOutput)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid output directory: %w", err)
+	}
+
+	if !isSubPath(rootAbs, outputAbs) {
+		return "", "", fmt.Errorf("output directory must stay inside the selected root directory")
+	}
+
+	return rootAbs, outputAbs, nil
+}
+
+func (a *App) restoreDirectoryBinding(rootDir, outputDir string) {
+	a.rootDir = rootDir
+	a.imageDir = outputDir
+	a.restartImageWatcher()
+}
+
 func (a *App) resolveRootPath(relPath string) (string, error) {
+	if !a.hasDirectoryBinding() {
+		return "", fmt.Errorf("directory binding is not configured")
+	}
 	cleaned := normalizeRelPath(relPath)
 	absPath := a.rootDir
 	if cleaned != "" {
@@ -530,7 +611,7 @@ func (a *App) resolveRootPath(relPath string) (string, error) {
 
 	absPath = filepath.Clean(absPath)
 	if !isSubPath(a.rootDir, absPath) {
-		return "", fmt.Errorf("璺緞涓嶅湪鏍圭洰褰曞唴")
+		return "", fmt.Errorf("path is outside the root directory")
 	}
 	return absPath, nil
 }
@@ -571,11 +652,18 @@ func (a *App) shouldSkipDir(path, name string) bool {
 }
 
 func (a *App) managedImageRoots() []string {
+	if !a.hasDirectoryBinding() {
+		return []string{}
+	}
+
 	candidates := []string{a.imageDir}
 
 	customRoots, err := a.loadCustomRoots()
 	if err == nil {
 		for _, root := range customRoots {
+			if !root.Enabled {
+				continue
+			}
 			absPath, resolveErr := a.resolveRootPath(root.Path)
 			if resolveErr != nil {
 				continue
@@ -749,6 +837,10 @@ func (a *App) restartImageWatcher() {
 }
 
 func (a *App) walkManagedImages(visitor func(absPath, relPath string, info fs.FileInfo) error) error {
+	if !a.hasDirectoryBinding() {
+		return nil
+	}
+
 	seen := make(map[string]bool)
 
 	for _, root := range a.managedImageRoots() {
@@ -805,6 +897,33 @@ func prefixLegacyRelPath(pathValue, prefix string) string {
 		return cleaned
 	}
 	return filepath.ToSlash(filepath.Join(prefix, cleaned))
+}
+
+func (a *App) normalizeManagedReferencePath(pathValue string) string {
+	cleaned := normalizeRelPath(pathValue)
+	if cleaned == "" || !a.hasDirectoryBinding() {
+		return cleaned
+	}
+
+	if resolved, err := a.resolveRootPath(cleaned); err == nil {
+		if _, statErr := os.Stat(resolved); statErr == nil {
+			return cleaned
+		}
+	}
+
+	outputPrefix := a.outputRelPath()
+	prefixed := prefixLegacyRelPath(cleaned, outputPrefix)
+	if prefixed == cleaned {
+		return cleaned
+	}
+
+	if resolved, err := a.resolveRootPath(prefixed); err == nil {
+		if _, statErr := os.Stat(resolved); statErr == nil {
+			return prefixed
+		}
+	}
+
+	return cleaned
 }
 
 func (a *App) migrateLegacyPathData(settings *Settings) error {
@@ -1012,6 +1131,29 @@ func normalizeSearchValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+func stripUTF8BOM(data []byte) []byte {
+	return bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+}
+
+func repairLegacyMojibake(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+
+	encoded, err := simplifiedchinese.GBK.NewEncoder().Bytes([]byte(trimmed))
+	if err != nil || !utf8.Valid(encoded) {
+		return trimmed
+	}
+
+	repaired := strings.TrimSpace(string(encoded))
+	if repaired == "" {
+		return trimmed
+	}
+
+	return repaired
+}
+
 func autoRulePromptText(metadata ImageMetadata) string {
 	if strings.TrimSpace(metadata.Positive) != "" {
 		return metadata.Positive
@@ -1069,7 +1211,7 @@ func normalizeAutoRuleCondition(condition AutoRuleCondition) AutoRuleCondition {
 	return AutoRuleCondition{
 		Field:    field,
 		Operator: operator,
-		Value:    strings.TrimSpace(condition.Value),
+		Value:    repairLegacyMojibake(condition.Value),
 	}
 }
 
@@ -1083,20 +1225,20 @@ func normalizeAutoRuleAction(action AutoRuleAction) AutoRuleAction {
 
 	return AutoRuleAction{
 		Type:  actionType,
-		Value: strings.TrimSpace(action.Value),
+		Value: repairLegacyMojibake(action.Value),
 	}
 }
 
 func normalizeAutoRule(rule AutoRule) AutoRule {
 	normalized := AutoRule{
 		ID:             strings.TrimSpace(rule.ID),
-		Name:           strings.TrimSpace(rule.Name),
+		Name:           repairLegacyMojibake(rule.Name),
 		Enabled:        rule.Enabled,
 		MatchMode:      strings.ToLower(strings.TrimSpace(rule.MatchMode)),
 		LastRunAt:      strings.TrimSpace(rule.LastRunAt),
 		LastMatchCount: rule.LastMatchCount,
 		LastStatus:     strings.TrimSpace(rule.LastStatus),
-		LastError:      strings.TrimSpace(rule.LastError),
+		LastError:      repairLegacyMojibake(rule.LastError),
 		CreatedAt:      strings.TrimSpace(rule.CreatedAt),
 		UpdatedAt:      strings.TrimSpace(rule.UpdatedAt),
 	}
@@ -1149,7 +1291,7 @@ func defaultAutoRulesStore() AutoRulesStore {
 		Rules: []AutoRule{
 			{
 				ID:        "default-rule-pony-tag",
-				Name:      "Pony 鑷姩鎵撴爣",
+				Name:      "Pony Auto Tag",
 				Enabled:   true,
 				MatchMode: "all",
 				Conditions: []AutoRuleCondition{
@@ -1164,7 +1306,7 @@ func defaultAutoRulesStore() AutoRulesStore {
 			},
 			{
 				ID:        "default-rule-sdxl-tag",
-				Name:      "SDXL 鑷姩鎵撴爣",
+				Name:      "SDXL Auto Tag",
 				Enabled:   true,
 				MatchMode: "all",
 				Conditions: []AutoRuleCondition{
@@ -1179,14 +1321,14 @@ func defaultAutoRulesStore() AutoRulesStore {
 			},
 			{
 				ID:        "default-rule-detail-lora",
-				Name:      "缁嗚妭 LoRA 鑷姩鎵撴爣",
+				Name:      "Detail LoRA Auto Tag",
 				Enabled:   true,
 				MatchMode: "all",
 				Conditions: []AutoRuleCondition{
 					{Field: "lora", Operator: "contains", Value: "detail"},
 				},
 				Actions: []AutoRuleAction{
-					{Type: "add_tag", Value: "缁嗚妭澧炲己"},
+					{Type: "add_tag", Value: "Detail Boost"},
 				},
 				LastStatus: "idle",
 				CreatedAt:  now,
@@ -1194,7 +1336,7 @@ func defaultAutoRulesStore() AutoRulesStore {
 			},
 			{
 				ID:        "default-rule-euler-tag",
-				Name:      "Euler a 鑷姩鎵撴爣",
+				Name:      "Euler a Auto Tag",
 				Enabled:   true,
 				MatchMode: "all",
 				Conditions: []AutoRuleCondition{
@@ -1209,14 +1351,14 @@ func defaultAutoRulesStore() AutoRulesStore {
 			},
 			{
 				ID:        "default-rule-portrait-folder",
-				Name:      "绔栧浘鑷姩褰掓。",
+				Name:      "Portrait Folder Rule",
 				Enabled:   false,
 				MatchMode: "all",
 				Conditions: []AutoRuleCondition{
 					{Field: "dimensions", Operator: "equals", Value: "1024x1536"},
 				},
 				Actions: []AutoRuleAction{
-					{Type: "move_to_folder", Value: "鏃ユ湡褰掓。/绔栧浘"},
+					{Type: "move_to_folder", Value: "Auto Archive/Portrait"},
 				},
 				LastStatus: "idle",
 				CreatedAt:  now,
@@ -1224,14 +1366,14 @@ func defaultAutoRulesStore() AutoRulesStore {
 			},
 			{
 				ID:        "default-rule-landscape-folder",
-				Name:      "妯浘鑷姩褰掓。",
+				Name:      "Landscape Folder Rule",
 				Enabled:   false,
 				MatchMode: "all",
 				Conditions: []AutoRuleCondition{
 					{Field: "dimensions", Operator: "equals", Value: "1536x1024"},
 				},
 				Actions: []AutoRuleAction{
-					{Type: "move_to_folder", Value: "鏃ユ湡褰掓。/妯浘"},
+					{Type: "move_to_folder", Value: "Auto Archive/Landscape"},
 				},
 				LastStatus: "idle",
 				CreatedAt:  now,
@@ -1253,12 +1395,17 @@ func (a *App) loadAutoRulesStoreUnlocked() (AutoRulesStore, error) {
 		}
 		return AutoRulesStore{}, err
 	}
+	data = stripUTF8BOM(data)
 
 	store := AutoRulesStore{}
 	if err := json.Unmarshal(data, &store); err != nil {
 		return AutoRulesStore{}, err
 	}
-	return normalizeAutoRulesStore(store), nil
+	normalized := normalizeAutoRulesStore(store)
+	if !reflect.DeepEqual(normalized, store) {
+		_ = a.saveAutoRulesStoreUnlocked(normalized)
+	}
+	return normalized, nil
 }
 
 func (a *App) saveAutoRulesStoreUnlocked(store AutoRulesStore) error {
@@ -1796,13 +1943,13 @@ func (a *App) runAutoRulesForPaths(paths []string, source string) (AutoRulesRunS
 		})
 	}
 	if len(normalizedPaths) == 0 {
-		emitProgress("completed", false, "", "", "娌℃湁鍙鐞嗙殑鍥剧墖")
+		emitProgress("completed", false, "", "", "No images to process")
 		return summary, nil
 	}
 
 	a.autoRulesRunMu.Lock()
 	defer a.autoRulesRunMu.Unlock()
-	emitProgress("started", true, "", "", "开始执行自动规则")
+	emitProgress("started", true, "", "", "Starting auto rules run")
 
 	a.autoRulesMu.Lock()
 	store, err := a.loadAutoRulesStoreUnlocked()
@@ -1812,7 +1959,7 @@ func (a *App) runAutoRulesForPaths(paths []string, source string) (AutoRulesRunS
 		return summary, err
 	}
 	if !store.Enabled || len(store.Rules) == 0 {
-		emitProgress("completed", false, "", "", "褰撳墠娌℃湁鍙墽琛岀殑瑙勫垯")
+		emitProgress("completed", false, "", "", "Auto rules are disabled or no rules are configured")
 		return summary, nil
 	}
 
@@ -1992,16 +2139,22 @@ func normalizeFavoriteGroups(groups []FavoriteGroup) []FavoriteGroup {
 		}
 		seenIDs[id] = struct{}{}
 
-		name := strings.TrimSpace(group.Name)
+		name := repairLegacyMojibake(group.Name)
 		if name == "" {
 			if id == defaultFavoriteGroupID {
 				name = defaultFavoriteGroupName
 			} else {
-				name = "未命名分组"
+				name = "Untitled Group"
 			}
 		}
 
-		paths := uniqueNonEmptyStrings(group.Paths)
+		normalizedPaths := make([]string, 0, len(group.Paths))
+		for _, pathValue := range group.Paths {
+			if normalized := normalizeRelPath(repairLegacyMojibake(pathValue)); normalized != "" {
+				normalizedPaths = append(normalizedPaths, normalized)
+			}
+		}
+		paths := uniqueNonEmptyStrings(normalizedPaths)
 		normalized = append(normalized, FavoriteGroup{
 			ID:    id,
 			Name:  name,
@@ -2049,6 +2202,10 @@ func findFavoriteGroupIndex(groups []FavoriteGroup, id string) int {
 // --- Images ---
 
 func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
+	if !a.hasDirectoryBinding() {
+		return []ImageFile{}, nil
+	}
+
 	a.ensureImageMetaCacheLoaded()
 	cachedMeta := a.snapshotImageMetaCache()
 
@@ -2063,8 +2220,11 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 		name := filepath.Base(path)
 		width, height := 0, 0
 		needsAutoRuleCheck := false
+		shouldWarmupMetadata := false
 
 		if cached, ok := cachedMeta[relPath]; ok && cached.ModTime == modTime && cached.Size == info.Size() {
+			shouldWarmupMetadata = !cached.MetadataScanned
+			queuedWarmup := false
 			if cached.Width > 0 || cached.Height > 0 {
 				width = cached.Width
 				height = cached.Height
@@ -2072,6 +2232,18 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 				width, height = readImageDimensions(path)
 				cacheChanged = true
 			} else {
+				warmupTasks = append(warmupTasks, imageMetaWarmupTask{
+					Path: path,
+					Entry: ImageMetaCacheEntry{
+						Name:    name,
+						RelPath: relPath,
+						ModTime: modTime,
+						Size:    info.Size(),
+					},
+				})
+				queuedWarmup = true
+			}
+			if shouldWarmupMetadata && !queuedWarmup {
 				warmupTasks = append(warmupTasks, imageMetaWarmupTask{
 					Path: path,
 					Entry: ImageMetaCacheEntry{
@@ -2252,15 +2424,52 @@ func (a *App) loadFavoriteGroups() ([]FavoriteGroup, error) {
 		}
 		return nil, err
 	}
+	data = stripUTF8BOM(data)
 
 	store := favoriteGroupsStore{}
 	if err := json.Unmarshal(data, &store); err == nil && len(store.Groups) > 0 {
-		return normalizeFavoriteGroups(store.Groups), nil
+		groups := normalizeFavoriteGroups(store.Groups)
+		changed := !reflect.DeepEqual(groups, store.Groups)
+		for i := range groups {
+			paths := make([]string, 0, len(groups[i].Paths))
+			for _, pathValue := range groups[i].Paths {
+				next := a.normalizeManagedReferencePath(pathValue)
+				if next != normalizeRelPath(pathValue) {
+					changed = true
+				}
+				if next != "" {
+					paths = append(paths, next)
+				}
+			}
+			groups[i].Paths = uniqueNonEmptyStrings(paths)
+		}
+		if changed {
+			_ = a.saveFavoriteGroups(groups)
+		}
+		return groups, nil
 	}
 
 	var legacyGroups []FavoriteGroup
 	if err := json.Unmarshal(data, &legacyGroups); err == nil && len(legacyGroups) > 0 {
-		return normalizeFavoriteGroups(legacyGroups), nil
+		groups := normalizeFavoriteGroups(legacyGroups)
+		changed := !reflect.DeepEqual(groups, legacyGroups)
+		for i := range groups {
+			paths := make([]string, 0, len(groups[i].Paths))
+			for _, pathValue := range groups[i].Paths {
+				next := a.normalizeManagedReferencePath(pathValue)
+				if next != normalizeRelPath(pathValue) {
+					changed = true
+				}
+				if next != "" {
+					paths = append(paths, next)
+				}
+			}
+			groups[i].Paths = uniqueNonEmptyStrings(paths)
+		}
+		if changed {
+			_ = a.saveFavoriteGroups(groups)
+		}
+		return groups, nil
 	}
 
 	var legacyPaths []string
@@ -2686,7 +2895,25 @@ func (a *App) loadImageTags() (ImageTagsMap, error) {
 	if imageTags == nil {
 		imageTags = make(ImageTagsMap)
 	}
-	return imageTags, nil
+	normalized := make(ImageTagsMap, len(imageTags))
+	changed := false
+	for relPath, tagIDs := range imageTags {
+		next := a.normalizeManagedReferencePath(relPath)
+		if next == "" {
+			continue
+		}
+		if next != normalizeRelPath(relPath) {
+			changed = true
+		}
+		normalized[next] = uniqueNonEmptyStrings(append(normalized[next], tagIDs...))
+	}
+	if len(normalized) == 0 && len(imageTags) == 0 {
+		return imageTags, nil
+	}
+	if changed {
+		_ = a.saveImageTags(normalized)
+	}
+	return normalized, nil
 }
 
 func (a *App) saveImageTags(imageTags ImageTagsMap) error {
@@ -2708,7 +2935,27 @@ func (a *App) loadImageNotes() (ImageNotesMap, error) {
 	if notes == nil {
 		notes = make(ImageNotesMap)
 	}
-	return notes, nil
+	normalized := make(ImageNotesMap, len(notes))
+	changed := false
+	for relPath, note := range notes {
+		next := a.normalizeManagedReferencePath(relPath)
+		if next == "" {
+			continue
+		}
+		if next != normalizeRelPath(relPath) {
+			changed = true
+		}
+		if strings.TrimSpace(normalized[next]) == "" {
+			normalized[next] = note
+		}
+	}
+	if len(normalized) == 0 && len(notes) == 0 {
+		return notes, nil
+	}
+	if changed {
+		_ = a.saveImageNotes(normalized)
+	}
+	return normalized, nil
 }
 
 func (a *App) saveImageNotes(notes ImageNotesMap) error {
@@ -2908,6 +3155,9 @@ func uniqueTrashFilename(name string, existing map[string]bool) string {
 }
 
 func (a *App) migrateLegacyTrash() error {
+	if strings.TrimSpace(a.imageDir) == "" {
+		return nil
+	}
 	legacyDir := a.legacyTrashDir()
 	currentDir := a.trashDir()
 	if legacyDir == "" || currentDir == "" || samePath(legacyDir, currentDir) {
@@ -3006,19 +3256,45 @@ func (a *App) loadSettings() (Settings, error) {
 	var settings Settings
 	data, err := os.ReadFile(a.settingsFile())
 	if err != nil {
-		return Settings{
-			TrashRetentionDays: 30,
-			ShortcutSettings:   defaultShortcutSettings(),
-			UserProfile:        defaultUserProfile(),
-		}, nil
+		return defaultSettings(), nil
 	}
-	json.Unmarshal(data, &settings)
+	data = stripUTF8BOM(data)
+	if err := json.Unmarshal(data, &settings); err != nil {
+		settings = defaultSettings()
+		_ = a.saveSettings(settings)
+		return settings, nil
+	}
+	originalShortcutSettings := settings.ShortcutSettings
+	originalUserProfile := settings.UserProfile
+	originalUtilityMenu := settings.UtilityMenu
+	originalOutputConfigured := settings.OutputConfigured
+	originalTrashRetention := settings.TrashRetentionDays
 	if settings.TrashRetentionDays <= 0 {
 		settings.TrashRetentionDays = 30
 	}
+	if settings.OutputConfigured || strings.TrimSpace(settings.RootDir) != "" || strings.TrimSpace(settings.OutputDir) != "" {
+		settings.OutputConfigured = true
+	}
 	settings.ShortcutSettings = normalizeShortcutSettings(settings.ShortcutSettings)
 	settings.UserProfile = normalizeUserProfile(settings.UserProfile)
+	settings.UtilityMenu = normalizeUtilityMenuState(settings.UtilityMenu)
+	if settings.TrashRetentionDays != originalTrashRetention ||
+		settings.OutputConfigured != originalOutputConfigured ||
+		!reflect.DeepEqual(settings.ShortcutSettings, originalShortcutSettings) ||
+		!reflect.DeepEqual(settings.UserProfile, originalUserProfile) ||
+		!reflect.DeepEqual(settings.UtilityMenu, originalUtilityMenu) {
+		_ = a.saveSettings(settings)
+	}
 	return settings, nil
+}
+
+func defaultSettings() Settings {
+	return Settings{
+		TrashRetentionDays: 30,
+		ShortcutSettings:   defaultShortcutSettings(),
+		UserProfile:        defaultUserProfile(),
+		UtilityMenu:        defaultUtilityMenuState(),
+	}
 }
 
 func (a *App) saveSettings(settings Settings) error {
@@ -3028,9 +3304,9 @@ func (a *App) saveSettings(settings Settings) error {
 
 func defaultUserProfile() UserProfile {
 	return UserProfile{
-		DisplayName:        "创作者",
-		Headline:           "把灵感整理成稳定、清爽的作品集",
-		Bio:                "这里保存你的出图节奏、偏好设置和常用入口，让工作流保持顺手。",
+		DisplayName:        "\u7075\u52a8\u56fe\u5e93\u7528\u6237",
+		Headline:           "\u628a\u4f5c\u54c1\u6574\u7406\u6210\u7a33\u5b9a\u3001\u6e05\u723d\u7684\u56fe\u5e93",
+		Bio:                "\u8fd9\u91cc\u4fdd\u5b58\u4f60\u7684\u51fa\u56fe\u8282\u594f\u3001\u504f\u597d\u8bbe\u7f6e\u548c\u5e38\u7528\u5165\u53e3\uff0c\u8ba9\u5de5\u4f5c\u6d41\u4fdd\u6301\u987a\u624b\u3002",
 		Location:           "",
 		Website:            "",
 		DailyGoal:          12,
@@ -3043,16 +3319,19 @@ func normalizeUserProfile(profile UserProfile) UserProfile {
 	defaults := defaultUserProfile()
 
 	profile.DisplayName = strings.TrimSpace(profile.DisplayName)
+	profile.DisplayName = repairLegacyMojibake(profile.DisplayName)
 	if profile.DisplayName == "" {
 		profile.DisplayName = defaults.DisplayName
 	}
 
 	profile.Headline = strings.TrimSpace(profile.Headline)
+	profile.Headline = repairLegacyMojibake(profile.Headline)
 	if profile.Headline == "" {
 		profile.Headline = defaults.Headline
 	}
 
 	profile.Bio = strings.TrimSpace(profile.Bio)
+	profile.Bio = repairLegacyMojibake(profile.Bio)
 	if profile.Bio == "" {
 		profile.Bio = defaults.Bio
 	}
@@ -3075,6 +3354,76 @@ func normalizeUserProfile(profile UserProfile) UserProfile {
 	}
 
 	return profile
+}
+
+var utilityMenuCatalog = []string{
+	"settings",
+	"trash",
+	"documentation",
+	"statistics",
+	"launcher",
+	"prompt-templates",
+	"auto-rules",
+	"open-output",
+	"switch-output",
+	"custom-roots",
+}
+
+func defaultUtilityMenuState() UtilityMenuState {
+	items := make([]UtilityMenuItem, 0, len(utilityMenuCatalog))
+	for index, id := range utilityMenuCatalog {
+		items = append(items, UtilityMenuItem{
+			ID:      id,
+			Visible: true,
+			Order:   index + 1,
+		})
+	}
+	return UtilityMenuState{Items: items}
+}
+
+func normalizeUtilityMenuState(state UtilityMenuState) UtilityMenuState {
+	defaults := defaultUtilityMenuState()
+	if len(state.Items) == 0 {
+		return defaults
+	}
+
+	known := make(map[string]UtilityMenuItem, len(state.Items))
+	for _, item := range state.Items {
+		id := strings.TrimSpace(item.ID)
+		if id == "" {
+			continue
+		}
+		known[id] = UtilityMenuItem{
+			ID:      id,
+			Visible: item.Visible,
+			Order:   item.Order,
+		}
+	}
+
+	items := make([]UtilityMenuItem, 0, len(defaults.Items))
+	for index, fallback := range defaults.Items {
+		item, exists := known[fallback.ID]
+		if !exists {
+			item = fallback
+		}
+		if item.Order <= 0 {
+			item.Order = index + 1
+		}
+		items = append(items, item)
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Order != items[j].Order {
+			return items[i].Order < items[j].Order
+		}
+		return items[i].ID < items[j].ID
+	})
+
+	for index := range items {
+		items[index].Order = index + 1
+	}
+
+	return UtilityMenuState{Items: items}
 }
 
 func (a *App) loadImageMetaCache() (ImageMetaCache, error) {
@@ -3509,6 +3858,82 @@ func stringifyMetadataValue(value any) string {
 	}
 }
 
+var comfyLoraTagPattern = regexp.MustCompile(`(?i)<lora:([^:>]+):[^>]+>`)
+
+func metadataValueBool(value any) bool {
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		normalized := strings.TrimSpace(strings.ToLower(v))
+		return normalized == "true" || normalized == "1" || normalized == "yes" || normalized == "on"
+	case json.Number:
+		number, err := v.Int64()
+		return err == nil && number != 0
+	case float64:
+		return v != 0
+	case int:
+		return v != 0
+	default:
+		return false
+	}
+}
+
+func collectLorasFromValue(value any, loras map[string]struct{}) {
+	switch v := value.(type) {
+	case nil:
+		return
+	case string:
+		text := strings.TrimSpace(v)
+		if text == "" {
+			return
+		}
+		for _, match := range comfyLoraTagPattern.FindAllStringSubmatch(text, -1) {
+			name := strings.TrimSpace(match[1])
+			if name != "" {
+				loras[name] = struct{}{}
+			}
+		}
+	case []any:
+		for _, item := range v {
+			collectLorasFromValue(item, loras)
+		}
+	case map[string]any:
+		if name := strings.TrimSpace(stringifyMetadataValue(v["name"])); name != "" {
+			if active, exists := v["active"]; !exists || metadataValueBool(active) {
+				loras[name] = struct{}{}
+			}
+		}
+		for _, nested := range v {
+			collectLorasFromValue(nested, loras)
+		}
+	}
+}
+
+func hasStructuredLoraDefinitions(value any) bool {
+	switch v := value.(type) {
+	case []any:
+		for _, item := range v {
+			if hasStructuredLoraDefinitions(item) {
+				return true
+			}
+		}
+	case map[string]any:
+		if _, exists := v["__value__"]; exists {
+			return true
+		}
+		if _, exists := v["name"]; exists {
+			return true
+		}
+		for _, nested := range v {
+			if hasStructuredLoraDefinitions(nested) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func directTextInput(value any) string {
 	text, ok := value.(string)
 	if !ok {
@@ -3766,6 +4191,11 @@ func collectPromptModel(nodes map[string]comfyPromptNode, value any, visited map
 			loras[lora] = struct{}{}
 		}
 	}
+	structuredLoras := node.Inputs["loras"]
+	collectLorasFromValue(structuredLoras, loras)
+	if !hasStructuredLoraDefinitions(structuredLoras) {
+		collectLorasFromValue(node.Inputs["text"], loras)
+	}
 
 	for _, key := range []string{"model", "clip", "base_model", "sdxl_tuple"} {
 		if next, exists := node.Inputs[key]; exists {
@@ -3813,6 +4243,11 @@ func collectPromptLoras(nodes map[string]comfyPromptNode, value any, visited map
 		if lora := stringifyMetadataValue(node.Inputs[index]); lora != "" && strings.ToLower(lora) != "none" {
 			loras[lora] = struct{}{}
 		}
+	}
+	structuredLoras := node.Inputs["loras"]
+	collectLorasFromValue(structuredLoras, loras)
+	if !hasStructuredLoraDefinitions(structuredLoras) {
+		collectLorasFromValue(node.Inputs["text"], loras)
 	}
 
 	for _, key := range []string{"model", "clip", "conditioning", "positive", "negative", "sdxl_tuple"} {
@@ -3939,13 +4374,22 @@ func extractComfyPromptSummary(metadata *ImageMetadata, promptRaw string) {
 	}
 
 	if len(metadata.Loras) == 0 {
-		loras := make([]string, 0, 4)
+		loraSet := make(map[string]struct{})
 		for _, id := range ids {
 			if lora := stringifyMetadataValue(nodes[id].Inputs["lora_name"]); lora != "" {
-				loras = appendUniqueTexts(loras, lora)
+				loraSet[lora] = struct{}{}
+			}
+			structuredLoras := nodes[id].Inputs["loras"]
+			collectLorasFromValue(structuredLoras, loraSet)
+			if !hasStructuredLoraDefinitions(structuredLoras) {
+				collectLorasFromValue(nodes[id].Inputs["text"], loraSet)
 			}
 		}
-		if len(loras) > 0 {
+		if len(loraSet) > 0 {
+			loras := make([]string, 0, len(loraSet))
+			for lora := range loraSet {
+				loras = append(loras, lora)
+			}
 			sort.Strings(loras)
 			metadata.Loras = loras
 		}
@@ -4132,14 +4576,34 @@ func (a *App) scheduleImageMetaWarmup(tasks []imageMetaWarmupTask) {
 		}()
 
 		updated := false
+		autoRuleCandidates := make([]string, 0)
 		for _, task := range pending {
+			entryNeedsMetadata := false
+			a.imageMetaMu.RLock()
+			entry, ok := a.imageMetaCache[task.Entry.RelPath]
+			if ok && entry.ModTime == task.Entry.ModTime && entry.Size == task.Entry.Size {
+				entryNeedsMetadata = !entry.MetadataScanned
+			}
+			a.imageMetaMu.RUnlock()
+
+			if entryNeedsMetadata {
+				metadata, err := a.GetImageMetadata(task.Entry.RelPath)
+				if err == nil {
+					updated = true
+					if metadata.HasMetadata || strings.TrimSpace(metadata.Model) != "" || strings.TrimSpace(metadata.Sampler) != "" || len(metadata.Loras) > 0 {
+						autoRuleCandidates = append(autoRuleCandidates, task.Entry.RelPath)
+					}
+				}
+				continue
+			}
+
 			width, height := readImageDimensions(task.Path)
 			if width == 0 && height == 0 {
 				continue
 			}
 
 			a.imageMetaMu.Lock()
-			entry, ok := a.imageMetaCache[task.Entry.RelPath]
+			entry, ok = a.imageMetaCache[task.Entry.RelPath]
 			if ok && entry.ModTime == task.Entry.ModTime && entry.Size == task.Entry.Size {
 				if entry.Width != width || entry.Height != height {
 					entry.Width = width
@@ -4155,6 +4619,10 @@ func (a *App) scheduleImageMetaWarmup(tasks []imageMetaWarmupTask) {
 			if err := a.saveImageMetaCache(a.snapshotImageMetaCache()); err != nil {
 				log.Printf("failed to save warmed image metadata cache: %v", err)
 			}
+			a.scheduleImagesChangedEvent()
+		}
+		if len(autoRuleCandidates) > 0 {
+			a.scheduleAutoRulesRun(autoRuleCandidates)
 		}
 	}(tasks)
 }
@@ -4314,6 +4782,27 @@ func (a *App) SaveTrashSettings(settings Settings) error {
 	return a.saveSettings(current)
 }
 
+func (a *App) GetUtilityMenuSettings() (UtilityMenuState, error) {
+	settings, err := a.loadSettings()
+	if err != nil {
+		return defaultUtilityMenuState(), err
+	}
+	return normalizeUtilityMenuState(settings.UtilityMenu), nil
+}
+
+func (a *App) SaveUtilityMenuSettings(state UtilityMenuState) (UtilityMenuState, error) {
+	settings, err := a.loadSettings()
+	if err != nil {
+		return defaultUtilityMenuState(), err
+	}
+
+	settings.UtilityMenu = normalizeUtilityMenuState(state)
+	if err := a.saveSettings(settings); err != nil {
+		return defaultUtilityMenuState(), err
+	}
+	return settings.UtilityMenu, nil
+}
+
 func (a *App) GetUserProfile() (UserProfile, error) {
 	settings, err := a.loadSettings()
 	if err != nil {
@@ -4375,7 +4864,7 @@ func (a *App) saveUserProfileImage(sourcePath string) (UserProfile, error) {
 
 func (a *App) SelectUserProfileImage() (UserProfile, error) {
 	options := runtime.OpenDialogOptions{
-		Title: "閫夋嫨涓汉涓績鍥剧墖",
+		Title: "选择新的个人中心图片",
 		Filters: []runtime.FileFilter{
 			{
 				DisplayName: "Image Files (*.png;*.jpg;*.jpeg;*.webp;*.gif)",
@@ -4423,6 +4912,7 @@ func (a *App) GetDirectoryBinding() (DirectoryBinding, error) {
 		RootDir:       a.rootDir,
 		OutputDir:     a.imageDir,
 		OutputRelPath: a.outputRelPath(),
+		Configured:    a.hasDirectoryBinding(),
 	}, nil
 }
 
@@ -4434,27 +4924,39 @@ func (a *App) SaveDirectoryBinding(rootDir, outputDir string) (DirectoryBinding,
 
 	previousRoot := a.rootDir
 	previousOutput := a.imageDir
+	previousSettingsRoot := settings.RootDir
+	previousSettingsOutput := settings.OutputDir
+	previousSettingsConfigured := settings.OutputConfigured
+	previousSettingsVersion := settings.PathVersion
 
-	if err := a.applyDirectoryBinding(rootDir, outputDir); err != nil {
-		a.rootDir = previousRoot
-		a.imageDir = previousOutput
+	nextRoot, nextOutput, err := a.validateDirectoryBinding(rootDir, outputDir)
+	if err != nil {
 		return DirectoryBinding{}, err
 	}
 
+	a.rootDir = nextRoot
+	a.imageDir = nextOutput
+
 	settings.RootDir = a.rootDir
 	settings.OutputDir = a.imageDir
+	settings.OutputConfigured = true
 	settings.PathVersion = pathVersionRootRelative
 	if settings.TrashRetentionDays <= 0 {
 		settings.TrashRetentionDays = 30
 	}
 
 	if err := a.saveSettings(settings); err != nil {
-		a.rootDir = previousRoot
-		a.imageDir = previousOutput
+		a.restoreDirectoryBinding(previousRoot, previousOutput)
 		return DirectoryBinding{}, err
 	}
 
 	if err := os.MkdirAll(a.trashDir(), 0755); err != nil {
+		settings.RootDir = previousSettingsRoot
+		settings.OutputDir = previousSettingsOutput
+		settings.OutputConfigured = previousSettingsConfigured
+		settings.PathVersion = previousSettingsVersion
+		_ = a.saveSettings(settings)
+		a.restoreDirectoryBinding(previousRoot, previousOutput)
 		return DirectoryBinding{}, err
 	}
 
@@ -4462,7 +4964,19 @@ func (a *App) SaveDirectoryBinding(rootDir, outputDir string) (DirectoryBinding,
 		log.Printf("failed to migrate legacy trash after rebinding: %v", err)
 	}
 
+	a.restartImageWatcher()
+	a.scheduleImagesChangedEvent()
 	return a.GetDirectoryBinding()
+}
+
+func (a *App) SaveOutputDirectory(outputDir string) (DirectoryBinding, error) {
+	normalizedOutput, err := normalizeDir(outputDir)
+	if err != nil {
+		return DirectoryBinding{}, fmt.Errorf("invalid output directory: %w", err)
+	}
+
+	rootDir := filepath.Dir(normalizedOutput)
+	return a.SaveDirectoryBinding(rootDir, normalizedOutput)
 }
 
 // --- Utilities ---
@@ -4491,11 +5005,11 @@ func (a *App) BatchMove(paths []string, targetFolder string) (int, error) {
 		}
 	}
 
-	if err := os.MkdirAll(targetPath, 0755); err != nil {
-		return 0, err
-	}
 	if !isSubPath(a.rootDir, filepath.Clean(targetPath)) {
 		return 0, fmt.Errorf("target folder must stay inside root directory")
+	}
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
+		return 0, err
 	}
 	targetRel, err := filepath.Rel(a.rootDir, targetPath)
 	if err != nil {
@@ -4746,6 +5260,24 @@ func (a *App) SelectFolder() (string, error) {
 	return dir, err
 }
 
+func openDirectoryInExplorer(path string) error {
+	normalized, err := normalizeExistingPath(path)
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("explorer", normalized)
+	return cmd.Start()
+}
+
+func (a *App) OpenCurrentOutputDirectory() error {
+	return openDirectoryInExplorer(a.imageDir)
+}
+
+func (a *App) OpenCurrentRootDirectory() error {
+	return openDirectoryInExplorer(a.rootDir)
+}
+
 func (a *App) OpenImageLocation(relPath string) error {
 	absPath, err := a.resolveRootPath(relPath)
 	if err != nil {
@@ -4927,24 +5459,152 @@ func (a *App) UpdateLauncherTool(id string, tool LauncherTool) error {
 
 // --- Custom Roots ---
 
+func defaultDateArchiveCustomRoot() CustomRoot {
+	return CustomRoot{
+		ID:        builtinDateArchiveRootID,
+		Name:      "\u65e5\u671f\u5f52\u6863\u76ee\u5f55",
+		Path:      "\u65e5\u671f\u5f52\u6863",
+		Icon:      "Calendar",
+		Order:     0,
+		Enabled:   true,
+		Locked:    true,
+		IsBuiltin: true,
+	}
+}
+
+func normalizeCustomRootDisplayName(pathValue, displayName string) string {
+	name := strings.TrimSpace(displayName)
+	if name != "" && !strings.Contains(name, "�") && !strings.Contains(name, "?") {
+		return name
+	}
+
+	parts := strings.Split(normalizeRelPath(pathValue), "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	return parts[len(parts)-1]
+}
+
+func normalizeCustomRoots(roots []CustomRoot, preserveEnabled bool) []CustomRoot {
+	builtin := defaultDateArchiveCustomRoot()
+	builtinEnabled := builtin.Enabled
+	builtinOrder := 1
+	allRoots := make([]CustomRoot, 0, len(roots)+1)
+	seenPaths := map[string]bool{}
+
+	for _, root := range roots {
+		pathValue := normalizeRelPath(repairLegacyMojibake(root.Path))
+		if pathValue == "" {
+			continue
+		}
+
+		if root.ID == builtinDateArchiveRootID || pathValue == builtin.Path {
+			if preserveEnabled {
+				builtinEnabled = root.Enabled
+			}
+			if root.Order > 0 {
+				builtinOrder = root.Order
+			}
+			continue
+		}
+
+		if seenPaths[pathValue] {
+			continue
+		}
+		seenPaths[pathValue] = true
+
+		enabled := true
+		if preserveEnabled {
+			enabled = root.Enabled
+		}
+
+		allRoots = append(allRoots, CustomRoot{
+			ID:        strings.TrimSpace(root.ID),
+			Name:      normalizeCustomRootDisplayName(pathValue, repairLegacyMojibake(root.Name)),
+			Path:      pathValue,
+			Icon:      strings.TrimSpace(root.Icon),
+			Order:     root.Order,
+			Enabled:   enabled,
+			Locked:    false,
+			IsBuiltin: false,
+		})
+	}
+
+	builtin.Enabled = builtinEnabled
+	builtin.Order = builtinOrder
+	allRoots = append(allRoots, builtin)
+
+	sort.SliceStable(allRoots, func(i, j int) bool {
+		leftOrder := allRoots[i].Order
+		rightOrder := allRoots[j].Order
+		if leftOrder <= 0 {
+			leftOrder = 1000000 + i
+		}
+		if rightOrder <= 0 {
+			rightOrder = 1000000 + j
+		}
+		if leftOrder != rightOrder {
+			return leftOrder < rightOrder
+		}
+		return allRoots[i].Name < allRoots[j].Name
+	})
+
+	for i := range allRoots {
+		if strings.TrimSpace(allRoots[i].ID) == "" {
+			allRoots[i].ID = uuid.New().String()
+		}
+		if strings.TrimSpace(allRoots[i].Icon) == "" {
+			allRoots[i].Icon = "FolderSymlink"
+		}
+		allRoots[i].Order = i + 1
+	}
+
+	return allRoots
+}
+
 func (a *App) loadCustomRoots() ([]CustomRoot, error) {
-	var roots []CustomRoot
 	data, err := os.ReadFile(a.customRootsFile())
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []CustomRoot{}, nil
+			return normalizeCustomRoots(nil, true), nil
 		}
 		return nil, err
 	}
-	json.Unmarshal(data, &roots)
-	if roots == nil {
-		roots = []CustomRoot{}
+	data = stripUTF8BOM(data)
+
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
+		return normalizeCustomRoots(nil, true), nil
 	}
-	return roots, nil
+
+	var store customRootsStore
+	if err := json.Unmarshal(data, &store); err == nil && (store.Version > 0 || store.Roots != nil) {
+		normalized := normalizeCustomRoots(store.Roots, true)
+		if store.Version != customRootsVersion || !reflect.DeepEqual(normalized, store.Roots) {
+			_ = a.saveCustomRoots(normalized)
+		}
+		return normalized, nil
+	}
+
+	var roots []CustomRoot
+	if err := json.Unmarshal(data, &roots); err != nil {
+		normalized := normalizeCustomRoots(nil, true)
+		_ = a.saveCustomRoots(normalized)
+		return normalized, nil
+	}
+	normalized := normalizeCustomRoots(roots, false)
+	if !reflect.DeepEqual(normalized, roots) {
+		_ = a.saveCustomRoots(normalized)
+	}
+	return normalized, nil
 }
 
 func (a *App) saveCustomRoots(roots []CustomRoot) error {
-	data, _ := json.MarshalIndent(roots, "", "  ")
+	store := customRootsStore{
+		Version: customRootsVersion,
+		Roots:   normalizeCustomRoots(roots, true),
+	}
+	data, _ := json.MarshalIndent(store, "", "  ")
 	return os.WriteFile(a.customRootsFile(), data, 0644)
 }
 
@@ -4956,43 +5616,42 @@ func (a *App) AddCustomRoot(name, relPath, icon string) (CustomRoot, error) {
 	normalizedPath := normalizeRelPath(relPath)
 	abs, err := a.resolveRootPath(normalizedPath)
 	if err != nil {
-		return CustomRoot{}, fmt.Errorf("路径不合法")
+		return CustomRoot{}, fmt.Errorf("无法添加自定义目录: %w", err)
 	}
 	info, err := os.Stat(abs)
 	if err != nil || !info.IsDir() {
-		return CustomRoot{}, fmt.Errorf("鏂囦欢澶逛笉瀛樺湪: %s", relPath)
+		return CustomRoot{}, fmt.Errorf("自定义目录不存在或不是文件夹: %s", relPath)
 	}
 
 	roots, _ := a.loadCustomRoots()
-	// Check duplicate path
 	for _, r := range roots {
 		if normalizeRelPath(r.Path) == normalizedPath {
-			return CustomRoot{}, fmt.Errorf("该文件夹已添加")
+			return CustomRoot{}, fmt.Errorf("该自定义目录已经存在")
 		}
 	}
 
 	if strings.TrimSpace(name) == "" {
-		parts := strings.Split(normalizedPath, "/")
-		name = parts[len(parts)-1]
+		name = normalizeCustomRootDisplayName(normalizedPath, "")
 	}
-
-	if icon == "" {
+	if strings.TrimSpace(icon) == "" {
 		icon = "FolderSymlink"
 	}
 
 	newRoot := CustomRoot{
-		ID:   uuid.New().String(),
-		Name: name,
-		Path: normalizedPath,
-		Icon: icon,
+		ID:      uuid.New().String(),
+		Name:    name,
+		Path:    normalizedPath,
+		Icon:    icon,
+		Order:   len(roots),
+		Enabled: true,
 	}
 	roots = append(roots, newRoot)
-	err = a.saveCustomRoots(roots)
-	if err == nil {
-		a.restartImageWatcher()
-		a.scheduleImagesChangedEvent()
+	if err := a.saveCustomRoots(roots); err != nil {
+		return CustomRoot{}, err
 	}
-	return newRoot, err
+	a.restartImageWatcher()
+	a.scheduleImagesChangedEvent()
+	return newRoot, nil
 }
 
 func (a *App) UpdateCustomRoot(id, name, icon string) error {
@@ -5003,13 +5662,15 @@ func (a *App) UpdateCustomRoot(id, name, icon string) error {
 		if root.ID != id {
 			continue
 		}
+		if root.Locked || root.IsBuiltin {
+			return fmt.Errorf("内置目录不能编辑")
+		}
 
 		displayName := strings.TrimSpace(name)
 		if displayName == "" {
-			parts := strings.Split(filepath.ToSlash(root.Path), "/")
-			displayName = parts[len(parts)-1]
+			displayName = normalizeCustomRootDisplayName(root.Path, "")
 		}
-		if icon == "" {
+		if strings.TrimSpace(icon) == "" {
 			icon = "FolderSymlink"
 		}
 
@@ -5020,42 +5681,114 @@ func (a *App) UpdateCustomRoot(id, name, icon string) error {
 	}
 
 	if !updated {
-		return fmt.Errorf("自定义目录不存在")
+		return fmt.Errorf("未找到要更新的自定义目录")
 	}
-
-	err := a.saveCustomRoots(roots)
-	if err == nil {
-		a.restartImageWatcher()
-		a.scheduleImagesChangedEvent()
+	if err := a.saveCustomRoots(roots); err != nil {
+		return err
 	}
-	return err
+	a.restartImageWatcher()
+	a.scheduleImagesChangedEvent()
+	return nil
 }
 
 func (a *App) DeleteCustomRoot(id string) error {
 	roots, _ := a.loadCustomRoots()
-	newRoots := []CustomRoot{}
-	for _, r := range roots {
-		if r.ID != id {
-			newRoots = append(newRoots, r)
+	newRoots := make([]CustomRoot, 0, len(roots))
+	deleted := false
+
+	for _, root := range roots {
+		if root.ID != id {
+			newRoots = append(newRoots, root)
+			continue
+		}
+		if root.Locked || root.IsBuiltin {
+			return fmt.Errorf("内置目录不能删除")
+		}
+		deleted = true
+	}
+
+	if !deleted {
+		return fmt.Errorf("未找到要删除的自定义目录")
+	}
+	if err := a.saveCustomRoots(newRoots); err != nil {
+		return err
+	}
+	a.restartImageWatcher()
+	a.scheduleImagesChangedEvent()
+	return nil
+}
+
+func (a *App) UpdateCustomRootEnabled(id string, enabled bool) error {
+	roots, _ := a.loadCustomRoots()
+	updated := false
+
+	for i := range roots {
+		if roots[i].ID != id {
+			continue
+		}
+		roots[i].Enabled = enabled
+		updated = true
+		break
+	}
+
+	if !updated {
+		return fmt.Errorf("未找到要更新的自定义目录")
+	}
+	if err := a.saveCustomRoots(roots); err != nil {
+		return err
+	}
+	a.restartImageWatcher()
+	a.scheduleImagesChangedEvent()
+	return nil
+}
+
+func (a *App) MoveCustomRoot(id, direction string) error {
+	roots, _ := a.loadCustomRoots()
+	index := -1
+	for i := range roots {
+		if roots[i].ID == id {
+			index = i
+			break
 		}
 	}
-	err := a.saveCustomRoots(newRoots)
-	if err == nil {
-		a.restartImageWatcher()
-		a.scheduleImagesChangedEvent()
+	if index < 0 {
+		return fmt.Errorf("未找到要移动的自定义目录")
 	}
-	return err
+
+	target := index
+	switch strings.ToLower(strings.TrimSpace(direction)) {
+	case "up":
+		target = index - 1
+	case "down":
+		target = index + 1
+	default:
+		return fmt.Errorf("移动方向无效")
+	}
+
+	if target < 0 || target >= len(roots) {
+		return nil
+	}
+
+	roots[index].Order, roots[target].Order = roots[target].Order, roots[index].Order
+	if err := a.saveCustomRoots(roots); err != nil {
+		return err
+	}
+	a.scheduleImagesChangedEvent()
+	return nil
 }
 
 // GetRelativePath converts an absolute path to a path relative to rootDir.
 // Returns error if the path is not inside rootDir.
 func (a *App) GetRelativePath(absPath string) (string, error) {
+	if !a.hasDirectoryBinding() {
+		return "", fmt.Errorf("output directory is not configured")
+	}
 	abs, err := normalizeExistingPath(absPath)
 	if err != nil {
 		return "", err
 	}
 	if !isSubPath(a.rootDir, abs) {
-		return "", fmt.Errorf("路径不在图片目录内")
+		return "", fmt.Errorf("path is outside the root directory")
 	}
 	rel, err := filepath.Rel(a.rootDir, abs)
 	if err != nil {
@@ -5073,7 +5806,7 @@ func (a *App) GetSubFolders(relPath string) ([]string, error) {
 	} else {
 		resolved, err := a.resolveRootPath(relPath)
 		if err != nil {
-			return nil, fmt.Errorf("路径不合法")
+			return nil, fmt.Errorf("无法读取子目录: %w", err)
 		}
 		base = resolved
 	}

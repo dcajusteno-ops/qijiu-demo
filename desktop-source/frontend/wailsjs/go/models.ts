@@ -161,6 +161,10 @@ export namespace main {
 	    name: string;
 	    path: string;
 	    icon: string;
+	    order?: number;
+	    enabled: boolean;
+	    locked?: boolean;
+	    isBuiltin?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new CustomRoot(source);
@@ -172,12 +176,17 @@ export namespace main {
 	        this.name = source["name"];
 	        this.path = source["path"];
 	        this.icon = source["icon"];
+	        this.order = source["order"];
+	        this.enabled = source["enabled"];
+	        this.locked = source["locked"];
+	        this.isBuiltin = source["isBuiltin"];
 	    }
 	}
 	export class DirectoryBinding {
 	    rootDir: string;
 	    outputDir: string;
 	    outputRelPath: string;
+	    configured: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new DirectoryBinding(source);
@@ -188,6 +197,7 @@ export namespace main {
 	        this.rootDir = source["rootDir"];
 	        this.outputDir = source["outputDir"];
 	        this.outputRelPath = source["outputRelPath"];
+	        this.configured = source["configured"];
 	    }
 	}
 	export class FavoriteGroup {
@@ -346,6 +356,52 @@ export namespace main {
 	        this.icon = source["icon"];
 	    }
 	}
+	export class UtilityMenuItem {
+	    id: string;
+	    visible: boolean;
+	    order?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UtilityMenuItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.visible = source["visible"];
+	        this.order = source["order"];
+	    }
+	}
+	export class UtilityMenuState {
+	    items?: UtilityMenuItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new UtilityMenuState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], UtilityMenuItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class UserProfile {
 	    displayName?: string;
 	    headline?: string;
@@ -422,9 +478,11 @@ export namespace main {
 	    trashRetentionDays: number;
 	    rootDir?: string;
 	    outputDir?: string;
+	    outputConfigured?: boolean;
 	    pathVersion?: number;
 	    shortcutSettings?: ShortcutSettings;
 	    userProfile?: UserProfile;
+	    utilityMenu?: UtilityMenuState;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -435,9 +493,11 @@ export namespace main {
 	        this.trashRetentionDays = source["trashRetentionDays"];
 	        this.rootDir = source["rootDir"];
 	        this.outputDir = source["outputDir"];
+	        this.outputConfigured = source["outputConfigured"];
 	        this.pathVersion = source["pathVersion"];
 	        this.shortcutSettings = this.convertValues(source["shortcutSettings"], ShortcutSettings);
 	        this.userProfile = this.convertValues(source["userProfile"], UserProfile);
+	        this.utilityMenu = this.convertValues(source["utilityMenu"], UtilityMenuState);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -548,6 +608,8 @@ export namespace main {
 	        this.errors = source["errors"];
 	    }
 	}
+	
+	
 
 }
 

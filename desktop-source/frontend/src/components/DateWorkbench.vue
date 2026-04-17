@@ -8,7 +8,8 @@ const props = defineProps({
   availableModels: { type: Array, default: () => [] },
   availableLoras: { type: Array, default: () => [] },
   activeDatePreset: { type: String, default: 'all' },
-  activeDateValue: { type: String, default: '' },
+  activeDateStart: { type: String, default: '' },
+  activeDateEnd: { type: String, default: '' },
   activeModelFilter: { type: String, default: '' },
   activeLoraFilter: { type: String, default: '' },
   activeDateLabel: { type: String, default: '全部日期' },
@@ -17,7 +18,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'update:date-preset',
-  'update:date-value',
+  'update:date-range',
   'update:model-filter',
   'update:lora-filter',
   'clear-filters',
@@ -42,8 +43,23 @@ const summaryCards = computed(() => [
 const recentDates = computed(() => (props.summary?.recentDates || []).slice(0, 12))
 
 const hasActiveFilters = computed(() =>
-  props.activeDatePreset !== 'all' || !!props.activeModelFilter || !!props.activeLoraFilter,
+  props.activeDatePreset !== 'all' ||
+  !!props.activeDateStart ||
+  !!props.activeDateEnd ||
+  !!props.activeModelFilter ||
+  !!props.activeLoraFilter,
 )
+
+const updateDateRange = (next) => {
+  emit('update:date-range', {
+    start: next?.start || '',
+    end: next?.end || '',
+  })
+}
+
+const handleQuickDate = (date) => {
+  updateDateRange({ start: date, end: date })
+}
 </script>
 
 <template>
@@ -125,13 +141,22 @@ const hasActiveFilters = computed(() =>
             </div>
 
             <div>
-              <label class="mb-3 block text-sm font-medium text-foreground">指定日期</label>
-              <input
-                :value="activeDateValue"
-                type="date"
-                class="h-11 w-full rounded-2xl border border-border bg-background px-4 text-sm outline-none transition focus:border-primary"
-                @input="emit('update:date-value', $event.target.value)"
-              >
+              <label class="mb-3 block text-sm font-medium text-foreground">指定日期范围</label>
+              <div class="grid gap-3 lg:grid-cols-2">
+                <input
+                  :value="activeDateStart"
+                  type="date"
+                  class="h-11 w-full rounded-2xl border border-border bg-background px-4 text-sm outline-none transition focus:border-primary"
+                  @input="updateDateRange({ start: $event.target.value, end: activeDateEnd })"
+                >
+                <input
+                  :value="activeDateEnd"
+                  type="date"
+                  class="h-11 w-full rounded-2xl border border-border bg-background px-4 text-sm outline-none transition focus:border-primary"
+                  @input="updateDateRange({ start: activeDateStart, end: $event.target.value })"
+                >
+              </div>
+              <p class="mt-2 text-xs text-muted-foreground">支持开始日期到结束日期，留空一侧也可以按单边范围筛选。</p>
             </div>
 
             <div class="grid gap-4 lg:grid-cols-2">
@@ -182,7 +207,7 @@ const hasActiveFilters = computed(() =>
               :key="item.date"
               type="button"
               class="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-sm text-foreground transition hover:border-primary/40 hover:bg-accent/40"
-              @click="emit('update:date-value', item.date)"
+              @click="handleQuickDate(item.date)"
             >
               <span>{{ item.date }}</span>
               <span class="text-muted-foreground">{{ item.count }}</span>

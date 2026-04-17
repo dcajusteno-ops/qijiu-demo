@@ -1,7 +1,7 @@
 const getApp = () => {
   const app = window.go?.main?.App
   if (!app) {
-    throw new Error('Comfy Manager 仅支持桌面端运行。')
+    throw new Error('ComfyUI Manager 仅支持桌面端运行。')
   }
   return app
 }
@@ -10,7 +10,7 @@ const callApp = (method, ...args) => {
   const app = getApp()
   const fn = app[method]
   if (typeof fn !== 'function') {
-    throw new Error(`桌面端接口缺失: ${method}`)
+    throw new Error(`桌面端接口缺失：${method}`)
   }
   return fn(...args)
 }
@@ -18,9 +18,16 @@ const callApp = (method, ...args) => {
 export const GetCustomRoots = async () => callApp('GetCustomRoots')
 export const AddCustomRoot = async (name, path, icon = '') => callApp('AddCustomRoot', name, path, icon)
 export const UpdateCustomRoot = async (id, name, icon = '') => callApp('UpdateCustomRoot', id, name, icon)
+export const UpdateCustomRootEnabled = async (id, enabled) => callApp('UpdateCustomRootEnabled', id, enabled)
+export const MoveCustomRoot = async (id, direction) => callApp('MoveCustomRoot', id, direction)
 export const DeleteCustomRoot = async (id) => callApp('DeleteCustomRoot', id)
 export const SelectFolder = async () => callApp('SelectFolder')
 export const GetRelativePath = async (path) => callApp('GetRelativePath', path)
+export const GetDirectoryBinding = async () => callApp('GetDirectoryBinding')
+export const SaveDirectoryBinding = async (rootDir, outputDir) => callApp('SaveDirectoryBinding', rootDir, outputDir)
+export const SaveOutputDirectory = async (outputDir) => callApp('SaveOutputDirectory', outputDir)
+export const OpenCurrentOutputDirectory = async () => callApp('OpenCurrentOutputDirectory')
+export const OpenCurrentRootDirectory = async () => callApp('OpenCurrentRootDirectory')
 
 export const GetFavorites = async () => callApp('GetFavorites')
 export const RemoveFavorite = async (path) => callApp('RemoveFavorite', path)
@@ -64,6 +71,8 @@ export const EmptyTrash = async () => callApp('EmptyTrash')
 export const GetShortcutSettings = async () => callApp('GetShortcutSettings')
 export const SaveShortcutSettings = async (settings) => callApp('SaveShortcutSettings', settings)
 export const GetShortcutActions = async () => callApp('GetShortcutActions')
+export const GetUtilityMenuSettings = async () => callApp('GetUtilityMenuSettings')
+export const SaveUtilityMenuSettings = async (settings) => callApp('SaveUtilityMenuSettings', settings)
 
 export const CleanupTags = async () => callApp('CleanupTags')
 export const GetStatistics = async (mode) => callApp('GetStatistics', mode)
@@ -90,18 +99,15 @@ export const CleanEmptyFolders = async () => callApp('CleanEmptyFolders')
 export const ClearPreviewCache = async () => callApp('ClearPreviewCache')
 export const OrganizeFiles = async (mode) => callApp('OrganizeFiles', mode)
 
-// Image Notes
 export const GetImageNotes = async () => callApp('GetImageNotes')
 export const SetImageNote = async (relPath, note) => callApp('SetImageNote', relPath, note)
 export const DeleteImageNote = async (relPath) => callApp('DeleteImageNote', relPath)
 
-// Prompt Templates
 export const GetPromptTemplates = async () => callApp('GetPromptTemplates')
 export const AddPromptTemplate = async (data) => callApp('AddPromptTemplate', data)
 export const UpdatePromptTemplate = async (id, data) => callApp('UpdatePromptTemplate', id, data)
 export const DeletePromptTemplate = async (id) => callApp('DeletePromptTemplate', id)
 
-// Auto Rules
 export const GetAutoRules = async () => callApp('GetAutoRules')
 export const SetAutoRulesEnabled = async (enabled) => callApp('SetAutoRulesEnabled', enabled)
 export const CreateAutoRule = async (rule) => callApp('CreateAutoRule', rule)

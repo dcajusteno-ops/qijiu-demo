@@ -49,13 +49,14 @@ const saving = ref(false)
 const running = ref(false)
 const searchQuery = ref('')
 const statusFilter = ref('all')
+const dialogOpen = ref(false)
+const editingRule = ref(null)
+let disposeProgressListener = null
+
 const store = ref({
   enabled: true,
   rules: [],
 })
-const dialogOpen = ref(false)
-const editingRule = ref(null)
-let disposeProgressListener = null
 
 const createEmptyRunProgress = () => ({
   source: '',
@@ -98,8 +99,8 @@ const showRunProgress = computed(() =>
 )
 
 const runProgressTitle = computed(() => {
-  if (running.value || runProgress.value.stage === 'running' || runProgress.value.stage === 'started') {
-    return '规则执行中'
+  if (running.value || ['started', 'running'].includes(runProgress.value.stage)) {
+    return '规则正在执行'
   }
   if (runProgress.value.stage === 'failed') {
     return '本次执行异常结束'
@@ -173,12 +174,12 @@ const formatDateTime = (value) => {
 const formatConditionSummary = (rule) =>
   (rule.conditions || [])
     .map((condition) => `${conditionLabels[condition.field] || condition.field} ${operatorLabels[condition.operator] || condition.operator} ${condition.value}`)
-    .join('，')
+    .join('；')
 
 const formatActionSummary = (rule) =>
   (rule.actions || [])
     .map((action) => `${actionLabels[action.type] || action.type} ${action.value}`)
-    .join('，')
+    .join('；')
 
 const statusBadgeClass = (rule) => {
   if (rule.lastStatus === 'error') return 'border-destructive/30 text-destructive'
@@ -189,7 +190,7 @@ const statusBadgeClass = (rule) => {
 const statusLabel = (rule) => {
   if (rule.lastStatus === 'error') return '最近失败'
   if (rule.lastStatus === 'success') return '最近成功'
-  return '未执行'
+  return '尚未执行'
 }
 
 const loadRules = async () => {
@@ -202,7 +203,7 @@ const loadRules = async () => {
     }
   } catch (error) {
     console.error('Failed to load auto rules:', error)
-    toast.error(`自动规则加载失败: ${error}`)
+    toast.error(`自动规则加载失败：${error}`)
   } finally {
     loading.value = false
   }
@@ -221,7 +222,7 @@ const setGlobalEnabled = async (value) => {
   } catch (error) {
     store.value.enabled = previous
     console.error('Failed to update auto rules status:', error)
-    toast.error(`更新失败: ${error}`)
+    toast.error(`更新失败：${error}`)
   }
 }
 
@@ -254,7 +255,7 @@ const saveRule = async (rule) => {
     await loadRules()
   } catch (error) {
     console.error('Failed to save auto rule:', error)
-    toast.error(`保存失败: ${error}`)
+    toast.error(`保存失败：${error}`)
   } finally {
     saving.value = false
   }
@@ -273,7 +274,7 @@ const deleteRule = async (ruleId) => {
     await loadRules()
   } catch (error) {
     console.error('Failed to delete auto rule:', error)
-    toast.error(`删除失败: ${error}`)
+    toast.error(`删除失败：${error}`)
   } finally {
     saving.value = false
   }
@@ -292,7 +293,7 @@ const toggleRuleEnabled = async (rule, value) => {
   } catch (error) {
     rule.enabled = previous
     console.error('Failed to toggle rule:', error)
-    toast.error(`更新失败: ${error}`)
+    toast.error(`更新失败：${error}`)
   }
 }
 
@@ -319,6 +320,7 @@ const runRulesNow = async () => {
       errorCount: summary?.errorCount || 0,
       message: '',
     }
+
     const summaryText = `已扫描 ${summary?.processedCount || 0} 张，命中 ${summary?.matchedCount || 0} 次，实际更新 ${summary?.updatedCount || 0} 项`
     if ((summary?.errorCount || 0) > 0) {
       toast.warning(`${summaryText}，其中 ${summary.errorCount} 次执行失败`)
@@ -328,7 +330,13 @@ const runRulesNow = async () => {
     await loadRules()
   } catch (error) {
     console.error('Failed to run auto rules:', error)
-    toast.error(`执行失败: ${error}`)
+    runProgress.value = {
+      ...runProgress.value,
+      stage: 'failed',
+      running: false,
+      message: String(error),
+    }
+    toast.error(`执行失败：${error}`)
   } finally {
     running.value = false
   }
@@ -359,238 +367,247 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="grid gap-4">
-    <Card class="rounded-[30px] border-border/70 bg-card shadow-none">
-      <CardHeader class="space-y-2">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div class="space-y-2">
-            <div class="flex items-center gap-2">
-              <Workflow class="h-4 w-4 text-muted-foreground" />
-              <CardTitle class="text-lg">自动规则</CardTitle>
+  <div class="h-full overflow-y-auto overscroll-contain bg-background">
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8 pb-10">
+      <Card class="rounded-[30px] border-border/70 bg-card shadow-none">
+        <CardHeader class="space-y-2">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <Workflow class="h-4 w-4 text-muted-foreground" />
+                <CardTitle class="text-lg">自动规则</CardTitle>
+              </div>
+              <CardDescription>
+                把重复整理动作交给系统自动完成，开关集中放在这里统一控制。
+              </CardDescription>
             </div>
-            <CardDescription>把重复整理动作交给系统自动完成，控制开关统一放在个人中心。</CardDescription>
-          </div>
 
-          <div class="flex items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3">
-            <div class="space-y-1 text-right">
-              <p class="text-sm font-medium text-foreground">自动处理开关</p>
-              <p class="text-xs text-muted-foreground">关闭后不会自动处理新图片</p>
+            <div class="flex items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3">
+              <div class="space-y-1 text-right">
+                <p class="text-sm font-medium text-foreground">自动处理开关</p>
+                <p class="text-xs text-muted-foreground">关闭后新图片不会自动套用规则</p>
+              </div>
+              <Switch :model-value="store.enabled" @update:model-value="setGlobalEnabled" />
             </div>
-            <Switch :model-value="store.enabled" @update:model-value="setGlobalEnabled" />
           </div>
-        </div>
-      </CardHeader>
+        </CardHeader>
 
-      <CardContent class="grid gap-4">
-        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div class="rounded-[22px] border border-border bg-background px-4 py-4">
-            <p class="text-xs text-muted-foreground">规则总数</p>
-            <p class="mt-2 text-2xl font-semibold tracking-tight text-foreground">{{ store.rules.length }}</p>
-          </div>
-          <div class="rounded-[22px] border border-border bg-background px-4 py-4">
-            <p class="text-xs text-muted-foreground">已启用</p>
-            <p class="mt-2 text-2xl font-semibold tracking-tight text-foreground">{{ enabledRuleCount }}</p>
-          </div>
-          <div class="rounded-[22px] border border-border bg-background px-4 py-4">
-            <p class="text-xs text-muted-foreground">最近执行</p>
-            <p class="mt-2 text-sm font-medium text-foreground">{{ formatDateTime(latestRuleRun?.lastRunAt) }}</p>
-          </div>
-          <div class="rounded-[22px] border border-border bg-background px-4 py-4">
-            <p class="text-xs text-muted-foreground">最近失败</p>
-            <p class="mt-2 text-2xl font-semibold tracking-tight text-foreground">{{ failedRuleCount }}</p>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-3">
-          <Button class="rounded-2xl px-5" @click="openCreateDialog">
-            <Plus class="mr-2 h-4 w-4" />
-            新建规则
-          </Button>
-          <Button variant="outline" class="rounded-2xl px-5 shadow-none" :disabled="running" @click="runRulesNow">
-            <Play class="mr-2 h-4 w-4" />
-            {{ running ? '执行中...' : '立即执行一次' }}
-          </Button>
-          <Button
-            variant="outline"
-            class="rounded-2xl px-5 shadow-none"
-            @click="searchQuery = ''; statusFilter = 'all'"
-          >
-            重置筛选
-          </Button>
-        </div>
-
-        <div
-          v-if="showRunProgress"
-          class="rounded-[22px] border border-border bg-background px-4 py-4"
-        >
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div class="space-y-1">
-              <p class="text-sm font-medium text-foreground">{{ runProgressTitle }}</p>
-              <p class="text-xs text-muted-foreground">{{ runProgressDescription }}</p>
+        <CardContent class="grid gap-4">
+          <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-[22px] border border-border bg-background px-4 py-4">
+              <p class="text-xs text-muted-foreground">规则总数</p>
+              <p class="mt-2 text-2xl font-semibold tracking-tight text-foreground">{{ store.rules.length }}</p>
             </div>
-            <div class="text-left text-xs text-muted-foreground lg:text-right">
-              <p>{{ runProgress.processedCount }} / {{ runProgress.totalCount || 0 }}</p>
-              <p>{{ runProgressPercent }}%</p>
+            <div class="rounded-[22px] border border-border bg-background px-4 py-4">
+              <p class="text-xs text-muted-foreground">已启用</p>
+              <p class="mt-2 text-2xl font-semibold tracking-tight text-foreground">{{ enabledRuleCount }}</p>
+            </div>
+            <div class="rounded-[22px] border border-border bg-background px-4 py-4">
+              <p class="text-xs text-muted-foreground">最近执行</p>
+              <p class="mt-2 text-sm font-medium text-foreground">{{ formatDateTime(latestRuleRun?.lastRunAt) }}</p>
+            </div>
+            <div class="rounded-[22px] border border-border bg-background px-4 py-4">
+              <p class="text-xs text-muted-foreground">最近失败</p>
+              <p class="mt-2 text-2xl font-semibold tracking-tight text-foreground">{{ failedRuleCount }}</p>
             </div>
           </div>
 
-          <div class="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              class="h-full rounded-full bg-foreground transition-all duration-200"
-              :style="{ width: `${runProgressPercent}%` }"
-            />
-          </div>
-
-          <div class="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
-            <span>命中 {{ runProgress.matchedCount }}</span>
-            <span>更新 {{ runProgress.updatedCount }}</span>
-            <span>失败 {{ runProgress.errorCount }}</span>
-            <span v-if="runProgress.currentRuleName">当前规则 {{ runProgress.currentRuleName }}</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-
-    <Card class="rounded-[30px] border-border/70 bg-card shadow-none">
-      <CardHeader class="space-y-2">
-        <CardTitle class="text-lg">规则列表</CardTitle>
-        <CardDescription>支持搜索、启停、编辑、删除，也支持手动跑一遍规则验证效果。</CardDescription>
-      </CardHeader>
-
-      <CardContent class="grid gap-4">
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div class="relative flex-1">
-            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              v-model="searchQuery"
-              placeholder="搜索规则名、条件或动作"
-              class="h-11 rounded-2xl border-border/80 bg-background/90 pl-9 shadow-none"
-            />
-          </div>
-
-          <div class="relative lg:w-[160px]">
-            <select
-              v-model="statusFilter"
-              class="h-11 w-full appearance-none rounded-2xl border border-border/80 bg-background px-4 pr-10 text-sm shadow-none outline-none transition-[border-color,box-shadow] focus:border-ring focus:ring-1 focus:ring-ring/60"
+          <div class="flex flex-wrap items-center gap-3">
+            <Button class="rounded-2xl px-5" @click="openCreateDialog">
+              <Plus class="mr-2 h-4 w-4" />
+              新建规则
+            </Button>
+            <Button
+              variant="outline"
+              class="rounded-2xl px-5 shadow-none"
+              :disabled="running"
+              @click="runRulesNow"
             >
-              <option value="all">全部规则</option>
-              <option value="enabled">已启用</option>
-              <option value="disabled">已停用</option>
-              <option value="failed">最近失败</option>
-            </select>
+              <Play class="mr-2 h-4 w-4" />
+              {{ running ? '执行中…' : '立即执行一次' }}
+            </Button>
+            <Button
+              variant="outline"
+              class="rounded-2xl px-5 shadow-none"
+              @click="searchQuery = ''; statusFilter = 'all'"
+            >
+              重置筛选
+            </Button>
           </div>
-        </div>
 
-        <div v-if="loading" class="grid gap-3">
-          <div v-for="index in 3" :key="index" class="h-28 rounded-[24px] bg-muted/60" />
-        </div>
-
-        <div v-else class="grid gap-3">
           <div
-            v-for="rule in filteredRules"
-            :key="rule.id"
-            class="rounded-[24px] border border-border bg-background px-4 py-4"
+            v-if="showRunProgress"
+            class="rounded-[22px] border border-border bg-background px-4 py-4"
           >
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div class="min-w-0 flex-1 space-y-3">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="text-sm font-medium text-foreground">{{ rule.name }}</p>
-                  <Badge variant="outline" class="rounded-full px-2.5 py-0.5 text-[11px]">
-                    {{ rule.enabled ? '已启用' : '已停用' }}
-                  </Badge>
-                  <Badge variant="outline" class="rounded-full px-2.5 py-0.5 text-[11px]" :class="statusBadgeClass(rule)">
-                    {{ statusLabel(rule) }}
-                  </Badge>
-                </div>
-
-                <div class="space-y-2 text-sm">
-                  <p class="text-muted-foreground">
-                    <span class="font-medium text-foreground">条件：</span>
-                    {{ formatConditionSummary(rule) }}
-                  </p>
-                  <p class="text-muted-foreground">
-                    <span class="font-medium text-foreground">动作：</span>
-                    {{ formatActionSummary(rule) }}
-                  </p>
-                </div>
-
-                <p class="text-xs text-muted-foreground">
-                  最近执行：{{ formatDateTime(rule.lastRunAt) }}，命中 {{ rule.lastMatchCount || 0 }} 次
-                </p>
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div class="space-y-1">
+                <p class="text-sm font-medium text-foreground">{{ runProgressTitle }}</p>
+                <p class="text-xs text-muted-foreground">{{ runProgressDescription }}</p>
               </div>
-
-              <div class="flex items-center gap-2 self-start">
-                <Switch :model-value="rule.enabled" @update:model-value="toggleRuleEnabled(rule, $event)" />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="h-10 w-10 rounded-2xl text-muted-foreground hover:bg-muted"
-                  @click="openEditDialog(rule)"
-                >
-                  <Pencil class="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="h-10 w-10 rounded-2xl text-muted-foreground hover:bg-destructive/8 hover:text-destructive"
-                  @click="deleteRule(rule.id)"
-                >
-                  <Trash2 class="h-4 w-4" />
-                </Button>
+              <div class="text-left text-xs text-muted-foreground lg:text-right">
+                <p>{{ runProgress.processedCount }} / {{ runProgress.totalCount || 0 }}</p>
+                <p>{{ runProgressPercent }}%</p>
               </div>
+            </div>
+
+            <div class="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                class="h-full rounded-full bg-foreground transition-all duration-200"
+                :style="{ width: `${runProgressPercent}%` }"
+              />
+            </div>
+
+            <div class="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+              <span>命中 {{ runProgress.matchedCount }}</span>
+              <span>更新 {{ runProgress.updatedCount }}</span>
+              <span>失败 {{ runProgress.errorCount }}</span>
+              <span v-if="runProgress.currentRuleName">当前规则 {{ runProgress.currentRuleName }}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card class="rounded-[30px] border-border/70 bg-card shadow-none">
+        <CardHeader class="space-y-2">
+          <CardTitle class="text-lg">规则列表</CardTitle>
+          <CardDescription>支持搜索、启停、编辑、删除，也支持手动跑一遍规则验证效果。</CardDescription>
+        </CardHeader>
+
+        <CardContent class="grid gap-4">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div class="relative flex-1">
+              <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                v-model="searchQuery"
+                placeholder="搜索规则名、条件或动作"
+                class="h-11 rounded-2xl border-border/80 bg-background/90 pl-9 shadow-none"
+              />
+            </div>
+
+            <div class="relative lg:w-[160px]">
+              <select
+                v-model="statusFilter"
+                class="h-11 w-full appearance-none rounded-2xl border border-border/80 bg-background px-4 pr-10 text-sm shadow-none outline-none transition-[border-color,box-shadow] focus:border-ring focus:ring-1 focus:ring-ring/60"
+              >
+                <option value="all">全部规则</option>
+                <option value="enabled">已启用</option>
+                <option value="disabled">已停用</option>
+                <option value="failed">最近失败</option>
+              </select>
             </div>
           </div>
 
-          <div
-            v-if="filteredRules.length === 0"
-            class="rounded-[24px] border border-dashed border-border bg-background/70 px-4 py-10 text-center text-sm text-muted-foreground"
-          >
-            当前筛选条件下没有规则。
+          <div v-if="loading" class="grid gap-3">
+            <div v-for="index in 3" :key="index" class="h-28 rounded-[24px] bg-muted/60" />
           </div>
-        </div>
-      </CardContent>
-    </Card>
 
-    <Card class="rounded-[30px] border-border/70 bg-card shadow-none">
-      <CardHeader class="space-y-2">
-        <CardTitle class="text-lg">执行状态</CardTitle>
-        <CardDescription>快速查看最近运行是否正常，方便确认规则是否生效。</CardDescription>
-      </CardHeader>
+          <div v-else class="grid gap-3">
+            <div
+              v-for="rule in filteredRules"
+              :key="rule.id"
+              class="rounded-[24px] border border-border bg-background px-4 py-4"
+            >
+              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="min-w-0 flex-1 space-y-3">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="text-sm font-medium text-foreground">{{ rule.name }}</p>
+                    <Badge variant="outline" class="rounded-full px-2.5 py-0.5 text-[11px]">
+                      {{ rule.enabled ? '已启用' : '已停用' }}
+                    </Badge>
+                    <Badge variant="outline" class="rounded-full px-2.5 py-0.5 text-[11px]" :class="statusBadgeClass(rule)">
+                      {{ statusLabel(rule) }}
+                    </Badge>
+                  </div>
 
-      <CardContent class="grid gap-3 text-sm">
-        <div class="flex items-center gap-3 rounded-[22px] border border-border bg-background px-4 py-3">
-          <Clock3 class="h-4 w-4 text-muted-foreground" />
-          <div class="min-w-0">
-            <p class="font-medium text-foreground">最近执行时间</p>
-            <p class="mt-1 text-muted-foreground">{{ formatDateTime(latestRuleRun?.lastRunAt) }}</p>
+                  <div class="space-y-2 text-sm">
+                    <p class="text-muted-foreground">
+                      <span class="font-medium text-foreground">条件：</span>
+                      {{ formatConditionSummary(rule) }}
+                    </p>
+                    <p class="text-muted-foreground">
+                      <span class="font-medium text-foreground">动作：</span>
+                      {{ formatActionSummary(rule) }}
+                    </p>
+                  </div>
+
+                  <p class="text-xs text-muted-foreground">
+                    最近执行：{{ formatDateTime(rule.lastRunAt) }}，命中 {{ rule.lastMatchCount || 0 }} 次
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-2 self-start">
+                  <Switch :model-value="rule.enabled" @update:model-value="toggleRuleEnabled(rule, $event)" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="h-10 w-10 rounded-2xl text-muted-foreground hover:bg-muted"
+                    @click="openEditDialog(rule)"
+                  >
+                    <Pencil class="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="h-10 w-10 rounded-2xl text-muted-foreground hover:bg-destructive/8 hover:text-destructive"
+                    @click="deleteRule(rule.id)"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-if="filteredRules.length === 0"
+              class="rounded-[24px] border border-dashed border-border bg-background/70 px-4 py-10 text-center text-sm text-muted-foreground"
+            >
+              当前筛选条件下没有规则。
+            </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div class="flex items-center gap-3 rounded-[22px] border border-border bg-background px-4 py-3">
-          <CheckCircle2 class="h-4 w-4 text-muted-foreground" />
-          <div class="min-w-0">
-            <p class="font-medium text-foreground">最近命中规则</p>
-            <p class="mt-1 text-muted-foreground">{{ latestRuleRun?.name || '规则会在新图片进入图库后自动运行' }}</p>
+      <Card class="rounded-[30px] border-border/70 bg-card shadow-none">
+        <CardHeader class="space-y-2">
+          <CardTitle class="text-lg">执行状态</CardTitle>
+          <CardDescription>快速查看最近运行是否正常，方便确认规则是否生效。</CardDescription>
+        </CardHeader>
+
+        <CardContent class="grid gap-3 text-sm">
+          <div class="flex items-center gap-3 rounded-[22px] border border-border bg-background px-4 py-3">
+            <Clock3 class="h-4 w-4 text-muted-foreground" />
+            <div class="min-w-0">
+              <p class="font-medium text-foreground">最近执行时间</p>
+              <p class="mt-1 text-muted-foreground">{{ formatDateTime(latestRuleRun?.lastRunAt) }}</p>
+            </div>
           </div>
-        </div>
 
-        <div class="flex items-center gap-3 rounded-[22px] border border-border bg-background px-4 py-3">
-          <AlertCircle class="h-4 w-4 text-muted-foreground" />
-          <div class="min-w-0">
-            <p class="font-medium text-foreground">最近失败信息</p>
-            <p class="mt-1 text-muted-foreground">{{ latestErrorText }}</p>
+          <div class="flex items-center gap-3 rounded-[22px] border border-border bg-background px-4 py-3">
+            <CheckCircle2 class="h-4 w-4 text-muted-foreground" />
+            <div class="min-w-0">
+              <p class="font-medium text-foreground">最近命中规则</p>
+              <p class="mt-1 text-muted-foreground">{{ latestRuleRun?.name || '规则会在新图片进入图库后自动运行。' }}</p>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
 
-    <AutoRulesDialog
-      :open="dialogOpen"
-      :rule="editingRule"
-      :saving="saving"
-      @update:open="dialogOpen = $event"
-      @save="saveRule"
-      @delete="deleteRule"
-    />
+          <div class="flex items-center gap-3 rounded-[22px] border border-border bg-background px-4 py-3">
+            <AlertCircle class="h-4 w-4 text-muted-foreground" />
+            <div class="min-w-0">
+              <p class="font-medium text-foreground">最近失败信息</p>
+              <p class="mt-1 text-muted-foreground">{{ latestErrorText }}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <AutoRulesDialog
+        :open="dialogOpen"
+        :rule="editingRule"
+        :saving="saving"
+        @update:open="dialogOpen = $event"
+        @save="saveRule"
+        @delete="deleteRule"
+      />
+    </div>
   </div>
 </template>

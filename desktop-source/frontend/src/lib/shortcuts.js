@@ -1,45 +1,57 @@
-export const shortcutActionCatalog = [
+﻿export const shortcutActionCatalog = [
   {
     id: 'switch_dashboard',
     label: '切换到总览',
     description: '快速进入工作台总览页面。',
-    defaultAccelerator: 'Ctrl+Alt+1',
+    defaultAccelerator: 'Ctrl+Shift+F1',
   },
   {
     id: 'switch_gallery',
     label: '切换到图库',
-    description: '快速回到主图库视图。',
-    defaultAccelerator: 'Ctrl+Alt+2',
+    description: '快速回到默认目录图库。',
+    defaultAccelerator: 'Ctrl+Shift+F2',
   },
   {
     id: 'switch_favorites',
     label: '切换到收藏',
-    description: '快速打开收藏图片视图。',
-    defaultAccelerator: 'Ctrl+Alt+3',
+    description: '快速打开收藏夹视图。',
+    defaultAccelerator: 'Ctrl+Shift+F3',
   },
   {
     id: 'switch_documentation',
     label: '切换到文档',
     description: '快速打开内置使用文档。',
-    defaultAccelerator: 'Ctrl+Alt+4',
+    defaultAccelerator: 'Ctrl+Shift+F4',
   },
   {
     id: 'refresh_images',
     label: '刷新图库',
     description: '立即重新加载图片和元数据。',
-    defaultAccelerator: 'Ctrl+Alt+R',
+    defaultAccelerator: 'Ctrl+Shift+F5',
   },
   {
     id: 'toggle_sidebar',
     label: '切换侧边栏',
     description: '折叠或展开左侧导航栏。',
-    defaultAccelerator: 'Ctrl+Alt+B',
+    defaultAccelerator: 'Ctrl+Shift+F6',
   },
   {
     id: 'toggle_selection_mode',
     label: '切换批量模式',
     description: '进入或退出批量选择模式。',
-    defaultAccelerator: 'Ctrl+Alt+M',
+    defaultAccelerator: 'Ctrl+Shift+F7',
+  },
+  {
+    id: 'switch_auto_rules',
+    label: '切换到自动规则',
+    description: '快速打开自动规则引擎页面。',
+    defaultAccelerator: 'Ctrl+Shift+F8',
+  },
+  {
+    id: 'switch_date_workbench',
+    label: '切换到日期产出',
+    description: '快速打开日期产出工作台。',
+    defaultAccelerator: 'Ctrl+Shift+F9',
   },
 ]
 

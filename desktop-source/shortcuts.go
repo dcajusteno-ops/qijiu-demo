@@ -28,48 +28,15 @@ type shortcutManager interface {
 }
 
 var shortcutCatalog = []ShortcutAction{
-	{
-		ID:                 "switch_dashboard",
-		Label:              "切换到总览",
-		Description:        "快速进入工作室总览页面",
-		DefaultAccelerator: "Ctrl+Alt+1",
-	},
-	{
-		ID:                 "switch_gallery",
-		Label:              "切换到图库",
-		Description:        "快速回到主图库视图",
-		DefaultAccelerator: "Ctrl+Alt+2",
-	},
-	{
-		ID:                 "switch_favorites",
-		Label:              "切换到收藏",
-		Description:        "快速查看收藏图片",
-		DefaultAccelerator: "Ctrl+Alt+3",
-	},
-	{
-		ID:                 "switch_documentation",
-		Label:              "切换到文档",
-		Description:        "快速打开使用文档",
-		DefaultAccelerator: "Ctrl+Alt+4",
-	},
-	{
-		ID:                 "refresh_images",
-		Label:              "刷新图库",
-		Description:        "立即重新扫描当前图片列表",
-		DefaultAccelerator: "Ctrl+Alt+R",
-	},
-	{
-		ID:                 "toggle_sidebar",
-		Label:              "折叠侧边栏",
-		Description:        "切换左侧导航栏展开状态",
-		DefaultAccelerator: "Ctrl+Alt+B",
-	},
-	{
-		ID:                 "toggle_selection_mode",
-		Label:              "切换批量模式",
-		Description:        "快速进入或退出批量选择模式",
-		DefaultAccelerator: "Ctrl+Alt+M",
-	},
+	{ID: "switch_dashboard", Label: "工作台总览", Description: "打开工作台总览页面", DefaultAccelerator: "Ctrl+Shift+F1"},
+	{ID: "switch_gallery", Label: "默认图库", Description: "打开默认目录图库", DefaultAccelerator: "Ctrl+Shift+F2"},
+	{ID: "switch_favorites", Label: "收藏夹", Description: "打开收藏夹视图", DefaultAccelerator: "Ctrl+Shift+F3"},
+	{ID: "switch_documentation", Label: "使用文档", Description: "打开使用文档页面", DefaultAccelerator: "Ctrl+Shift+F4"},
+	{ID: "refresh_images", Label: "刷新图库", Description: "重新加载图片与元数据", DefaultAccelerator: "Ctrl+Shift+F5"},
+	{ID: "toggle_sidebar", Label: "切换侧边栏", Description: "折叠或展开左侧边栏", DefaultAccelerator: "Ctrl+Shift+F6"},
+	{ID: "toggle_selection_mode", Label: "切换批量模式", Description: "进入或退出批量选择模式", DefaultAccelerator: "Ctrl+Shift+F7"},
+	{ID: "switch_auto_rules", Label: "自动规则引擎", Description: "打开自动规则引擎页面", DefaultAccelerator: "Ctrl+Shift+F8"},
+	{ID: "switch_date_workbench", Label: "日期产出工作台", Description: "打开日期产出工作台", DefaultAccelerator: "Ctrl+Shift+F9"},
 }
 
 var shortcutCatalogByID = func() map[string]ShortcutAction {
@@ -79,6 +46,18 @@ var shortcutCatalogByID = func() map[string]ShortcutAction {
 	}
 	return result
 }()
+
+var legacyShortcutDefaults = map[string][]string{
+	"switch_dashboard":      {"Ctrl+Alt+1"},
+	"switch_gallery":        {"Ctrl+Alt+2"},
+	"switch_favorites":      {"Ctrl+Alt+3"},
+	"switch_documentation":  {"Ctrl+Alt+4"},
+	"refresh_images":        {"Ctrl+Alt+R", "Ctrl+Alt+F5"},
+	"toggle_sidebar":        {"Ctrl+Alt+B"},
+	"toggle_selection_mode": {"Ctrl+Alt+M"},
+	"switch_auto_rules":     {},
+	"switch_date_workbench": {},
+}
 
 func defaultShortcutSettings() ShortcutSettings {
 	bindings := make([]ShortcutBinding, 0, len(shortcutCatalog))
@@ -92,6 +71,22 @@ func defaultShortcutSettings() ShortcutSettings {
 		Enabled:  true,
 		Bindings: bindings,
 	}
+}
+
+func migrateLegacyShortcutAccelerator(actionID, accelerator string) string {
+	normalized := normalizeAccelerator(accelerator)
+	for _, action := range shortcutCatalog {
+		if action.ID != actionID {
+			continue
+		}
+		for _, legacy := range legacyShortcutDefaults[actionID] {
+			if normalized == normalizeAccelerator(legacy) {
+				return action.DefaultAccelerator
+			}
+		}
+		return normalized
+	}
+	return normalized
 }
 
 func normalizeShortcutSettings(settings ShortcutSettings) ShortcutSettings {
@@ -108,14 +103,13 @@ func normalizeShortcutSettings(settings ShortcutSettings) ShortcutSettings {
 		if _, ok := shortcutCatalogByID[actionID]; !ok {
 			continue
 		}
-		custom[actionID] = normalizeAccelerator(binding.Accelerator)
+		custom[actionID] = migrateLegacyShortcutAccelerator(actionID, binding.Accelerator)
 	}
 
 	normalized := ShortcutSettings{
 		Enabled:  settings.Enabled,
 		Bindings: make([]ShortcutBinding, 0, len(shortcutCatalog)),
 	}
-
 	for _, action := range shortcutCatalog {
 		accelerator, ok := custom[action.ID]
 		if !ok {
@@ -126,7 +120,6 @@ func normalizeShortcutSettings(settings ShortcutSettings) ShortcutSettings {
 			Accelerator: accelerator,
 		})
 	}
-
 	return normalized
 }
 
@@ -173,7 +166,6 @@ func normalizeAccelerator(accelerator string) string {
 	if key != "" {
 		parts = append(parts, key)
 	}
-
 	return strings.Join(parts, "+")
 }
 
@@ -196,7 +188,6 @@ func (a *App) SaveShortcutSettings(input ShortcutSettings) (ShortcutSettings, er
 	if err := validateShortcutBindings(normalized); err != nil {
 		return normalized, err
 	}
-
 	if a.shortcutManager != nil {
 		if err := a.shortcutManager.Apply(a, normalized); err != nil {
 			return normalized, err
@@ -211,7 +202,6 @@ func (a *App) SaveShortcutSettings(input ShortcutSettings) (ShortcutSettings, er
 	if err := a.saveSettings(settings); err != nil {
 		return normalized, err
 	}
-
 	return normalized, nil
 }
 
@@ -220,10 +210,14 @@ func (a *App) registerConfiguredShortcuts() error {
 	if err != nil {
 		return err
 	}
+	normalized := normalizeShortcutSettings(settings.ShortcutSettings)
+	if err := validateShortcutBindings(normalized); err != nil {
+		return err
+	}
 	if a.shortcutManager == nil {
 		return nil
 	}
-	return a.shortcutManager.Apply(a, settings.ShortcutSettings)
+	return a.shortcutManager.Apply(a, normalized)
 }
 
 func validateShortcutBindings(settings ShortcutSettings) error {
@@ -233,13 +227,13 @@ func validateShortcutBindings(settings ShortcutSettings) error {
 	for _, binding := range settings.Bindings {
 		actionID := strings.TrimSpace(binding.Action)
 		if actionID == "" {
-			return fmt.Errorf("快捷键动作不能为空")
+			return fmt.Errorf("shortcut action cannot be empty")
 		}
 		if _, ok := shortcutCatalogByID[actionID]; !ok {
-			return fmt.Errorf("未知快捷键动作: %s", actionID)
+			return fmt.Errorf("unknown shortcut action: %s", actionID)
 		}
 		if _, exists := seenActions[actionID]; exists {
-			return fmt.Errorf("快捷键动作重复: %s", actionID)
+			return fmt.Errorf("duplicate shortcut action: %s", actionID)
 		}
 		seenActions[actionID] = struct{}{}
 
@@ -247,11 +241,18 @@ func validateShortcutBindings(settings ShortcutSettings) error {
 		if accelerator == "" {
 			continue
 		}
-
-		if otherAction, exists := seenAccelerators[accelerator]; exists {
-			return fmt.Errorf("快捷键 %s 同时分配给了 %s 和 %s", accelerator, otherAction, actionID)
+		if owner, exists := seenAccelerators[accelerator]; exists {
+			ownerLabel := shortcutCatalogByID[owner].Label
+			currentLabel := shortcutCatalogByID[actionID].Label
+			return fmt.Errorf("%s and %s use the same accelerator %s", ownerLabel, currentLabel, accelerator)
 		}
 		seenAccelerators[accelerator] = actionID
+	}
+
+	for _, action := range shortcutCatalog {
+		if _, exists := seenActions[action.ID]; !exists {
+			return fmt.Errorf("missing shortcut action: %s", action.Label)
+		}
 	}
 
 	return nil

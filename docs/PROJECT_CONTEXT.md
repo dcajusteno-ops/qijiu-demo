@@ -1,37 +1,40 @@
-# Comfy Manager 项目上下文
+﻿# Comfy Manager 项目上下文
 
-这份文档给后续维护者和 AI 助手快速建立项目认知使用，不需要每次都重新完整扫描整个仓库。
-
-当前稳定版本：`v1.8.1`
-更新时间：`2026-04-16`
+当前稳定版本：`v2.0.0`  
+更新时间：`2026-04-17`
 
 ## 1. 项目定位
 
-**Comfy Manager（灵动图库）** 是一个基于 **Wails v2 + Go + Vue 3** 的桌面图片管理器，主要服务于 ComfyUI 输出目录整理场景。
+**Comfy Manager（灵动图库）** 是一个基于 **Wails v2 + Go + Vue 3** 的桌面图片管理器，服务于 ComfyUI 出图后的浏览、筛选、整理与归档场景。
 
-核心目标：
+项目当前的核心目标：
 
-- 浏览 ComfyUI 输出图片
-- 按日期回看近期产出
-- 按模型 / LoRA 筛选图片
-- 搜索 Prompt、模型、LoRA、标签、笔记等文本信息
-- 通过自动规则完成打标、收藏、移动
+- 浏览 ComfyUI 输出图片与 PNG 元数据
+- 绑定任意 ComfyUI `output` 目录，而不是固定跟随 exe 所在位置
+- 按日期、模型、LoRA、标签、收藏、笔记等维度筛选图片
+- 提供“日期产出工作台”，快速回看最近产出
+- 提供自动规则引擎，自动打标、归类与后处理
+- 通过自定义目录、日期归档目录和默认目录统一组织侧边栏结构
 
-## 2. v1.8.1 版本重点
+## 2. v2.0.0 版本重点
 
-### v1.8 主功能
+### 2.0 核心升级
 
-- 新增“日期产出工作台”
-- 新增“按模型 / LoRA 筛选”
-- 新增日期统计卡片与最近活跃日期入口
-- 优化侧边栏结构，保留更高频入口
+- 新增 **任意位置绑定 ComfyUI output 目录**，首次进入强制用户选择真实输出目录
+- 新增 **设置中心**，把主题、快捷键、缓存、文件夹维护、工具菜单配置整合到统一浮层
+- 新增 **工具菜单自定义**：支持顺序调整、显示/隐藏，设置项固定置顶
+- 新增 **日期产出工作台日期范围筛选**，支持开始日期与结束日期
+- 新增 **默认目录 / 日期归档目录 / 自定义目录** 并行管理模型
+- 自定义目录支持侧边栏显示开关、顺序调整、多层折叠显示
 
-### v1.8.1 修复与完善
+### 本次重点修复
 
-- 修复主页、数据视界、个人中心在 ComfyUI 新出图后未自动刷新的问题
-- 改为基于 `images:changed` 事件驱动刷新，去掉前端轮询，降低性能消耗
-- 更新内置“使用文档”页面为完整中文说明
-- 继续增强模型 / LoRA 筛选稳定性，减少旧筛选值残留导致的误判
+- 修复首页“查看全部 / 查看更多”跳转到空页面的问题
+- 修复日期工作台与图库页之间的筛选联动断裂
+- 修复工具菜单与设置中心入口分散的问题
+- 修复部分中文乱码、错误提示乱码、自定义目录名称乱码
+- 修复 Lightbox 详情中的尺寸文本与按钮文案异常
+- 修复全局快捷键文案和配置页的中英文混杂问题
 
 ## 3. 技术栈
 
@@ -55,44 +58,51 @@
 ### 通信模型
 
 - 前端通过 `frontend/src/api.js` 调用 `window.go.main.App.*`
-- 后端通过 Wails runtime 发送事件：
+- 后端通过 Wails runtime 事件通知前端
   - `images:changed`
+  - `shortcut:triggered`
   - `auto-rules:progress`
 
 ## 4. 关键目录
 
 ```text
 comfy-manager/
-├── docs/
-│   ├── README.md
-│   ├── RELEASE.md
-│   ├── PROJECT_CONTEXT.md
-│   ├── V1.8_DATE_MODEL_PLAN.md
-│   └── V1.8_DATE_MODEL_IMPLEMENTATION.md
-├── data/
-├── .trash/
-├── desktop-app.exe
-└── desktop-source/
-    ├── app.go
-    ├── main.go
-    ├── frontend/
-    │   ├── src/
-    │   │   ├── App.vue
-    │   │   ├── api.js
-    │   │   ├── composables/
-    │   │   │   └── useImages.js
-    │   │   ├── lib/
-    │   │   │   └── dateWorkbench.js
-    │   │   └── components/
-    │   │       ├── AppSidebar.vue
-    │   │       ├── DateWorkbench.vue
-    │   │       ├── Documentation.vue
-    │   │       ├── Home.vue
-    │   │       ├── ImageGallery.vue
-    │   │       ├── ProfileCenter.vue
-    │   │       └── StatisticsDashboard.vue
-    │   └── wailsjs/
-    └── build/
+├─ README.md
+├─ docs/
+│  ├─ README.md
+│  ├─ RELEASE.md
+│  └─ PROJECT_CONTEXT.md
+├─ data/
+├─ .trash/
+├─ desktop-app.exe
+└─ desktop-source/
+   ├─ app.go
+   ├─ shortcuts.go
+   ├─ main.go
+   ├─ frontend/
+   │  ├─ src/
+   │  │  ├─ App.vue
+   │  │  ├─ api.js
+   │  │  ├─ composables/
+   │  │  │  └─ useImages.js
+   │  │  ├─ lib/
+   │  │  │  ├─ dateWorkbench.js
+   │  │  │  ├─ shortcuts.js
+   │  │  │  └─ utilityMenu.js
+   │  │  └─ components/
+   │  │     ├─ AppSidebar.vue
+   │  │     ├─ SettingsCenterDialog.vue
+   │  │     ├─ DirectoryBindingDialog.vue
+   │  │     ├─ DateWorkbench.vue
+   │  │     ├─ Home.vue
+   │  │     ├─ ImageGallery.vue
+   │  │     ├─ Lightbox.vue
+   │  │     ├─ Documentation.vue
+   │  │     ├─ ProfileCenter.vue
+   │  │     ├─ StatisticsDashboard.vue
+   │  │     └─ AutoRulesPanel.vue
+   │  └─ wailsjs/
+   └─ build/
 ```
 
 ## 5. 后端核心结构
@@ -102,10 +112,10 @@ comfy-manager/
 主要职责：
 
 - 扫描图片目录
-- 读取并缓存图片 metadata
-- 暴露 Wails 接口给前端
-- 处理文件移动、删除、恢复
-- 维护标签、收藏、规则、笔记、统计数据
+- 解析 PNG 元数据、模型、LoRA、工作流节点数等
+- 维护图片元数据缓存
+- 维护目录绑定、自定义目录、收藏夹、标签、笔记、规则
+- 提供图片删除、恢复、清理缓存、清理空目录、日期整理等能力
 
 关键数据结构：
 
@@ -114,13 +124,10 @@ comfy-manager/
 - `ImageMetaCacheEntry`
 - `AutoRule`
 - `FavoriteGroup`
-
-与 v1.8 相关的主要字段：
-
-- `ImageFile.Model`
-- `ImageFile.Loras`
-- `ImageMetaCacheEntry.Model`
-- `ImageMetaCacheEntry.Loras`
+- `CustomRoot`
+- `DirectoryBinding`
+- `UtilityMenuState`
+- `ShortcutSettings`
 
 ## 6. 前端核心结构
 
@@ -128,76 +135,72 @@ comfy-manager/
 
 根组件，负责：
 
-- 注入全局 `toast` 和 `confirm`
-- 管理主视图切换
-- 监听 `images:changed`
-- 装配侧边栏、日期工作台、图库、文档页、个人中心
+- 注入全局 `toast` 与 `confirm`
+- 统一装配侧边栏、主页、图库、工作台、设置相关页面
+- 处理根级视图跳转
+- 监听 `images:changed` 和 `shortcut:triggered`
+- 协调日期工作台与图库筛选状态
 
 ### `frontend/src/composables/useImages.js`
 
-最核心的业务状态层，负责：
+核心业务状态层，负责：
 
-- 图片、标签、收藏、笔记
-- 搜索、排序、分页
-- 动态目录树
-- 日期工作台筛选状态
-- 模型 / LoRA 聚合与归一化
-- 最终图库结果过滤
+- 图片、收藏、标签、笔记、自定义目录状态
+- 搜索、分页、排序、堆叠显示
+- 日期工作台的日期范围、模型、LoRA 筛选
+- 侧边栏目录树生成
+- 当前图库结果集计算
 
-与 v1.8.1 相关的状态：
+v2.0.0 关键状态：
 
 - `activeDatePreset`
-- `activeDateValue`
+- `activeDateStart`
+- `activeDateEnd`
 - `activeModelFilter`
 - `activeLoraFilter`
 - `availableModels`
 - `availableLoras`
 - `dateWorkbenchSummary`
 
-v1.8.1 调整：
+### `frontend/src/components/AppSidebar.vue`
 
-- `startPolling()` 不再持续轮询，改为一次性初始化抓取
-- 自动刷新交由 `images:changed` 事件处理
+负责：
 
-### `frontend/src/lib/dateWorkbench.js`
+- 主导航与目录树显示
+- 标签区与标签筛选
+- 工具菜单浮层
+- 设置中心、自定义目录、目录绑定等入口
 
-日期辅助模块，负责：
+v2.0.0 调整：
 
-- 识别 `YYYY-MM-DD` 日期目录
-- 生成日期 key
-- 计算预设日期范围
-- 构建日期统计 map
+- 标签区新增高度限制与独立滚动
+- 工具菜单从静态列表改为配置化渲染
+- “按日期整理文件”移入设置中心
+
+### `frontend/src/components/SettingsCenterDialog.vue`
+
+负责：
+
+- 外观模式
+- 收藏分组
+- 快捷键设置
+- 缓存清理
+- 文件夹维护
+- 工具菜单顺序与显示配置
 
 ### `frontend/src/components/DateWorkbench.vue`
 
-日期工作台页面，负责：
+负责：
 
-- 显示今日 / 昨日 / 最近 7 天 / 本月统计
-- 提供日期、模型、LoRA 快捷筛选
-- 提供最近活跃日期入口
-
-### `frontend/src/components/ImageGallery.vue`
-
-图库主视图，负责：
-
-- 搜索框
-- 模型 / LoRA 下拉筛选
-- 空状态提示
-- 批量操作
-- 图片网格与分页
-
-### `frontend/src/components/Documentation.vue`
-
-内置使用文档页面，当前为完整中文说明，包含：
-
-- 核心功能介绍
-- 快速上手
-- 常用快捷操作
-- 常见问题
+- 日期产出统计卡片
+- 日期范围选择
+- 模型 / LoRA 快捷筛选
+- 最近活跃日期入口
+- 一键跳回图库继续浏览
 
 ## 7. 数据持久化
 
-常见文件：
+常见数据文件：
 
 - `favorites.json`
 - `tags.json`
@@ -209,11 +212,11 @@ v1.8.1 调整：
 - `trash-metadata.json`
 - `image-meta-cache.json`
 
-v1.8.x 注意点：
+v2.0.0 重点新增 / 调整：
 
-- 日期工作台本身不新增独立 JSON 文件
-- 工作台筛选状态主要由前端 `localStorage` 持久化
-- 旧版模型 / LoRA 筛选值会在前端尝试迁移或清理，避免升级后出现“结果被旧值卡住”
+- `settings.json` 中新增工具菜单配置
+- `custom-roots.json` 中维护内置日期归档目录和自定义目录顺序
+- 目录绑定信息不再依赖 exe 上级目录推断，而是显式配置
 
 ## 8. 核心业务链路
 
@@ -221,69 +224,74 @@ v1.8.x 注意点：
 
 `fsnotify` -> `images:changed` -> 前端页面订阅刷新
 
-当前主动订阅页面：
+当前主要依赖该事件的页面：
 
 - `Home.vue`
-- `StatisticsDashboard.vue`
 - `ProfileCenter.vue`
+- `StatisticsDashboard.vue`
+- 主图库页
 
 ### 日期工作台链路
 
-`GetImages()` 返回图片与 metadata -> `useImages.js` 识别日期目录 -> `dateWorkbenchSummary` 计算统计 -> `DateWorkbench.vue` 渲染卡片和日期入口
+`GetImages()` -> `useImages.js` 提取日期目录 -> `dateWorkbenchSummary` 统计 -> `DateWorkbench.vue` 展示 -> 一键跳回图库
 
 ### 模型 / LoRA 筛选链路
 
-后端读取 metadata -> 前端做模型与 LoRA 归一化聚合 -> 用户选择筛选项 -> `finalImages` 与 `workbenchFilteredImages` 重新计算
+后端解析 metadata -> 前端归一化聚合模型与 LoRA -> 工作台或图库选择筛选 -> 结果重新计算
 
-### 搜索链路
+### 自定义目录链路
 
-`GetImages()` 生成 `searchText` -> 前端叠加文件名、路径、Prompt、模型、LoRA、标签、笔记等信息 -> 图库即时过滤
+目录绑定确定根路径 -> `custom-roots.json` 提供自定义目录定义 -> `useImages.js` 构建侧边栏树 -> 用户切换目录查看
 
 ## 9. 开发注意事项
 
-- 修改筛选逻辑时，优先检查 `useImages.js`
-- 涉及模型 / LoRA 的改动要同时检查：
-  - 后端 metadata 提取
-  - `ImageFile` 返回字段
-  - 前端归一化规则
-  - 本地旧筛选值兼容
-- 修改日期工作台时，优先检查：
-  - `dateWorkbench.js`
+- 涉及筛选逻辑，优先检查 `useImages.js`
+- 涉及日期产出工作台，优先检查：
   - `DateWorkbench.vue`
+  - `dateWorkbench.js`
   - `App.vue`
-- 修改自动刷新时，优先检查：
-  - 后端是否正确发送 `images:changed`
-  - 页面是否正确订阅和解绑事件
-  - 是否误引入了高频轮询
+- 涉及工具菜单显示，优先检查：
+  - `AppSidebar.vue`
+  - `SettingsCenterDialog.vue`
+  - `utilityMenu.js`
+- 涉及中文乱码，优先检查：
+  - Go 源文件字符串字面量
+  - 前端新增组件编码
+  - 历史数据文件中的目录名与显示名回退逻辑
 
 ## 10. 发布要求
 
-发布版本时必须同步更新：
+发布版本时至少同步以下内容：
 
-- `desktop-app.exe`
+- 根目录 `desktop-app.exe`
+- 根目录 `README.md`
 - `docs/README.md`
 - `docs/RELEASE.md`
 - `docs/PROJECT_CONTEXT.md`
 
 ## 11. 最近变更记录
 
+### 2026-04-17 | v2.0.0
+
+- 新增任意位置绑定 ComfyUI `output` 目录
+- 新增设置中心，统一承载工具与系统设置
+- 新增工具菜单配置化能力
+- 新增日期工作台日期范围筛选
+- 优化默认目录、日期归档目录、自定义目录的侧边栏结构
+- 修复首页跳转空页、部分筛选联动异常和多处中文乱码
+
 ### 2026-04-16 | v1.8.1
 
-- 修复主页、数据视界、个人中心自动刷新缺失
+- 修复自动刷新问题
 - 去除前端轮询，改为事件驱动刷新
-- 更新内置使用文档页为完整中文内容
-- 稳定 v1.8 日期工作台与模型 / LoRA 筛选体验
+- 更新中文文档页面
 
 ### 2026-04-16 | v1.8.0
 
 - 新增日期产出工作台
 - 新增模型 / LoRA 筛选
-- 新增日期统计卡片与最近活跃日期入口
-- 优化侧边栏入口结构
-- 修复模型筛选归一化与旧筛选值兼容问题
 
 ### 2026-04-16 | v1.7.0
 
 - 新增搜索 MVP
 - 新增自动规则引擎
-- 自动规则整合进个人中心

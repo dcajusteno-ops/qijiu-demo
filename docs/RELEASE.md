@@ -1,11 +1,11 @@
-# Comfy Manager 发布指南
+﻿# Comfy Manager 发布指南
 
 ## 前置条件
 
 - 已安装 [Wails CLI](https://wails.io/)
 - 已安装 [GitHub CLI](https://cli.github.com/)
 - `gh auth status` 可通过
-- Git 远程仓库已配置
+- 远程仓库已配置
 
 当前远程仓库：
 
@@ -15,19 +15,20 @@
 
 采用语义化版本：
 
-- `MAJOR`：不兼容改动
+- `MAJOR`：不兼容变更或大的结构升级
 - `MINOR`：向后兼容的新功能
 - `PATCH`：向后兼容的问题修复
 
-当前最新版本：`v1.8.1`
+当前最新版本：`v2.0.0`
 
 ## 标准发布流程
 
 ### 1. 完成功能开发
 
-在 `desktop-source/` 下完成前后端功能，并同步更新：
+确保以下内容已同步：
 
-- `desktop-app.exe`
+- 根目录 `desktop-app.exe`
+- 根目录 `README.md`
 - `docs/README.md`
 - `docs/RELEASE.md`
 - `docs/PROJECT_CONTEXT.md`
@@ -49,48 +50,49 @@ copy desktop-source\build\bin\desktop-app.exe desktop-app.exe
 
 ```bash
 git add -A
-git commit -m "release: v1.8.1"
+git commit -m "release: v2.0.0"
 ```
 
-### 5. 打版本标签
+### 5. 打标签
 
 ```bash
-git tag -a v1.8.1 -m "v1.8.1"
+git tag -a v2.0.0 -m "v2.0.0"
 ```
 
 ### 6. 推送到 GitHub
 
 ```bash
 git push origin main
-git push origin v1.8.1
+git push origin v2.0.0
 ```
 
 ### 7. 创建 GitHub Release
 
 ```bash
-gh release create v1.8.1 ^
-  ./desktop-app.exe#Comfy^ Manager^ v1.8.1^ 桌面端 ^
-  --title "v1.8.1" ^
-  --notes "## v1.8.1 更新内容"
+gh release create v2.0.0 ^
+  ./desktop-app.exe#Comfy^ Manager^ v2.0.0^ 桌面端 ^
+  --title "v2.0.0" ^
+  --notes "## v2.0.0 更新内容"
 ```
 
-## v1.8.1 发布说明
+## v2.0.0 发布说明
 
 Release 地址：
 
-- [v1.8.1](https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v1.8.1)
+- [v2.0.0](https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v2.0.0)
 
 本次版本重点：
 
-- 修复 ComfyUI 新出图后多个页面没有自动刷新的问题
-- 去掉前端轮询，改为基于 `images:changed` 的事件驱动刷新
-- 更新内置使用文档页，补齐完整中文说明
-- 持续稳定日期产出工作台与模型 / LoRA 筛选体验
+- 新增任意位置绑定 ComfyUI `output` 目录
+- 新增设置中心与工具菜单配置
+- 日期产出工作台支持日期范围筛选
+- 优化默认目录、日期归档目录和自定义目录结构
+- 修复首页跳转空页、部分筛选联动异常和中文乱码问题
 
 ## 快速发布命令模板
 
 ```bash
-set VER=v1.8.1
+set VER=v2.0.0
 
 cd desktop-source
 wails build -clean
@@ -115,9 +117,8 @@ gh release create %VER% ^
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
+| v2.0.0 | 2026-04-17 | 目录绑定升级、设置中心、工具菜单配置、日期范围筛选 |
 | v1.8.1 | 2026-04-16 | 自动刷新修复、去轮询、中文文档页更新 |
 | v1.8.0 | 2026-04-16 | 日期产出工作台、模型 / LoRA 筛选 |
 | v1.7.0 | 2026-04-16 | 搜索 MVP、自动规则引擎、个人中心规则入口 |
 | v1.6.0 | 2026-04-15 | 个人中心与数据视界细化 |
-| v1.5.0 | 2026-04-15 | 数据视界与全局快捷键 |
-| v1.4.1 | 2026-04-14 | 统一发布产物名为 `desktop-app.exe` |

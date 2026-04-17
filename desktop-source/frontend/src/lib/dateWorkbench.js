@@ -47,7 +47,16 @@ export const endOfDay = (date) => {
   return next
 }
 
-export const getDatePresetLabel = (preset, customDate = '') => {
+const formatCustomRangeLabel = (start, end) => {
+  if (start && end) {
+    return start === end ? start : `${start} 至 ${end}`
+  }
+  if (start) return `${start} 起`
+  if (end) return `截至 ${end}`
+  return '指定范围'
+}
+
+export const getDatePresetLabel = (preset, customRange = { start: '', end: '' }) => {
   switch (preset) {
   case 'today':
     return '今天'
@@ -58,13 +67,13 @@ export const getDatePresetLabel = (preset, customDate = '') => {
   case 'month':
     return '本月'
   case 'custom':
-    return customDate || '指定日期'
+    return formatCustomRangeLabel(customRange?.start, customRange?.end)
   default:
     return '全部日期'
   }
 }
 
-export const getDatePresetRange = (preset, customDate = '', now = new Date()) => {
+export const getDatePresetRange = (preset, customRange = { start: '', end: '' }, now = new Date()) => {
   const today = startOfDay(now)
 
   switch (preset) {
@@ -82,27 +91,31 @@ export const getDatePresetRange = (preset, customDate = '', now = new Date()) =>
   }
   case 'month': {
     const start = new Date(today.getFullYear(), today.getMonth(), 1)
-    const end = endOfDay(now)
-    return { start, end }
+    return { start, end: endOfDay(now) }
   }
   case 'custom': {
-    const parsed = parseDateKey(customDate)
-    if (!parsed) return null
-    return { start: startOfDay(parsed), end: endOfDay(parsed) }
+    const parsedStart = parseDateKey(customRange?.start)
+    const parsedEnd = parseDateKey(customRange?.end)
+    if (!parsedStart && !parsedEnd) return null
+    const start = parsedStart ? startOfDay(parsedStart) : startOfDay(parsedEnd)
+    const end = parsedEnd ? endOfDay(parsedEnd) : endOfDay(parsedStart)
+    return start <= end ? { start, end } : { start: endOfDay(parsedEnd), end: endOfDay(parsedStart) }
   }
   default:
     return null
   }
 }
 
-export const matchesDatePreset = (dateKey, preset, customDate = '', now = new Date()) => {
+export const matchesDatePreset = (dateKey, preset, customRange = { start: '', end: '' }, now = new Date()) => {
   if (!preset || preset === 'all') return true
   const parsed = parseDateKey(dateKey)
   if (!parsed) return false
 
-  const range = getDatePresetRange(preset, customDate, now)
+  const range = getDatePresetRange(preset, customRange, now)
   if (!range) return true
-  return parsed >= range.start && parsed <= range.end
+
+  const current = startOfDay(parsed)
+  return current >= startOfDay(range.start) && current <= endOfDay(range.end)
 }
 
 export const buildDateCountMap = (images = []) => {

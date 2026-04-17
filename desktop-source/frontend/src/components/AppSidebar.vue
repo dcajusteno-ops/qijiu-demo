@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -17,8 +17,7 @@ import {
   Wrench,
   BookOpen,
   Folder,
-  Moon,
-  Sun,
+  FolderOpen,
   Trash2,
   CheckSquare,
   Heart,
@@ -37,18 +36,18 @@ import {
   FolderSymlink,
   Bookmark,
   FolderTree,
-  Keyboard,
   UserRound,
+  Workflow,
 } from 'lucide-vue-next'
-import { isDark, toggleTheme } from '@/theme'
 import TrashDialog from './TrashDialog.vue'
 import LauncherDialog from './LauncherDialog.vue'
 import CustomRootDialog from './CustomRootDialog.vue'
-import FavoriteGroupsDialog from './FavoriteGroupsDialog.vue'
+import DirectoryBindingDialog from './DirectoryBindingDialog.vue'
 import PromptTemplateDialog from './PromptTemplateDialog.vue'
-import ShortcutSettingsDialog from './ShortcutSettingsDialog.vue'
+import SettingsCenterDialog from './SettingsCenterDialog.vue'
 import { TerminalSquare } from 'lucide-vue-next'
 import { availableIcons } from '@/lib/icons'
+import * as App from '@/api'
 
 const props = defineProps({
   fileTree: { type: Array, required: true },
@@ -79,10 +78,96 @@ const emit = defineEmits([
   'refresh-images',
   'toggle-collapse',
   'custom-root-change',
+  'directory-binding-change',
   'favorite-group-change',
   'clear-preview-cache',
   'organize-files',
+  'open-current-output',
 ])
+
+const utilityMenuCatalog = [
+  {
+    id: 'settings',
+    label: '设置',
+    icon: Settings2,
+    action: () => openSettingsCenter(),
+  },
+  {
+    id: 'trash',
+    label: '回收站管理',
+    icon: Trash2,
+    action: () => openTrashManager(),
+  },
+  {
+    id: 'documentation',
+    label: '使用文档',
+    icon: BookOpen,
+    action: () => openDocumentation(),
+  },
+  {
+    id: 'statistics',
+    label: '数据视界',
+    icon: BarChart3,
+    action: () => openStatistics(),
+  },
+  {
+    id: 'launcher',
+    label: '外部工具',
+    icon: TerminalSquare,
+    action: () => openLauncher(),
+  },
+  {
+    id: 'prompt-templates',
+    label: '提示词模板',
+    icon: Bookmark,
+    action: () => openPromptTemplates(),
+  },
+  {
+    id: 'auto-rules',
+    label: '自动规则引擎',
+    icon: Workflow,
+    action: () => openAutoRules(),
+  },
+  {
+    id: 'open-output',
+    label: '打开当前 output',
+    icon: FolderOpen,
+    action: () => openCurrentOutput(),
+  },
+  {
+    id: 'switch-output',
+    label: '切换 output 位置',
+    icon: Link,
+    action: () => openDirectoryBindingManager(),
+  },
+  {
+    id: 'custom-roots',
+    label: '管理自定义目录',
+    icon: FolderSymlink,
+    action: () => openCustomRootManager(),
+  },
+]
+
+const utilityMenuState = ref([])
+
+const utilityMenuEntries = computed(() => {
+  const settingsMap = new Map((utilityMenuState.value || []).map((item) => [item.id, item]))
+  return utilityMenuCatalog
+    .map((item, index) => {
+      const saved = settingsMap.get(item.id)
+      return {
+        ...item,
+        visible: item.id === 'settings' ? true : saved?.visible !== false,
+        order: saved?.order ?? index + 1,
+      }
+    })
+    .filter((item) => item.visible)
+    .sort((a, b) => {
+      if (a.id === 'settings') return -1
+      if (b.id === 'settings') return 1
+      return a.order - b.order
+    })
+})
 
 const getIcon = (node) => {
     // 1. Check if node specifically has an icon configured (from CustomRoot or rootNodes)
@@ -172,11 +257,33 @@ const formatFolderName = (name) => {
 const showTrashDialog = ref(false)
 const showLauncherDialog = ref(false)
 const showCustomRootDialog = ref(false)
-const showFavoriteGroupsDialog = ref(false)
+const showDirectoryBindingDialog = ref(false)
 const showPromptTemplateDialog = ref(false)
-const showShortcutDialog = ref(false)
+const showSettingsCenter = ref(false)
 const isTagsCollapsed = ref(false)
 const showUtilityMenu = ref(false)
+
+const loadUtilityMenuSettings = async () => {
+    try {
+        const state = await App.GetUtilityMenuSettings()
+        utilityMenuState.value = state?.items || []
+    } catch (error) {
+        console.error('Failed to load utility menu settings:', error)
+        utilityMenuState.value = utilityMenuCatalog.map((item, index) => ({
+            id: item.id,
+            visible: true,
+            order: index + 1,
+        }))
+    }
+}
+
+const handleUtilityMenuSettingsChanged = async (state) => {
+    utilityMenuState.value = state?.items || []
+}
+
+onMounted(() => {
+    loadUtilityMenuSettings()
+})
 
 const closeUtilityMenu = () => {
     showUtilityMenu.value = false
@@ -197,26 +304,6 @@ const openStatistics = () => {
     closeUtilityMenu()
 }
 
-const cleanEmptyFolders = () => {
-    emit('clean-empty-folders')
-    closeUtilityMenu()
-}
-
-const clearPreviewCache = () => {
-    emit('clear-preview-cache')
-    closeUtilityMenu()
-}
-
-const handleThemeToggle = (event) => {
-    toggleTheme(event)
-    closeUtilityMenu()
-}
-
-const openFavoriteGroups = () => {
-    showFavoriteGroupsDialog.value = true
-    closeUtilityMenu()
-}
-
 const openLauncher = () => {
     showLauncherDialog.value = true
     closeUtilityMenu()
@@ -227,13 +314,28 @@ const openPromptTemplates = () => {
     closeUtilityMenu()
 }
 
-const openShortcutSettings = () => {
-    showShortcutDialog.value = true
+const openAutoRules = () => {
+    emit('update:activeRoot', 'auto-rules')
+    closeUtilityMenu()
+}
+
+const openSettingsCenter = () => {
+    showSettingsCenter.value = true
     closeUtilityMenu()
 }
 
 const openCustomRootManager = () => {
     showCustomRootDialog.value = true
+    closeUtilityMenu()
+}
+
+const openDirectoryBindingManager = () => {
+    showDirectoryBindingDialog.value = true
+    closeUtilityMenu()
+}
+
+const openCurrentOutput = () => {
+    emit('open-current-output')
     closeUtilityMenu()
 }
 
@@ -316,7 +418,7 @@ const handleDrawerClick = (subId) => {
         <div class="p-3 space-y-4">
           
           <!-- File Tree -->
-          <div class="space-y-1">
+          <div class="max-h-[46vh] space-y-1 overflow-y-auto pr-1 custom-scrollbar">
             <!-- Home Dashboard Button -->
             <div class="space-y-1">
                 <button 
@@ -438,7 +540,7 @@ const handleDrawerClick = (subId) => {
              />
 
              <!-- Tags List by Category (Expanded) -->
-             <div v-if="!collapsed && tags.length > 0" class="mt-2 space-y-3">
+             <div v-if="!collapsed && tags.length > 0" class="mt-2 max-h-[28vh] space-y-3 overflow-y-auto pr-1 custom-scrollbar">
                  <div v-for="category in categoryNames" :key="category" class="space-y-1">
                      <div class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1">
                          {{ category }}
@@ -550,54 +652,15 @@ const handleDrawerClick = (subId) => {
           </PopoverTrigger>
           <PopoverContent side="right" align="end" :side-offset="12" class="w-56 p-2 ml-2 mb-2">
              <div class="space-y-1">
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openTrashManager">
-                   <Trash2 class="h-4 w-4 text-muted-foreground" />
-                   <span>回收站管理</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openDocumentation">
-                   <BookOpen class="h-4 w-4 text-muted-foreground" />
-                   <span>使用文档</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openStatistics">
-                   <BarChart3 class="h-4 w-4 text-muted-foreground" />
-                   <span>数据视界</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="cleanEmptyFolders">
-                   <Eraser class="h-4 w-4 text-muted-foreground" />
-                   <span>清理空文件夹</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="$emit('organize-files')">
-                   <FolderTree class="h-4 w-4 text-muted-foreground" />
-                   <span>按日期整理文件</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="clearPreviewCache">
-                   <Trash2 class="h-4 w-4 text-muted-foreground" />
-                   <span>清空预览缓存</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="handleThemeToggle">
-                   <Moon v-if="isDark" class="h-4 w-4 text-yellow-500" />
-                   <Sun v-else class="h-4 w-4 text-orange-500" />
-                   <span>{{ isDark ? '切换亮色模式' : '切换暗色模式' }}</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openFavoriteGroups">
-                   <Heart class="h-4 w-4 text-red-500" />
-                   <span>收藏分组</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openLauncher">
-                   <TerminalSquare class="h-4 w-4 text-muted-foreground" />
-                   <span>外部工具</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openPromptTemplates">
-                   <Bookmark class="h-4 w-4 text-amber-500" />
-                   <span>提示词模板</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openCustomRootManager">
-                   <FolderSymlink class="h-4 w-4 text-muted-foreground" />
-                   <span>管理目录</span>
-                </Button>
-                <Button variant="ghost" class="w-full justify-start gap-2 h-9 px-3 text-sm" @click="openShortcutSettings">
-                   <Keyboard class="h-4 w-4 text-muted-foreground" />
-                   <span>快捷键设置</span>
+                <Button
+                  v-for="item in utilityMenuEntries"
+                  :key="item.id"
+                  variant="ghost"
+                  class="w-full justify-start gap-2 h-9 px-3 text-sm"
+                  @click="item.action"
+                >
+                   <component :is="item.icon" class="h-4 w-4 text-muted-foreground" :class="{ 'text-amber-500': item.id === 'prompt-templates' }" />
+                   <span>{{ item.label }}</span>
                 </Button>
              </div>
           </PopoverContent>
@@ -621,21 +684,25 @@ const handleDrawerClick = (subId) => {
     <LauncherDialog 
       v-model:open="showLauncherDialog" 
     />
-    <FavoriteGroupsDialog
-      v-model:open="showFavoriteGroupsDialog"
-      :groups="favoriteGroups"
-      @change="$emit('favorite-group-change')"
-    />
     <CustomRootDialog
       v-model:open="showCustomRootDialog"
       :custom-roots="customRoots"
       @change="$emit('custom-root-change')"
     />
+    <DirectoryBindingDialog
+      v-model:open="showDirectoryBindingDialog"
+      @change="$emit('directory-binding-change', $event)"
+    />
     <PromptTemplateDialog
       v-model:open="showPromptTemplateDialog"
     />
-    <ShortcutSettingsDialog
-      v-model:open="showShortcutDialog"
+    <SettingsCenterDialog
+      v-model:open="showSettingsCenter"
+      :favorite-groups="favoriteGroups"
+      @favorite-group-change="$emit('favorite-group-change')"
+      @refresh-images="$emit('refresh-images')"
+      @organize-files="$emit('organize-files')"
+      @utility-menu-change="handleUtilityMenuSettingsChanged"
     />
   </aside>
 

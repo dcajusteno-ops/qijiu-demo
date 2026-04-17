@@ -112,6 +112,14 @@ export function GetTrashSettings():Promise<main.Settings>;
 
 export function GetUserProfile():Promise<main.UserProfile>;
 
+export function GetUtilityMenuSettings():Promise<main.UtilityMenuState>;
+
+export function MoveCustomRoot(arg1:string,arg2:string):Promise<void>;
+
+export function OpenCurrentOutputDirectory():Promise<void>;
+
+export function OpenCurrentRootDirectory():Promise<void>;
+
 export function OpenFile(arg1:string):Promise<void>;
 
 export function OpenImageLocation(arg1:string):Promise<void>;
@@ -132,11 +140,15 @@ export function RunLauncherTool(arg1:string):Promise<void>;
 
 export function SaveDirectoryBinding(arg1:string,arg2:string):Promise<main.DirectoryBinding>;
 
+export function SaveOutputDirectory(arg1:string):Promise<main.DirectoryBinding>;
+
 export function SaveShortcutSettings(arg1:main.ShortcutSettings):Promise<main.ShortcutSettings>;
 
 export function SaveTrashSettings(arg1:main.Settings):Promise<void>;
 
 export function SaveUserProfile(arg1:main.UserProfile):Promise<main.UserProfile>;
+
+export function SaveUtilityMenuSettings(arg1:main.UtilityMenuState):Promise<main.UtilityMenuState>;
 
 export function SelectFolder():Promise<string>;
 
@@ -151,6 +163,8 @@ export function SetImageNote(arg1:string,arg2:string):Promise<void>;
 export function UpdateAutoRule(arg1:main.AutoRule):Promise<main.AutoRule>;
 
 export function UpdateCustomRoot(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function UpdateCustomRootEnabled(arg1:string,arg2:boolean):Promise<void>;
 
 export function UpdateFavoriteGroup(arg1:string,arg2:string):Promise<void>;
 

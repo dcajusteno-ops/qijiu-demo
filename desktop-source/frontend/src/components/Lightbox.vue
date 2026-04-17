@@ -147,7 +147,7 @@ const metadataFacts = computed(() => {
   ]
 
   if (metadata.value.width && metadata.value.height) {
-    facts.push({ label: '尺寸', value: `${metadata.value.width} 脳 ${metadata.value.height}` })
+    facts.push({ label: '尺寸', value: `${metadata.value.width} × ${metadata.value.height}` })
   }
 
   if (metadata.value.nodeCount) {
@@ -462,7 +462,7 @@ onUnmounted(() => {
           :href="currentDisplayImage.path"
           download
           class="rounded-full p-2 text-white/70 transition-opacity hover:bg-white/10 hover:text-white"
-          title="涓嬭浇"
+          title="下载"
         >
           <Download class="h-6 w-6" />
         </a>
@@ -541,7 +541,7 @@ onUnmounted(() => {
             @click="resetZoom"
           >
             <RotateCcw class="h-3 w-3" />
-            閲嶇疆瑙嗗浘
+            重置视图
           </button>
         </div>
       </div>

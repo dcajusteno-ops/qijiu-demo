@@ -29,6 +29,12 @@ import PromptToolsDropdown from '@/components/PromptToolsDropdown.vue'
 import * as App from '@/api'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 
+const props = defineProps({
+  archiveRootId: { type: String, default: 'output' },
+})
+
+const emit = defineEmits(['navigate-root', 'clear-filters'])
+
 // Custom Confirm Dialog Logic
 const deleteDialogOpen = ref(false)
 const deleteDialogMessage = ref('')
@@ -75,8 +81,6 @@ const {
   tags, 
   imageTags, 
   toggleFavorite,
-  toggleRoot,
-  activeRoot,
   addTagToImage,
   removeTagFromImage,
   handleDelete,
@@ -230,7 +234,18 @@ const plugin = Autoplay({
 })
 
 const navigateToFavorites = () => {
-    toggleRoot('favorites')
+    emit('clear-filters')
+    emit('navigate-root', 'favorites')
+}
+
+const navigateToStatistics = () => {
+    emit('clear-filters')
+    emit('navigate-root', 'statistics')
+}
+
+const navigateToArchive = () => {
+    emit('clear-filters')
+    emit('navigate-root', props.archiveRootId || 'output')
 }
 
 </script>
@@ -246,11 +261,11 @@ const navigateToFavorites = () => {
            </div>
            
            <div class="flex gap-2">
-                <Button variant="outline" size="sm" @click="toggleRoot('favorites')" title="查看收藏夹" class="bg-card/40 backdrop-blur-md border border-border/50 hover:bg-card/60">
+                <Button variant="outline" size="sm" @click="navigateToFavorites" title="查看收藏夹" class="bg-card/40 backdrop-blur-md border border-border/50 hover:bg-card/60">
                     <Heart class="w-4 h-4 mr-2 text-red-500 fill-red-500/10" />
                     收藏夹
                 </Button>
-                <Button variant="outline" size="sm" @click="toggleRoot('statistics')" title="查看数据视界" class="bg-card/40 backdrop-blur-md border border-border/50 hover:bg-card/60">
+                <Button variant="outline" size="sm" @click="navigateToStatistics" title="查看数据视界" class="bg-card/40 backdrop-blur-md border border-border/50 hover:bg-card/60">
                     <BarChart3 class="w-4 h-4 mr-2 text-blue-500" />
                     数据视界
                 </Button>
@@ -362,7 +377,7 @@ const navigateToFavorites = () => {
     <div class="flex-none mt-6 space-y-3">
          <div class="flex items-center justify-between px-1">
              <h3 class="text-lg font-semibold tracking-tight">最近更新</h3>
-             <Button variant="ghost" size="sm" class="text-muted-foreground hover:text-foreground text-xs" @click="toggleRoot('日期归档')">
+             <Button variant="ghost" size="sm" class="text-muted-foreground hover:text-foreground text-xs" @click="navigateToArchive">
                  查看全部 <ArrowRight class="w-3 h-3 ml-1" />
              </Button>
          </div>
@@ -401,7 +416,7 @@ const navigateToFavorites = () => {
                     <CarouselItem class="pl-4 basis-auto">
                         <div 
                              class="w-[140px] aspect-[4/5] rounded-xl border-2 border-dashed border-muted flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground"
-                             @click="toggleRoot('日期归档')"
+                             @click="navigateToArchive"
                         >
                              <div class="p-2 rounded-full bg-muted">
                                  <ArrowRight class="w-4 h-4" />

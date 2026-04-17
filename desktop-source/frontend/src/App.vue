@@ -1,11 +1,15 @@
 ﻿<script setup>
 import { ref, computed, provide, onMounted, onUnmounted } from 'vue'
+import { nextTick } from 'vue'
 import AppSidebar from './components/AppSidebar.vue'
 import ImageGallery from './components/ImageGallery.vue'
 import Home from './components/Home.vue'
 import Documentation from './components/Documentation.vue'
 import ProfileCenter from './components/ProfileCenter.vue'
 import DateWorkbench from './components/DateWorkbench.vue'
+import AutoRulesPanel from './components/AutoRulesPanel.vue'
+import StatisticsDashboard from './components/StatisticsDashboard.vue'
+import DirectoryBindingDialog from './components/DirectoryBindingDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'vue-sonner'
 import 'vue-sonner/style.css' // Import sonner styles
@@ -113,13 +117,14 @@ const {
     workbenchFilteredImages,
     dateWorkbenchSummary,
     activeDatePreset,
-    activeDateValue,
+    activeDateStart,
+    activeDateEnd,
     activeModelFilter,
     activeLoraFilter,
     activeDateLabel,
     hasActiveWorkbenchFilters,
     setActiveDatePreset,
-    setActiveDateValue,
+    setActiveDateRange,
     setActiveModel,
     setActiveLora,
     clearWorkbenchFilters,
@@ -131,6 +136,7 @@ const isSelectionMode = ref(false)
 const selectedPaths = ref(new Set())
 
 const isSidebarCollapsed = ref(false)
+const showInitialDirectoryBinding = ref(false)
 const toggleSidebar = () => {
     isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
@@ -208,11 +214,27 @@ const openWorkbenchGallery = () => {
     setActiveView(getPreferredGalleryRoot())
 }
 
+const getDateArchiveRootId = () => {
+    const builtinArchive = (customRoots.value || []).find(
+        (root) => root?.id === 'builtin-date-archive' && root.enabled !== false,
+    )
+    if (builtinArchive) {
+        return `custom:${builtinArchive.id}`
+    }
+    return getPreferredGalleryRoot()
+}
+
 const finalPaginatedImages = computed(() => paginatedImages.value)
 
 const finalTotalImages = computed(() => currentImages.value.length)
 
 import { watch } from 'vue'
+watch(activeRoot, (next, prev) => {
+    if (next === prev) return
+    activeSub.value = ''
+    activeChild.value = ''
+})
+
 watch([activeRoot, activeSub, activeChild], () => {
     isSelectionMode.value = false
     selectedPaths.value.clear()
@@ -291,6 +313,14 @@ const handleFavoriteGroupsChanged = async () => {
     await fetchImages()
 }
 
+const handleCustomRootChanged = async () => {
+    await fetchCustomRoots()
+    await nextTick()
+    if (activeRoot.value.startsWith('custom:') && !fileTree.value.some((node) => node.id === activeRoot.value)) {
+        setActiveView(getPreferredGalleryRoot())
+    }
+}
+
 const handleShortcutAction = async (actionId) => {
     switch (actionId) {
     case 'switch_dashboard':
@@ -304,6 +334,9 @@ const handleShortcutAction = async (actionId) => {
         break
     case 'switch_documentation':
         setActiveView('documentation')
+        break
+    case 'switch_auto_rules':
+        setActiveView('auto-rules')
         break
     case 'switch_date_workbench':
         setActiveView('date-workbench')
@@ -365,12 +398,38 @@ const handleRefresh = async () => {
     await fetchImages()
     await fetchTags()
     await fetchImageTags()
+    await fetchImageNotes()
+}
+
+const handleDirectoryBindingChanged = async () => {
+    isSelectionMode.value = false
+    selectedPaths.value.clear()
+    await fetchCustomRoots()
+    await handleRefresh()
+    setActiveView(getPreferredGalleryRoot())
+}
+
+const handleOpenCurrentOutput = async () => {
+    try {
+        await App.OpenCurrentOutputDirectory()
+    } catch (e) {
+        showToast(`打开 output 文件夹失败: ${e}`, 'error')
+    }
 }
 
 let unsubscribeImagesChanged = null
 let unsubscribeShortcutTriggered = null
 onMounted(async () => {
     await fetchCustomRoots()
+    try {
+        const binding = await App.GetDirectoryBinding()
+        if (!binding?.configured) {
+            showInitialDirectoryBinding.value = true
+        }
+    } catch (e) {
+        console.error('Failed to load directory binding:', e)
+        showInitialDirectoryBinding.value = true
+    }
     try {
         const profile = await App.GetUserProfile()
         if (profile?.preferredStartPage) {
@@ -427,15 +486,21 @@ onUnmounted(() => {
         @toggle-tag-filter="toggleTagFilter"
         @refresh-images="handleRefresh"
         @toggle-collapse="toggleSidebar"
-        @custom-root-change="fetchCustomRoots"
+        @custom-root-change="handleCustomRootChanged"
+        @directory-binding-change="handleDirectoryBindingChanged"
         @favorite-group-change="handleFavoriteGroupsChanged"
         @clear-preview-cache="handleClearPreviewCache"
         @organize-files="handleOrganizeFiles"
+        @open-current-output="handleOpenCurrentOutput"
     />
     
     <div class="flex-1 h-screen overflow-hidden transition-all duration-300">
         <div v-if="activeRoot === 'dashboard'" class="h-full overflow-hidden">
-             <Home />
+             <Home
+                :archive-root-id="getDateArchiveRootId()"
+                @navigate-root="setActiveView"
+                @clear-filters="clearAllGalleryFilters"
+             />
         </div>
         <div v-else-if="activeRoot === 'profile'" class="h-full overflow-hidden">
              <ProfileCenter @navigate="setActiveView" />
@@ -443,19 +508,26 @@ onUnmounted(() => {
         <div v-else-if="activeRoot === 'documentation'" class="h-full overflow-hidden">
              <Documentation />
         </div>
+        <div v-else-if="activeRoot === 'statistics'" class="h-full overflow-hidden">
+             <StatisticsDashboard />
+        </div>
+        <div v-else-if="activeRoot === 'auto-rules'" class="h-full overflow-hidden">
+             <AutoRulesPanel />
+        </div>
         <div v-else-if="activeRoot === 'date-workbench'" class="h-full overflow-hidden">
              <DateWorkbench
                 :summary="dateWorkbenchSummary"
                 :available-models="availableModels"
                 :available-loras="availableLoras"
                 :active-date-preset="activeDatePreset"
-                :active-date-value="activeDateValue"
+                :active-date-start="activeDateStart"
+                :active-date-end="activeDateEnd"
                 :active-model-filter="activeModelFilter"
                 :active-lora-filter="activeLoraFilter"
                 :active-date-label="activeDateLabel"
                 :filtered-count="workbenchFilteredImages.length"
                 @update:date-preset="setActiveDatePreset"
-                @update:date-value="setActiveDateValue"
+                @update:date-range="setActiveDateRange"
                 @update:model-filter="setActiveModel"
                 @update:lora-filter="setActiveLora"
                 @clear-filters="clearWorkbenchFilters"
@@ -530,6 +602,12 @@ onUnmounted(() => {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <DirectoryBindingDialog
+      v-model:open="showInitialDirectoryBinding"
+      :required="true"
+      @change="handleDirectoryBindingChanged"
+    />
   </div>
 </template>
 

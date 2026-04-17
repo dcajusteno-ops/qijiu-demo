@@ -42,7 +42,7 @@ const operatorOptions = [
 
 const actionOptions = [
   { value: 'add_tag', label: '添加标签', placeholder: '例如：Pony' },
-  { value: 'add_favorite_group', label: '加入收藏分组', placeholder: '例如：精选人像' },
+  { value: 'add_favorite_group', label: '加入收藏分组', placeholder: '例如：精选人物' },
   { value: 'move_to_folder', label: '移动到目录', placeholder: '例如：日期归档/竖图' },
 ]
 
@@ -162,7 +162,7 @@ const requestDelete = () => {
         <DialogHeader class="space-y-2 pr-8">
           <DialogTitle>{{ isEditing ? '编辑规则' : '新建规则' }}</DialogTitle>
           <DialogDescription>
-            规则会在新图片进入图库时自动执行，你也可以在个人中心手动触发一次全库运行。
+            规则会在新图片进入图库时自动执行，你也可以在规则中心手动触发一遍全库运行。
           </DialogDescription>
         </DialogHeader>
 
@@ -196,7 +196,7 @@ const requestDelete = () => {
             <div class="flex items-end justify-between rounded-[22px] border border-border bg-muted/20 px-4 py-3">
               <div class="space-y-1">
                 <p class="text-sm font-medium text-foreground">启用规则</p>
-                <p class="text-xs text-muted-foreground">关闭后会保留配置，但不参与执行</p>
+                <p class="text-xs text-muted-foreground">关闭后保留配置，但不会自动参与执行</p>
               </div>
               <Switch :model-value="draft.enabled" @update:model-value="draft.enabled = $event" />
             </div>
@@ -267,7 +267,7 @@ const requestDelete = () => {
             <div class="flex items-center justify-between gap-4">
               <div>
                 <h3 class="text-sm font-medium text-foreground">动作</h3>
-                <p class="mt-1 text-xs text-muted-foreground">当前支持自动打标、加入收藏分组、移动到目录。</p>
+                <p class="mt-1 text-xs text-muted-foreground">命中后可以自动打标签、加入收藏夹，或移动到目录。</p>
               </div>
               <Button variant="outline" class="h-9 rounded-2xl shadow-none" @click="addAction">
                 <Plus class="mr-2 h-4 w-4" />
@@ -279,7 +279,7 @@ const requestDelete = () => {
               <div
                 v-for="(action, index) in draft.actions"
                 :key="`action-${index}`"
-                class="grid gap-3 rounded-[20px] border border-border/80 bg-background p-3 md:grid-cols-[220px_minmax(0,1fr)_44px]"
+                class="grid gap-3 rounded-[20px] border border-border/80 bg-background p-3 md:grid-cols-[180px_minmax(0,1fr)_44px]"
               >
                 <div class="relative">
                   <select
@@ -314,24 +314,25 @@ const requestDelete = () => {
         </div>
       </div>
 
-      <DialogFooter class="border-t border-border bg-background/95 px-6 py-4">
-        <div class="flex w-full items-center justify-between gap-3">
+      <DialogFooter class="border-t border-border bg-background/90 px-6 py-4">
+        <div class="flex w-full flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button
             v-if="isEditing"
             variant="ghost"
             class="rounded-2xl text-destructive hover:bg-destructive/8 hover:text-destructive"
+            :disabled="saving"
             @click="requestDelete"
           >
             删除规则
           </Button>
           <div v-else />
 
-          <div class="flex items-center gap-3">
-            <Button variant="outline" class="rounded-2xl shadow-none" @click="emit('update:open', false)">
+          <div class="flex flex-col gap-3 sm:flex-row">
+            <Button variant="outline" class="rounded-2xl shadow-none" :disabled="saving" @click="emit('update:open', false)">
               取消
             </Button>
             <Button class="rounded-2xl" :disabled="saving" @click="saveRule">
-              {{ saving ? '保存中...' : '保存规则' }}
+              {{ saving ? '保存中…' : isEditing ? '保存修改' : '创建规则' }}
             </Button>
           </div>
         </div>

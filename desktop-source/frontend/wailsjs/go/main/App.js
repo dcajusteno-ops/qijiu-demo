@@ -222,6 +222,22 @@ export function GetUserProfile() {
   return window['go']['main']['App']['GetUserProfile']();
 }
 
+export function GetUtilityMenuSettings() {
+  return window['go']['main']['App']['GetUtilityMenuSettings']();
+}
+
+export function MoveCustomRoot(arg1, arg2) {
+  return window['go']['main']['App']['MoveCustomRoot'](arg1, arg2);
+}
+
+export function OpenCurrentOutputDirectory() {
+  return window['go']['main']['App']['OpenCurrentOutputDirectory']();
+}
+
+export function OpenCurrentRootDirectory() {
+  return window['go']['main']['App']['OpenCurrentRootDirectory']();
+}
+
 export function OpenFile(arg1) {
   return window['go']['main']['App']['OpenFile'](arg1);
 }
@@ -262,6 +278,10 @@ export function SaveDirectoryBinding(arg1, arg2) {
   return window['go']['main']['App']['SaveDirectoryBinding'](arg1, arg2);
 }
 
+export function SaveOutputDirectory(arg1) {
+  return window['go']['main']['App']['SaveOutputDirectory'](arg1);
+}
+
 export function SaveShortcutSettings(arg1) {
   return window['go']['main']['App']['SaveShortcutSettings'](arg1);
 }
@@ -272,6 +292,10 @@ export function SaveTrashSettings(arg1) {
 
 export function SaveUserProfile(arg1) {
   return window['go']['main']['App']['SaveUserProfile'](arg1);
+}
+
+export function SaveUtilityMenuSettings(arg1) {
+  return window['go']['main']['App']['SaveUtilityMenuSettings'](arg1);
 }
 
 export function SelectFolder() {
@@ -300,6 +324,10 @@ export function UpdateAutoRule(arg1) {
 
 export function UpdateCustomRoot(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateCustomRoot'](arg1, arg2, arg3);
+}
+
+export function UpdateCustomRootEnabled(arg1, arg2) {
+  return window['go']['main']['App']['UpdateCustomRootEnabled'](arg1, arg2);
 }
 
 export function UpdateFavoriteGroup(arg1, arg2) {
