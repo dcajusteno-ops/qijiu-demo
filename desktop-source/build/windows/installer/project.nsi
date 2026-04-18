@@ -30,6 +30,13 @@ Unicode true
 ####
 ## !define REQUEST_EXECUTION_LEVEL "admin"            # Default "admin"  see also https://nsis.sourceforge.io/Docs/Chapter4.html
 ####
+!define INFO_PROJECTNAME "ComfyManager"
+!define INFO_COMPANYNAME "ComfyManager"
+!define INFO_PRODUCTNAME "Comfy Manager"
+!define INFO_PRODUCTVERSION "2.1.5"
+!define PRODUCT_EXECUTABLE "desktop-app.exe"
+!define UNINST_KEY_NAME "ComfyManager"
+
 ## Include the wails tools
 ####
 !include "wails_tools.nsh"
@@ -64,7 +71,7 @@ ManifestDPIAware true
 
 !insertmacro MUI_UNPAGE_INSTFILES # Uinstalling page
 
-!insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
+!insertmacro MUI_LANGUAGE "SimpChinese" # Set the Language of the installer
 
 ## The following two statements can be used to sign the installer and the uninstaller. The path to the binaries are provided in %1
 #!uninstfinalize 'signtool --file "%1"'
@@ -72,7 +79,7 @@ ManifestDPIAware true
 
 Name "${INFO_PRODUCTNAME}"
 OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
-InstallDir "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}" # Default installing folder ($PROGRAMFILES is Program Files folder).
+InstallDir "$PROFILE\${INFO_PRODUCTNAME}" # Default installing folder; user can change it on the directory page.
 ShowInstDetails show # This will always show the installation details.
 
 Function .onInit
@@ -87,6 +94,11 @@ Section
     SetOutPath $INSTDIR
 
     !insertmacro wails.files
+
+    SetOutPath "$INSTDIR\data\prompt-library"
+    File /r "..\..\..\..\data\prompt-library\*"
+
+    SetOutPath $INSTDIR
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

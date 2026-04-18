@@ -19,7 +19,7 @@
 - `MINOR`：向后兼容的新功能
 - `PATCH`：向后兼容的问题修复
 
-当前最新版本：`v2.1.0`
+当前最新版本：`v2.1.5`
 
 ## 标准发布流程
 
@@ -28,6 +28,7 @@
 确保以下内容已同步：
 
 - 根目录 `desktop-app.exe`
+- 根目录 `ComfyManager-amd64-installer.exe`
 - 根目录 `README.md`
 - `docs/README.md`
 - `docs/RELEASE.md`
@@ -37,68 +38,70 @@
 
 ```bash
 cd desktop-source
-wails build
+wails build --nsis
 ```
 
-### 3. 覆盖根目录 exe
+### 3. 覆盖根目录产物
 
 ```bash
 copy desktop-source\build\bin\desktop-app.exe desktop-app.exe
+copy desktop-source\build\bin\ComfyManager-amd64-installer.exe ComfyManager-amd64-installer.exe
 ```
 
 ### 4. 提交代码
 
 ```bash
 git add -A
-git commit -m "release: v2.1.0"
+git commit -m "release: v2.1.5"
 ```
 
 ### 5. 打标签
 
 ```bash
-git tag -a v2.1.0 -m "v2.1.0"
+git tag -a v2.1.5 -m "v2.1.5"
 ```
 
 ### 6. 推送到 GitHub
 
 ```bash
 git push origin main
-git push origin v2.1.0
+git push origin v2.1.5
 ```
 
 ### 7. 创建 GitHub Release
 
 ```bash
-gh release create v2.1.0 ^
-  ./desktop-app.exe#Comfy^ Manager^ v2.1.0^ 桌面端 ^
-  --title "v2.1.0" ^
-  --notes "## v2.1.0 更新内容"
+gh release create v2.1.5 ^
+  ./desktop-app.exe#Comfy^ Manager^ v2.1.5^ 桌面端 ^
+  ./ComfyManager-amd64-installer.exe#Comfy^ Manager^ v2.1.5^ Windows^ 安装程序 ^
+  --title "v2.1.5" ^
+  --notes "## v2.1.5 更新内容"
 ```
 
-## v2.1.0 发布说明
+## v2.1.5 发布说明
 
 Release 地址：
 
-- [v2.1.0](https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v2.1.0)
+- [v2.1.5](https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v2.1.5)
 
 本次版本重点：
 
-- 新增提示词编辑器独立页面
-- 新增清洗后本地提示词词库与清洗脚本
-- 新增自定义提示词、收藏、最近、分页和模板复用能力
-- 修复提示词编辑器多轮布局、弹窗和状态同步问题
-- 更新软件内置“使用文档”和外部文档
+- 新增 Windows 安装程序，支持安装时选择目标目录
+- 安装包内置 `data/prompt-library/`，首次安装即可使用提示词词库
+- 安装版运行时数据统一跟随安装目录，不再落到系统盘其他位置
+- 新增 `docs/WINDOWS_INSTALLER.md` 并同步更新 README 与项目文档
 
 ## 快速发布命令模板
 
 ```bash
-set VER=v2.1.0
+set VER=v2.1.5
 
 cd desktop-source
-wails build
+wails build --nsis
 cd ..
 
 copy desktop-source\build\bin\desktop-app.exe desktop-app.exe
+copy desktop-source\build\bin\ComfyManager-amd64-installer.exe ComfyManager-amd64-installer.exe
 
 git add -A
 git commit -m "release: %VER%"
@@ -109,6 +112,7 @@ git push origin %VER%
 
 gh release create %VER% ^
   ./desktop-app.exe#Comfy^ Manager^ %VER%^ 桌面端 ^
+  ./ComfyManager-amd64-installer.exe#Comfy^ Manager^ %VER%^ Windows^ 安装程序 ^
   --title "%VER%" ^
   --notes "## %VER% 更新内容"
 ```
@@ -117,6 +121,7 @@ gh release create %VER% ^
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
+| v2.1.5 | 2026-04-18 | Windows 安装程序、安装目录选择、安装目录内数据落盘、发布流程更新 |
 | v2.1.0 | 2026-04-18 | 提示词编辑器、运行时词库、自定义提示词、模板复用、文档更新 |
 | v2.0.1 | 2026-04-17 | 内置文档页更新、乱码修复、文档同步 |
 | v2.0.0 | 2026-04-17 | 目录绑定升级、设置中心、工具菜单配置、日期范围筛选 |

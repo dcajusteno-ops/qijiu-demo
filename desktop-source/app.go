@@ -322,6 +322,7 @@ var tagMutex sync.Mutex
 const pathVersionRootRelative = 2
 const customRootsVersion = 2
 const builtinDateArchiveRootID = "builtin-date-archive"
+const trashAssetPrefix = "__trash__/"
 
 // App struct
 type App struct {
@@ -1048,6 +1049,8 @@ func (a *App) serveImage(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.HasPrefix(path, profileAssetPrefix):
 		absPath, err = a.resolveProfileAssetPath(path)
+	case strings.HasPrefix(path, trashAssetPrefix):
+		absPath, err = a.resolveTrashAssetPath(path)
 	default:
 		absPath, err = a.resolveRootPath(path)
 		if err != nil && isLegacyProfileAssetPath(path) {
@@ -1098,17 +1101,35 @@ func (a *App) previewVariantsDir() string {
 func (a *App) thumbVariantsDir() string { return filepath.Join(a.imageVariantsDir(), "thumb") }
 func (a *App) iconsDir() string         { return filepath.Join(a.dataDir, "icons") }
 func (a *App) trashDir() string         { return filepath.Join(a.appDir, ".trash") }
-func (a *App) legacyTrashDir() string {
-	return filepath.Join(a.imageDir, ".trash")
+
+func (a *App) legacyTrashDirs() []string {
+	dirs := []string{}
+	if strings.TrimSpace(a.imageDir) != "" {
+		dirs = append(dirs, filepath.Join(a.imageDir, ".trash"))
+	}
+	dirs = append(dirs, filepath.Join(a.appDir, ".trash"))
+	return dirs
 }
 
 func (a *App) trashRelPath(filename string) string {
-	trashPath := filepath.Join(a.trashDir(), filename)
-	rel, err := filepath.Rel(a.rootDir, trashPath)
-	if err != nil {
+	cleaned := normalizeRelPath(filename)
+	if cleaned == "" {
 		return ""
 	}
-	return normalizeRelPath(rel)
+	return trashAssetPrefix + cleaned
+}
+
+func (a *App) resolveTrashAssetPath(relPath string) (string, error) {
+	cleaned := normalizeRelPath(strings.TrimPrefix(relPath, trashAssetPrefix))
+	if cleaned == "" {
+		return "", fmt.Errorf("trash asset path is empty")
+	}
+
+	absPath := filepath.Clean(filepath.Join(a.trashDir(), filepath.FromSlash(cleaned)))
+	if !isSubPath(a.trashDir(), absPath) {
+		return "", fmt.Errorf("trash asset path is invalid")
+	}
+	return absPath, nil
 }
 
 func moveFile(sourcePath, destPath string) error {
@@ -3196,21 +3217,9 @@ func uniqueTrashFilename(name string, existing map[string]bool) string {
 }
 
 func (a *App) migrateLegacyTrash() error {
-	if strings.TrimSpace(a.imageDir) == "" {
-		return nil
-	}
-	legacyDir := a.legacyTrashDir()
 	currentDir := a.trashDir()
-	if legacyDir == "" || currentDir == "" || samePath(legacyDir, currentDir) {
+	if currentDir == "" {
 		return nil
-	}
-
-	entries, err := os.ReadDir(legacyDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
 	}
 
 	if err := os.MkdirAll(currentDir, 0755); err != nil {
@@ -3233,55 +3242,70 @@ func (a *App) migrateLegacyTrash() error {
 	}
 
 	metaChanged := false
-	movedAny := false
 
-	for _, entry := range entries {
-		if entry.IsDir() {
+	for _, legacyDir := range a.legacyTrashDirs() {
+		if legacyDir == "" || samePath(legacyDir, currentDir) {
 			continue
 		}
 
-		sourceName := entry.Name()
-		sourcePath := filepath.Join(legacyDir, sourceName)
-		targetName := uniqueTrashFilename(sourceName, existing)
-		targetPath := filepath.Join(currentDir, targetName)
-
-		if err := moveFile(sourcePath, targetPath); err != nil {
-			log.Printf("failed to migrate trash file %s: %v", sourceName, err)
-			continue
-		}
-
-		existing[targetName] = true
-		movedAny = true
-
-		if targetName != sourceName {
-			if item, ok := meta[sourceName]; ok {
-				delete(meta, sourceName)
-				meta[targetName] = item
-			} else {
-				info, _ := os.Stat(targetPath)
-				deletedAt := time.Now()
-				if info != nil {
-					deletedAt = info.ModTime()
-				}
-				dateFolder := deletedAt.Format("2006-01-02")
-				meta[targetName] = TrashMetadata{
-					OriginalPath: filepath.ToSlash(filepath.Join(dateFolder, targetName)),
-					DeletedAt:    deletedAt.Format(time.RFC3339),
-				}
+		entries, err := os.ReadDir(legacyDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
 			}
-			metaChanged = true
+			return err
+		}
+
+		movedAny := false
+
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+
+			sourceName := entry.Name()
+			sourcePath := filepath.Join(legacyDir, sourceName)
+			targetName := uniqueTrashFilename(sourceName, existing)
+			targetPath := filepath.Join(currentDir, targetName)
+
+			if err := moveFile(sourcePath, targetPath); err != nil {
+				log.Printf("failed to migrate trash file %s: %v", sourceName, err)
+				continue
+			}
+
+			existing[targetName] = true
+			movedAny = true
+
+			if targetName != sourceName {
+				if item, ok := meta[sourceName]; ok {
+					delete(meta, sourceName)
+					meta[targetName] = item
+				} else {
+					info, _ := os.Stat(targetPath)
+					deletedAt := time.Now()
+					if info != nil {
+						deletedAt = info.ModTime()
+					}
+					dateFolder := deletedAt.Format("2006-01-02")
+					meta[targetName] = TrashMetadata{
+						OriginalPath: filepath.ToSlash(filepath.Join(dateFolder, targetName)),
+						DeletedAt:    deletedAt.Format(time.RFC3339),
+					}
+				}
+				metaChanged = true
+			}
+		}
+
+		if movedAny {
+			if remaining, readErr := os.ReadDir(legacyDir); readErr == nil && len(remaining) == 0 {
+				_ = os.Remove(legacyDir)
+			}
 		}
 	}
 
 	if metaChanged {
 		if err := a.saveTrashMetadata(meta); err != nil {
 			return err
-		}
-	}
-
-	if movedAny {
-		if remaining, readErr := os.ReadDir(legacyDir); readErr == nil && len(remaining) == 0 {
-			_ = os.Remove(legacyDir)
 		}
 	}
 

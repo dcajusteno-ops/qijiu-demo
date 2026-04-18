@@ -1,6 +1,6 @@
 # Comfy Manager 项目上下文
 
-当前稳定版本：`v2.1.0`  
+当前稳定版本：`v2.1.5`  
 更新时间：`2026-04-18`
 
 ## 1. 项目定位
@@ -16,26 +16,22 @@
 - 提供自动规则引擎，自动打标、归类与后处理
 - 提供提示词编辑器，完成“看图 -> 找词 -> 拼 Prompt -> 存模板”的本地闭环
 
-## 2. v2.1.0 版本重点
+## 2. v2.1.5 版本重点
 
 ### 本次新增
 
-- 新增独立页面式 **提示词编辑器**
-- 新增运行时词库目录：`data/prompt-library/`
-- 新增词库清洗脚本：`tools/build_prompt_library.py`
-- 新增提示词筛选下拉组件：`PromptFilterSelect.vue`
-- 新增自定义提示词持久化、查重、删除
-- 新增提示词收藏、最近使用、分页状态持久化
-- 新增组合模板保存与复用
+- 新增 Windows 安装程序（NSIS）
+- 新增可选择安装目录的安装流程
+- 新增安装器内置的 `data/prompt-library/` 分发能力
+- 新增安装器中文界面与快捷方式创建流程
+- 新增 `docs/WINDOWS_INSTALLER.md` 安装说明文档
 
 ### 本次重点修复
 
-- 修复提示词编辑器从弹窗切换到页面后布局过于拥挤的问题
-- 修复自定义提示词删除确认弹窗样式不统一的问题
-- 修复删除自定义提示词后收藏 / 最近状态残留的问题
-- 修复筛选下拉超出软件可视区域的问题
-- 修复模板组合内容复制时混入 `Positive:` / `Negative:` 标签的问题
-- 修复提示词分页和部分编辑状态未持久化的问题
+- 修复安装版把运行时数据写入系统盘其他目录的问题
+- 修复安装版首次运行后数据目录不跟随安装目录的问题
+- 修复安装器默认路径和项目预期不一致的问题
+- 修复发布流程里缺少安装包产物的问题
 
 ## 3. 技术栈
 
@@ -73,6 +69,7 @@ comfy-manager/
 │  ├─ README.md
 │  ├─ RELEASE.md
 │  ├─ PROJECT_CONTEXT.md
+│  ├─ WINDOWS_INSTALLER.md
 │  └─ V2.1.0_PROMPT_ASSISTANT_TASK.md
 ├─ data/
 │  ├─ prompt-library/
@@ -85,10 +82,12 @@ comfy-manager/
 │  └─ build_prompt_library.py
 ├─ .trash/
 ├─ desktop-app.exe
+├─ ComfyManager-amd64-installer.exe
 └─ desktop-source/
    ├─ app.go
    ├─ shortcuts.go
    ├─ main.go
+   ├─ wails.json
    ├─ frontend/
    │  ├─ src/
    │  │  ├─ App.vue
@@ -110,6 +109,10 @@ comfy-manager/
    │  │     └─ SettingsCenterDialog.vue
    │  └─ wailsjs/
    └─ build/
+      └─ windows/
+         └─ installer/
+            ├─ project.nsi
+            └─ wails_tools.nsh
 ```
 
 ## 5. 后端核心结构
@@ -125,7 +128,7 @@ comfy-manager/
 - 维护提示词词库、自定义提示词、提示词模板、提示词工作台状态
 - 提供图片删除、恢复、清理缓存、清理空目录、日期整理等能力
 
-v2.1.0 关键数据结构：
+v2.1.5 关键数据结构：
 
 - `PromptLibraryEntry`
 - `PromptAssistantState`
@@ -200,12 +203,13 @@ v2.1.0 的提示词核心页面，负责：
 - `custom-prompt-entries.json`
 - `prompt-assistant-state.json`
 
-v2.1.0 重点新增 / 调整：
+v2.1.5 重点新增 / 调整：
 
 - `data/prompt-library/` 作为运行时正式词库目录
 - `custom-prompt-entries.json` 用于保存“我的词库”
 - `prompt-assistant-state.json` 用于保存收藏、最近、分页和筛选状态
 - 删除自定义提示词时，需要同步清理收藏与最近中的失效 id
+- 安装版运行时数据固定写入安装目录自身的 `data/` 与 `.trash/`
 
 ## 8. 核心业务链路
 
@@ -238,12 +242,20 @@ v2.1.0 重点新增 / 调整：
 发布版本时至少同步以下内容：
 
 - 根目录 `desktop-app.exe`
+- 根目录 `ComfyManager-amd64-installer.exe`
 - 根目录 `README.md`
 - `docs/README.md`
 - `docs/RELEASE.md`
 - `docs/PROJECT_CONTEXT.md`
 
 ## 11. 最近变更记录
+
+### 2026-04-18 | v2.1.5
+
+- 新增 Windows 安装程序与安装目录选择页
+- 安装包开始内置提示词词库目录
+- 调整安装版运行时数据目录，统一跟随安装目录
+- 更新 README、项目上下文、发布文档与安装器说明
 
 ### 2026-04-18 | v2.1.0
 
@@ -265,4 +277,3 @@ v2.1.0 重点新增 / 调整：
 - 新增设置中心，统一承载工具与系统设置
 - 新增工具菜单配置化能力
 - 新增日期工作台日期范围筛选
-

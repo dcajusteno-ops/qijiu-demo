@@ -3,4 +3,6 @@ Sanrio Cinnamoroll White Arrow & Head.zip
 desktop-source/frontend/node_modules/
 desktop-source/frontend/dist/
 desktop-source/build/bin/
+desktop-source/build/windows/installer/tmp/
 data/
+ComfyManager-*-installer.exe
