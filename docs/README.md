@@ -1,6 +1,6 @@
 # Comfy Manager 使用文档
 
-当前稳定版本：`v2.1.5`
+当前稳定版本：`v2.1.6`
 
 ## 项目简介
 
@@ -14,7 +14,7 @@ Comfy Manager（灵动图库）是一个面向 **ComfyUI output 目录** 的桌�
 - 收藏与整理
 - 查找提示词、拼 Prompt、保存模板
 
-## v2.1.5 功能概览
+## v2.1.6 功能概览
 
 ### 核心能力
 
@@ -114,9 +114,9 @@ Comfy Manager（灵动图库）是一个面向 **ComfyUI output 目录** 的桌�
 
 ## 版本信息
 
-- 当前版本：`v2.1.5`
+- 当前版本：`v2.1.6`
 - 仓库地址：<https://github.com/dcajusteno-ops/qijiu-demo>
-- Release：<https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v2.1.5>
+- Release：<https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v2.1.6>
 
 ## 维护约定
 

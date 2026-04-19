@@ -1,6 +1,6 @@
 # Windows Installer Notes
 
-Current version: `v2.1.5`
+Current version: `v2.1.6`
 
 ## Goal
 

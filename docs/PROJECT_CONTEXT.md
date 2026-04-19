@@ -1,6 +1,6 @@
 # Comfy Manager 项目上下文
 
-当前稳定版本：`v2.1.5`  
+当前稳定版本：`v2.1.6`  
 更新时间：`2026-04-19`
 
 ## 1. 项目定位
@@ -16,7 +16,7 @@
 - 提供自动规则引擎，自动打标、归类与后处理
 - 提供提示词提示器，完成“看图 -> 找词 -> 拼 Prompt -> 存模板”的本地闭环
 
-## 2. v2.1.5 版本重点
+## 2. v2.1.6 版本重点
 
 ### 本次新增
 
@@ -115,7 +115,7 @@ comfy-manager/
 - 维护提示词词库、自定义提示词、模板与提示词状态
 - 提供图片删除、恢复、清理缓存、清理空目录、日期整理等能力
 
-v2.1.5 关键数据结构：
+v2.1.6 关键数据结构：
 
 - `ImageMetadata`
 - `PromptDebugInfo`
@@ -184,7 +184,7 @@ v2.1.5 关键数据结构：
 - `custom-prompt-entries.json`
 - `prompt-assistant-state.json`
 
-v2.1.5 重点调整：
+v2.1.6 重点调整：
 
 - `data/prompt-library/` 作为运行时正式词库目录
 - `custom-prompt-entries.json` 保存“我的词库”
@@ -230,6 +230,11 @@ PNG `prompt` JSON -> `extractComfyPromptSummary()` -> 候选收集与打分 -> �
 - `docs/PROJECT_CONTEXT.md`
 
 ## 11. 最近变更记录
+
+### 2026-04-19 | v2.1.6
+
+- 基于已完成的修复内容，补发 `v2.1.6` 版本号与 GitHub 标签
+- 同步根目录 README 与 docs 文档版本信息
 
 ### 2026-04-19 | v2.1.5
 

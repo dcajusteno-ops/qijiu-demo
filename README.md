@@ -8,7 +8,7 @@ Comfy Manager（灵动图库）是一个面向 **ComfyUI output 目录** 的桌�
 - PNG 元数据、模型、LoRA、Prompt 信息分散，筛选效率低
 - 看图、找词、拼 Prompt、存模板之间缺少顺手的本地工作流
 
-当前稳定版本：`v2.1.5`
+当前稳定版本：`v2.1.6`
 
 ## 核心能力
 
@@ -23,7 +23,7 @@ Comfy Manager（灵动图库）是一个面向 **ComfyUI output 目录** 的桌�
 - 提示词提示器与本地 Prompt 词库
 - 设置中心与工具菜单配置
 
-## v2.1.5 重点更新
+## v2.1.6 重点更新
 
 - 新增 Windows 安装程序，支持选择安装目录
 - 安装版运行时数据统一写入安装目录内的 `data/` 与 `.trash/`
@@ -54,4 +54,4 @@ Comfy Manager（灵动图库）是一个面向 **ComfyUI output 目录** 的桌�
 ## 发布信息
 
 - 仓库地址：<https://github.com/dcajusteno-ops/qijiu-demo>
-- Release：<https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v2.1.5>
+- Release：<https://github.com/dcajusteno-ops/qijiu-demo/releases/tag/v2.1.6>
