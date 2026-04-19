@@ -520,6 +520,7 @@ onUnmounted(() => {
                 :archive-root-id="getDateArchiveRootId()"
                 @navigate-root="setActiveView"
                 @clear-filters="clearAllGalleryFilters"
+                @open-prompt-assistant="openPromptAssistantPage"
              />
         </div>
         <div v-else-if="activeRoot === 'profile'" class="h-full overflow-hidden">

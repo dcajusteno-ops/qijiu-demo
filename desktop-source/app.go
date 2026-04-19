@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"bytes"
@@ -89,11 +89,41 @@ type ImageMetadata struct {
 	Loras       []string          `json:"loras"`
 	NodeCount   int               `json:"nodeCount"`
 	ExtraFields map[string]string `json:"extraFields"`
+	PromptDebug *PromptDebugInfo  `json:"promptDebug,omitempty"`
+}
+
+type PromptCandidateDebug struct {
+	Text         string `json:"text"`
+	Score        int    `json:"score"`
+	SourceNodeID string `json:"sourceNodeId,omitempty"`
+	SourceClass  string `json:"sourceClass,omitempty"`
+	SourceTitle  string `json:"sourceTitle,omitempty"`
+	SourceKey    string `json:"sourceKey,omitempty"`
+	Strategy     string `json:"strategy,omitempty"`
+	Depth        int    `json:"depth,omitempty"`
+}
+
+type PromptSelectionDebug struct {
+	SelectedText string                 `json:"selectedText,omitempty"`
+	Strategy     string                 `json:"strategy,omitempty"`
+	SourceNodeID string                 `json:"sourceNodeId,omitempty"`
+	SourceClass  string                 `json:"sourceClass,omitempty"`
+	SourceTitle  string                 `json:"sourceTitle,omitempty"`
+	SourceKey    string                 `json:"sourceKey,omitempty"`
+	Candidates   []PromptCandidateDebug `json:"candidates,omitempty"`
+}
+
+type PromptDebugInfo struct {
+	Positive PromptSelectionDebug `json:"positive"`
+	Negative PromptSelectionDebug `json:"negative"`
 }
 
 type comfyPromptNode struct {
 	ClassType string         `json:"class_type"`
 	Inputs    map[string]any `json:"inputs"`
+	Meta      struct {
+		Title string `json:"title"`
+	} `json:"_meta"`
 }
 
 type Tag struct {
@@ -194,7 +224,7 @@ type PromptAssistantState struct {
 	CurrentPage       int      `json:"currentPage,omitempty"`
 }
 
-const customPromptSource = "我的词库"
+const customPromptSource = "鎴戠殑璇嶅簱"
 
 type AutoRuleCondition struct {
 	Field    string `json:"field"`
@@ -2379,7 +2409,7 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 			Name:       name,
 			Path:       relPath,
 			RelPath:    relPath,
-			ModTime:    info.ModTime().Format(time.RFC3339),
+			ModTime:    info.ModTime().UTC().Format(time.RFC3339Nano),
 			Size:       info.Size(),
 			Width:      width,
 			Height:     height,
@@ -4078,6 +4108,314 @@ func appendUniqueTexts(target []string, values ...string) []string {
 	return target
 }
 
+func promptDirectionHints(node comfyPromptNode) (bool, bool) {
+	lowerClass := strings.ToLower(node.ClassType)
+	lowerTitle := strings.ToLower(strings.TrimSpace(node.Meta.Title))
+
+	looksNegative := strings.Contains(lowerClass, "negative") ||
+		strings.Contains(lowerTitle, "negative") ||
+		strings.Contains(node.Meta.Title, "\u8d1f\u9762") ||
+		strings.Contains(node.Meta.Title, "\u53cd\u5411")
+	looksPositive := strings.Contains(lowerClass, "positive") ||
+		strings.Contains(lowerTitle, "positive") ||
+		strings.Contains(node.Meta.Title, "\u6b63\u5411") ||
+		strings.Contains(node.Meta.Title, "\u6b63\u9762")
+
+	return looksPositive, looksNegative
+}
+
+func promptKeySemanticScore(key string, positiveMode bool) int {
+	lower := strings.ToLower(strings.TrimSpace(key))
+	if lower == "" {
+		return 0
+	}
+
+	score := 0
+	if positiveMode {
+		if strings.Contains(lower, "positive") {
+			score += 100
+		}
+	} else {
+		if strings.Contains(lower, "negative") {
+			score += 100
+		}
+	}
+	if strings.Contains(lower, "prompt") {
+		score += 60
+	}
+	if strings.Contains(lower, "text") || strings.Contains(lower, "string") {
+		score += 45
+	}
+	if strings.Contains(lower, "conditioning") {
+		score += 35
+	}
+	if strings.Contains(lower, "clip") {
+		score += 15
+	}
+	if strings.HasPrefix(lower, "opt_") {
+		score += 10
+	}
+	return score
+}
+
+func scoredPromptInputKeys(node comfyPromptNode, positiveMode bool, connectedOnly bool) []string {
+	keys := make([]string, 0, len(node.Inputs))
+	for key, value := range node.Inputs {
+		if promptKeySemanticScore(key, positiveMode) <= 0 {
+			continue
+		}
+		if connectedOnly {
+			if _, ok := connectedPromptNodeID(value); !ok {
+				continue
+			}
+		}
+		keys = append(keys, key)
+	}
+
+	sort.SliceStable(keys, func(i, j int) bool {
+		leftScore := promptKeySemanticScore(keys[i], positiveMode)
+		rightScore := promptKeySemanticScore(keys[j], positiveMode)
+		if leftScore != rightScore {
+			return leftScore > rightScore
+		}
+		return keys[i] < keys[j]
+	})
+
+	return keys
+}
+
+func promptTextQualityScore(text string) int {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return 0
+	}
+
+	lower := strings.ToLower(trimmed)
+	length := len([]rune(trimmed))
+	score := 0
+
+	switch {
+	case length >= 240:
+		score += 70
+	case length >= 120:
+		score += 55
+	case length >= 60:
+		score += 40
+	case length >= 25:
+		score += 25
+	default:
+		score += 10
+	}
+
+	commaCount := strings.Count(trimmed, ",")
+	switch {
+	case commaCount >= 5:
+		score += 20
+	case commaCount >= 2:
+		score += 12
+	case commaCount == 1:
+		score += 6
+	}
+
+	if strings.ContainsAny(trimmed, "()[]{}") {
+		score += 10
+	}
+	if strings.Contains(lower, "<lora:") {
+		score -= 35
+	}
+	if strings.Contains(lower, "http://") || strings.Contains(lower, "https://") {
+		score -= 50
+	}
+	if !strings.ContainsAny(trimmed, ", ") && length < 18 {
+		score -= 10
+	}
+
+	return score
+}
+
+func promptNodeContextScore(node comfyPromptNode, positiveMode bool) int {
+	lowerClass := strings.ToLower(node.ClassType)
+	lowerTitle := strings.ToLower(strings.TrimSpace(node.Meta.Title))
+	looksPositive, looksNegative := promptDirectionHints(node)
+	score := 0
+
+	if positiveMode {
+		if looksPositive {
+			score += 90
+		}
+		if looksNegative {
+			score -= 90
+		}
+	} else {
+		if looksNegative {
+			score += 90
+		}
+		if looksPositive {
+			score -= 90
+		}
+	}
+
+	if strings.Contains(lowerClass, "textencode") {
+		score += 35
+	}
+	if strings.Contains(lowerClass, "prompt") || strings.Contains(lowerTitle, "prompt") {
+		score += 45
+	}
+	if strings.Contains(lowerClass, "conditioning") || strings.Contains(lowerClass, "combine") {
+		score += 10
+	}
+	if strings.Contains(lowerClass, "lora") || strings.Contains(lowerTitle, "lora") {
+		score -= 40
+	}
+	if strings.Contains(lowerClass, "gallery") || strings.Contains(lowerTitle, "gallery") || strings.Contains(lowerClass, "showtext") {
+		score -= 35
+	}
+
+	return score
+}
+
+func addPromptCandidate(candidates map[string]PromptCandidateDebug, candidate PromptCandidateDebug) {
+	trimmed := strings.TrimSpace(candidate.Text)
+	if trimmed == "" {
+		return
+	}
+
+	candidate.Text = trimmed
+	candidate.Score += promptTextQualityScore(trimmed)
+	if existing, ok := candidates[trimmed]; !ok || candidate.Score > existing.Score {
+		candidates[trimmed] = candidate
+	}
+}
+
+func orderedPromptCandidates(candidates map[string]PromptCandidateDebug) []PromptCandidateDebug {
+	items := make([]PromptCandidateDebug, 0, len(candidates))
+	for _, candidate := range candidates {
+		items = append(items, candidate)
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Score != items[j].Score {
+			return items[i].Score > items[j].Score
+		}
+		if len([]rune(items[i].Text)) != len([]rune(items[j].Text)) {
+			return len([]rune(items[i].Text)) > len([]rune(items[j].Text))
+		}
+		return items[i].Text < items[j].Text
+	})
+
+	return items
+}
+
+func pickBestPromptCandidate(candidates map[string]PromptCandidateDebug, excluded ...string) (PromptCandidateDebug, bool) {
+	excludedSet := make(map[string]struct{}, len(excluded))
+	for _, text := range excluded {
+		trimmed := strings.TrimSpace(text)
+		if trimmed != "" {
+			excludedSet[trimmed] = struct{}{}
+		}
+	}
+
+	for _, candidate := range orderedPromptCandidates(candidates) {
+		if _, skip := excludedSet[candidate.Text]; !skip {
+			return candidate, true
+		}
+	}
+	return PromptCandidateDebug{}, false
+}
+
+func pickBestPromptCandidateFromList(candidates []PromptCandidateDebug, excluded ...string) (PromptCandidateDebug, bool) {
+	excludedSet := make(map[string]struct{}, len(excluded))
+	for _, text := range excluded {
+		trimmed := strings.TrimSpace(text)
+		if trimmed != "" {
+			excludedSet[trimmed] = struct{}{}
+		}
+	}
+
+	for _, candidate := range candidates {
+		if _, skip := excludedSet[candidate.Text]; !skip {
+			return candidate, true
+		}
+	}
+	return PromptCandidateDebug{}, false
+}
+
+func collectPromptTextCandidatesForKeys(nodes map[string]comfyPromptNode, value any, preferredKeys []string, positiveMode bool, visited map[string]bool, depth int, candidates map[string]PromptCandidateDebug) {
+	if text := directTextInput(value); text != "" {
+		addPromptCandidate(candidates, PromptCandidateDebug{
+			Text:     text,
+			Score:    120 - (depth * 8),
+			Strategy: "direct-value",
+			Depth:    depth,
+		})
+		return
+	}
+
+	nodeID, ok := connectedPromptNodeID(value)
+	if !ok || visited[nodeID] {
+		return
+	}
+	visited[nodeID] = true
+
+	node, ok := nodes[nodeID]
+	if !ok {
+		return
+	}
+
+	contextScore := promptNodeContextScore(node, positiveMode) - (depth * 10)
+
+	for index, key := range preferredKeys {
+		if text := directTextInput(node.Inputs[key]); text != "" {
+			addPromptCandidate(candidates, PromptCandidateDebug{
+				Text:         text,
+				Score:        240 - (index * 18) + contextScore + promptKeySemanticScore(key, positiveMode),
+				SourceNodeID: nodeID,
+				SourceClass:  node.ClassType,
+				SourceTitle:  node.Meta.Title,
+				SourceKey:    key,
+				Strategy:     "preferred-key",
+				Depth:        depth,
+			})
+		}
+	}
+
+	if text := extractMultiCharacterEditorPrompt(node.Inputs["mce_config"]); text != "" {
+		addPromptCandidate(candidates, PromptCandidateDebug{
+			Text:         text,
+			Score:        280 + contextScore,
+			SourceNodeID: nodeID,
+			SourceClass:  node.ClassType,
+			SourceTitle:  node.Meta.Title,
+			SourceKey:    "mce_config",
+			Strategy:     "mce-config",
+			Depth:        depth,
+		})
+	}
+
+	for _, key := range scoredPromptInputKeys(node, positiveMode, false) {
+		if text := directTextInput(node.Inputs[key]); text != "" {
+			addPromptCandidate(candidates, PromptCandidateDebug{
+				Text:         text,
+				Score:        180 + contextScore + promptKeySemanticScore(key, positiveMode),
+				SourceNodeID: nodeID,
+				SourceClass:  node.ClassType,
+				SourceTitle:  node.Meta.Title,
+				SourceKey:    key,
+				Strategy:     "semantic-key",
+				Depth:        depth,
+			})
+		}
+	}
+
+	traversalKeys := append([]string{}, traversalPromptKeys(preferredKeys)...)
+	traversalKeys = appendUniqueTexts(traversalKeys, scoredPromptInputKeys(node, positiveMode, true)...)
+	for _, key := range traversalKeys {
+		if next, exists := node.Inputs[key]; exists {
+			collectPromptTextCandidatesForKeys(nodes, next, preferredKeys, positiveMode, visited, depth+1, candidates)
+		}
+	}
+}
+
 func extractNodePromptTexts(node comfyPromptNode) (string, string) {
 	positive := joinMetadataTexts(
 		directTextInput(node.Inputs["text"]),
@@ -4096,40 +4434,123 @@ func extractNodePromptTexts(node comfyPromptNode) (string, string) {
 		directTextInput(node.Inputs["text_negative"]),
 	)
 
+	if positive == "" {
+		extraParts := make([]string, 0, 3)
+		for _, key := range scoredPromptInputKeys(node, true, false) {
+			extraParts = append(extraParts, directTextInput(node.Inputs[key]))
+		}
+		positive = joinMetadataTexts(extraParts...)
+	}
+	if negative == "" {
+		extraParts := make([]string, 0, 3)
+		for _, key := range scoredPromptInputKeys(node, false, false) {
+			extraParts = append(extraParts, directTextInput(node.Inputs[key]))
+		}
+		negative = joinMetadataTexts(extraParts...)
+	}
+
 	lowerClass := strings.ToLower(node.ClassType)
-	if negative == "" && positive != "" && strings.Contains(lowerClass, "negative") {
+	lowerTitle := strings.ToLower(strings.TrimSpace(node.Meta.Title))
+	looksNegative := strings.Contains(lowerClass, "negative") ||
+		strings.Contains(lowerTitle, "negative") ||
+		strings.Contains(node.Meta.Title, "璐熼潰") ||
+		strings.Contains(node.Meta.Title, "鍙嶅悜")
+	looksPositive := strings.Contains(lowerClass, "positive") ||
+		strings.Contains(lowerTitle, "positive") ||
+		strings.Contains(node.Meta.Title, "姝ｅ悜") ||
+		strings.Contains(node.Meta.Title, "姝ｉ潰")
+	looksPositive, looksNegative = promptDirectionHints(node)
+	if negative == "" && positive != "" && looksNegative {
 		negative = positive
 		positive = ""
 	}
-	if positive == "" && negative != "" && strings.Contains(lowerClass, "positive") {
+	if positive == "" && negative != "" && looksPositive {
 		positive = negative
 		negative = ""
 	}
 	return positive, negative
 }
 
-func collectFallbackPromptTexts(nodes map[string]comfyPromptNode) ([]string, []string) {
-	positiveTexts := make([]string, 0, 2)
-	negativeTexts := make([]string, 0, 2)
+func prefersPositivePromptKeys(preferredKeys []string) bool {
+	for _, key := range preferredKeys {
+		switch key {
+		case "positive", "positive_prompt", "text_positive":
+			return true
+		}
+	}
+	return false
+}
+
+func traversalPromptKeys(preferredKeys []string) []string {
+	keys := []string{
+		"text",
+		"conditioning",
+		"clip",
+		"sdxl_tuple",
+		"prompt",
+		"opt_text",
+	}
+
+	if prefersPositivePromptKeys(preferredKeys) {
+		return append([]string{
+			"positive",
+			"positive_prompt",
+			"text_positive",
+			"conditioning_1",
+			"conditioning_2",
+			"conditioning_3",
+		}, keys...)
+	}
+
+	return append([]string{
+		"negative",
+		"negative_prompt",
+		"text_negative",
+	}, keys...)
+}
+
+func collectFallbackPromptTexts(nodes map[string]comfyPromptNode) ([]PromptCandidateDebug, []PromptCandidateDebug) {
+	positiveCandidates := make(map[string]PromptCandidateDebug)
+	negativeCandidates := make(map[string]PromptCandidateDebug)
 
 	for _, id := range sortedPromptNodeIDs(nodes) {
 		node := nodes[id]
 		positive, negative := extractNodePromptTexts(node)
-		lowerClass := strings.ToLower(node.ClassType)
-
+		looksPositive, looksNegative := promptDirectionHints(node)
 		if positive != "" {
-			if strings.Contains(lowerClass, "negative") && !strings.Contains(lowerClass, "positive") {
-				negativeTexts = appendUniqueTexts(negativeTexts, positive)
+			if looksNegative && !looksPositive {
+				addPromptCandidate(negativeCandidates, PromptCandidateDebug{
+					Text:         positive,
+					Score:        120 + promptNodeContextScore(node, false),
+					SourceNodeID: id,
+					SourceClass:  node.ClassType,
+					SourceTitle:  node.Meta.Title,
+					Strategy:     "fallback-negative-node",
+				})
 			} else {
-				positiveTexts = appendUniqueTexts(positiveTexts, positive)
+				addPromptCandidate(positiveCandidates, PromptCandidateDebug{
+					Text:         positive,
+					Score:        120 + promptNodeContextScore(node, true),
+					SourceNodeID: id,
+					SourceClass:  node.ClassType,
+					SourceTitle:  node.Meta.Title,
+					Strategy:     "fallback-positive-node",
+				})
 			}
 		}
 		if negative != "" {
-			negativeTexts = appendUniqueTexts(negativeTexts, negative)
+			addPromptCandidate(negativeCandidates, PromptCandidateDebug{
+				Text:         negative,
+				Score:        120 + promptNodeContextScore(node, false),
+				SourceNodeID: id,
+				SourceClass:  node.ClassType,
+				SourceTitle:  node.Meta.Title,
+				Strategy:     "fallback-negative-node",
+			})
 		}
 	}
 
-	return positiveTexts, negativeTexts
+	return orderedPromptCandidates(positiveCandidates), orderedPromptCandidates(negativeCandidates)
 }
 
 func sortedPromptNodeIDs(nodes map[string]comfyPromptNode) []string {
@@ -4157,40 +4578,21 @@ func connectedPromptNodeID(value any) (string, bool) {
 	return id, id != ""
 }
 
+func resolvePromptCandidateForKeys(nodes map[string]comfyPromptNode, value any, preferredKeys []string) (PromptCandidateDebug, []PromptCandidateDebug, bool) {
+	candidates := make(map[string]PromptCandidateDebug)
+	collectPromptTextCandidatesForKeys(nodes, value, preferredKeys, prefersPositivePromptKeys(preferredKeys), map[string]bool{}, 0, candidates)
+	selected, ok := pickBestPromptCandidate(candidates)
+	return selected, orderedPromptCandidates(candidates), ok
+}
+
 func resolvePromptTextForKeys(nodes map[string]comfyPromptNode, value any, preferredKeys []string, visited map[string]bool) string {
-	if text := directTextInput(value); text != "" {
-		return text
-	}
-
-	nodeID, ok := connectedPromptNodeID(value)
-	if !ok || visited[nodeID] {
-		return ""
-	}
-	visited[nodeID] = true
-
-	node, ok := nodes[nodeID]
+	candidates := make(map[string]PromptCandidateDebug)
+	collectPromptTextCandidatesForKeys(nodes, value, preferredKeys, prefersPositivePromptKeys(preferredKeys), visited, 0, candidates)
+	selected, ok := pickBestPromptCandidate(candidates)
 	if !ok {
 		return ""
 	}
-
-	parts := make([]string, 0, len(preferredKeys))
-	for _, key := range preferredKeys {
-		parts = append(parts, directTextInput(node.Inputs[key]))
-	}
-	parts = append(parts, extractMultiCharacterEditorPrompt(node.Inputs["mce_config"]))
-	if combined := joinMetadataTexts(parts...); combined != "" {
-		return combined
-	}
-
-	for _, key := range []string{"text", "conditioning", "positive", "negative", "clip", "sdxl_tuple", "text_positive", "text_negative", "prompt"} {
-		if next, exists := node.Inputs[key]; exists {
-			if text := resolvePromptTextForKeys(nodes, next, preferredKeys, visited); text != "" {
-				return text
-			}
-		}
-	}
-
-	return ""
+	return selected.Text
 }
 
 func resolvePromptText(nodes map[string]comfyPromptNode, value any, visited map[string]bool) string {
@@ -4329,6 +4731,8 @@ func extractComfyPromptSummary(metadata *ImageMetadata, promptRaw string) {
 		return
 	}
 
+	metadata.PromptDebug = &PromptDebugInfo{}
+
 	ids := sortedPromptNodeIDs(nodes)
 	var samplerNode comfyPromptNode
 	foundSampler := false
@@ -4365,8 +4769,30 @@ func extractComfyPromptSummary(metadata *ImageMetadata, promptRaw string) {
 		metadata.CFG = stringifyMetadataValue(samplerNode.Inputs["cfg"])
 		metadata.Sampler = stringifyMetadataValue(samplerNode.Inputs["sampler_name"])
 		metadata.Scheduler = stringifyMetadataValue(samplerNode.Inputs["scheduler"])
-		metadata.Positive = resolvePromptTextForKeys(nodes, samplerNode.Inputs["positive"], []string{"text", "text_g", "text_l", "string", "prompt", "positive", "positive_prompt", "text_positive"}, map[string]bool{})
-		metadata.Negative = resolvePromptTextForKeys(nodes, samplerNode.Inputs["negative"], []string{"negative", "negative_prompt", "text_negative", "text", "text_g", "text_l", "string"}, map[string]bool{})
+		if selected, candidates, ok := resolvePromptCandidateForKeys(nodes, samplerNode.Inputs["positive"], []string{"text", "text_g", "text_l", "string", "prompt", "positive", "positive_prompt", "text_positive"}); ok {
+			metadata.Positive = selected.Text
+			metadata.PromptDebug.Positive = PromptSelectionDebug{
+				SelectedText: selected.Text,
+				Strategy:     selected.Strategy,
+				SourceNodeID: selected.SourceNodeID,
+				SourceClass:  selected.SourceClass,
+				SourceTitle:  selected.SourceTitle,
+				SourceKey:    selected.SourceKey,
+				Candidates:   candidates,
+			}
+		}
+		if selected, candidates, ok := resolvePromptCandidateForKeys(nodes, samplerNode.Inputs["negative"], []string{"negative", "negative_prompt", "text_negative", "text", "text_g", "text_l", "string"}); ok {
+			metadata.Negative = selected.Text
+			metadata.PromptDebug.Negative = PromptSelectionDebug{
+				SelectedText: selected.Text,
+				Strategy:     selected.Strategy,
+				SourceNodeID: selected.SourceNodeID,
+				SourceClass:  selected.SourceClass,
+				SourceTitle:  selected.SourceTitle,
+				SourceKey:    selected.SourceKey,
+				Candidates:   candidates,
+			}
+		}
 
 		loras := make(map[string]struct{})
 		metadata.Model = collectPromptModel(nodes, samplerNode.Inputs["model"], map[string]bool{}, loras)
@@ -4374,11 +4800,31 @@ func extractComfyPromptSummary(metadata *ImageMetadata, promptRaw string) {
 			metadata.Model = collectPromptModel(nodes, samplerNode.Inputs["sdxl_tuple"], map[string]bool{}, loras)
 		}
 		if metadata.Positive == "" {
-			metadata.Positive = resolvePromptTextForKeys(nodes, samplerNode.Inputs["sdxl_tuple"], []string{"positive", "positive_prompt", "text_positive", "text", "text_g", "text_l", "string", "prompt"}, map[string]bool{})
+			if selected, candidates, ok := resolvePromptCandidateForKeys(nodes, samplerNode.Inputs["sdxl_tuple"], []string{"positive", "positive_prompt", "text_positive", "text", "text_g", "text_l", "string", "prompt"}); ok {
+				metadata.Positive = selected.Text
+				metadata.PromptDebug.Positive = PromptSelectionDebug{
+					SelectedText: selected.Text,
+					Strategy:     "sdxl-tuple/" + selected.Strategy,
+					SourceNodeID: selected.SourceNodeID,
+					SourceClass:  selected.SourceClass,
+					SourceTitle:  selected.SourceTitle,
+					SourceKey:    selected.SourceKey,
+					Candidates:   candidates,
+				}
+			}
 		}
 		if metadata.Negative == "" {
-			if text := resolvePromptTextForKeys(nodes, samplerNode.Inputs["sdxl_tuple"], []string{"negative", "negative_prompt", "text_negative", "text", "text_g", "text_l", "string"}, map[string]bool{}); text != metadata.Positive {
-				metadata.Negative = text
+			if selected, candidates, ok := resolvePromptCandidateForKeys(nodes, samplerNode.Inputs["sdxl_tuple"], []string{"negative", "negative_prompt", "text_negative", "text", "text_g", "text_l", "string"}); ok && selected.Text != metadata.Positive {
+				metadata.Negative = selected.Text
+				metadata.PromptDebug.Negative = PromptSelectionDebug{
+					SelectedText: selected.Text,
+					Strategy:     "sdxl-tuple/" + selected.Strategy,
+					SourceNodeID: selected.SourceNodeID,
+					SourceClass:  selected.SourceClass,
+					SourceTitle:  selected.SourceTitle,
+					SourceKey:    selected.SourceKey,
+					Candidates:   candidates,
+				}
 			}
 		}
 		collectPromptLoras(nodes, samplerNode.Inputs["positive"], map[string]bool{}, loras)
@@ -4394,13 +4840,57 @@ func extractComfyPromptSummary(metadata *ImageMetadata, promptRaw string) {
 		}
 	}
 
-	if metadata.Positive == "" || metadata.Negative == "" {
+	if metadata.Positive == "" || metadata.Negative == "" || metadata.Positive == metadata.Negative {
 		fallbackPositive, fallbackNegative := collectFallbackPromptTexts(nodes)
-		if metadata.Positive == "" && len(fallbackPositive) > 0 {
-			metadata.Positive = fallbackPositive[0]
+		if (metadata.Positive == "" || metadata.Positive == metadata.Negative) && len(fallbackPositive) > 0 {
+			if selected, ok := pickBestPromptCandidateFromList(fallbackPositive, metadata.Negative); ok {
+				metadata.Positive = selected.Text
+				metadata.PromptDebug.Positive = PromptSelectionDebug{
+					SelectedText: selected.Text,
+					Strategy:     "fallback/" + selected.Strategy,
+					SourceNodeID: selected.SourceNodeID,
+					SourceClass:  selected.SourceClass,
+					SourceTitle:  selected.SourceTitle,
+					SourceKey:    selected.SourceKey,
+					Candidates:   fallbackPositive,
+				}
+			} else {
+				for _, candidate := range fallbackPositive {
+					if strings.TrimSpace(candidate.Text) == "" {
+						continue
+					}
+					if metadata.Negative != "" && candidate.Text == metadata.Negative {
+						continue
+					}
+					metadata.Positive = candidate.Text
+					break
+				}
+			}
 		}
-		if metadata.Negative == "" && len(fallbackNegative) > 0 {
-			metadata.Negative = fallbackNegative[0]
+		if (metadata.Negative == "" || metadata.Negative == metadata.Positive) && len(fallbackNegative) > 0 {
+			if selected, ok := pickBestPromptCandidateFromList(fallbackNegative, metadata.Positive); ok {
+				metadata.Negative = selected.Text
+				metadata.PromptDebug.Negative = PromptSelectionDebug{
+					SelectedText: selected.Text,
+					Strategy:     "fallback/" + selected.Strategy,
+					SourceNodeID: selected.SourceNodeID,
+					SourceClass:  selected.SourceClass,
+					SourceTitle:  selected.SourceTitle,
+					SourceKey:    selected.SourceKey,
+					Candidates:   fallbackNegative,
+				}
+			} else {
+				for _, candidate := range fallbackNegative {
+					if strings.TrimSpace(candidate.Text) == "" {
+						continue
+					}
+					if metadata.Positive != "" && candidate.Text == metadata.Positive {
+						continue
+					}
+					metadata.Negative = candidate.Text
+					break
+				}
+			}
 		}
 		if metadata.Positive == "" && len(fallbackPositive) == 0 && len(fallbackNegative) == 0 {
 			textNodes := make([]string, 0, 2)
@@ -4930,7 +5420,7 @@ func (a *App) saveUserProfileImage(sourcePath string) (UserProfile, error) {
 
 func (a *App) SelectUserProfileImage() (UserProfile, error) {
 	options := runtime.OpenDialogOptions{
-		Title: "选择新的个人中心图片",
+		Title: "閫夋嫨鏂扮殑涓汉涓績鍥剧墖",
 		Filters: []runtime.FileFilter{
 			{
 				DisplayName: "Image Files (*.png;*.jpg;*.jpeg;*.webp;*.gif)",
@@ -5540,7 +6030,7 @@ func defaultDateArchiveCustomRoot() CustomRoot {
 
 func normalizeCustomRootDisplayName(pathValue, displayName string) string {
 	name := strings.TrimSpace(displayName)
-	if name != "" && !strings.Contains(name, "�") && !strings.Contains(name, "?") {
+	if name != "" && !strings.Contains(name, "\ufffd") && !strings.Contains(name, "?") {
 		return name
 	}
 
@@ -5682,17 +6172,17 @@ func (a *App) AddCustomRoot(name, relPath, icon string) (CustomRoot, error) {
 	normalizedPath := normalizeRelPath(relPath)
 	abs, err := a.resolveRootPath(normalizedPath)
 	if err != nil {
-		return CustomRoot{}, fmt.Errorf("无法添加自定义目录: %w", err)
+		return CustomRoot{}, fmt.Errorf("鏃犳硶娣诲姞鑷畾涔夌洰褰? %w", err)
 	}
 	info, err := os.Stat(abs)
 	if err != nil || !info.IsDir() {
-		return CustomRoot{}, fmt.Errorf("自定义目录不存在或不是文件夹: %s", relPath)
+		return CustomRoot{}, fmt.Errorf("鑷畾涔夌洰褰曚笉瀛樺湪鎴栦笉鏄枃浠跺す: %s", relPath)
 	}
 
 	roots, _ := a.loadCustomRoots()
 	for _, r := range roots {
 		if normalizeRelPath(r.Path) == normalizedPath {
-			return CustomRoot{}, fmt.Errorf("该自定义目录已经存在")
+			return CustomRoot{}, fmt.Errorf("璇ヨ嚜瀹氫箟鐩綍宸茬粡瀛樺湪")
 		}
 	}
 
@@ -5729,7 +6219,7 @@ func (a *App) UpdateCustomRoot(id, name, icon string) error {
 			continue
 		}
 		if root.Locked || root.IsBuiltin {
-			return fmt.Errorf("内置目录不能编辑")
+			return fmt.Errorf("鍐呯疆鐩綍涓嶈兘缂栬緫")
 		}
 
 		displayName := strings.TrimSpace(name)
@@ -5747,7 +6237,7 @@ func (a *App) UpdateCustomRoot(id, name, icon string) error {
 	}
 
 	if !updated {
-		return fmt.Errorf("未找到要更新的自定义目录")
+		return fmt.Errorf("鏈壘鍒拌鏇存柊鐨勮嚜瀹氫箟鐩綍")
 	}
 	if err := a.saveCustomRoots(roots); err != nil {
 		return err
@@ -5768,13 +6258,13 @@ func (a *App) DeleteCustomRoot(id string) error {
 			continue
 		}
 		if root.Locked || root.IsBuiltin {
-			return fmt.Errorf("内置目录不能删除")
+			return fmt.Errorf("鍐呯疆鐩綍涓嶈兘鍒犻櫎")
 		}
 		deleted = true
 	}
 
 	if !deleted {
-		return fmt.Errorf("未找到要删除的自定义目录")
+		return fmt.Errorf("鏈壘鍒拌鍒犻櫎鐨勮嚜瀹氫箟鐩綍")
 	}
 	if err := a.saveCustomRoots(newRoots); err != nil {
 		return err
@@ -5798,7 +6288,7 @@ func (a *App) UpdateCustomRootEnabled(id string, enabled bool) error {
 	}
 
 	if !updated {
-		return fmt.Errorf("未找到要更新的自定义目录")
+		return fmt.Errorf("鏈壘鍒拌鏇存柊鐨勮嚜瀹氫箟鐩綍")
 	}
 	if err := a.saveCustomRoots(roots); err != nil {
 		return err
@@ -5818,7 +6308,7 @@ func (a *App) MoveCustomRoot(id, direction string) error {
 		}
 	}
 	if index < 0 {
-		return fmt.Errorf("未找到要移动的自定义目录")
+		return fmt.Errorf("鏈壘鍒拌绉诲姩鐨勮嚜瀹氫箟鐩綍")
 	}
 
 	target := index
@@ -5828,7 +6318,7 @@ func (a *App) MoveCustomRoot(id, direction string) error {
 	case "down":
 		target = index + 1
 	default:
-		return fmt.Errorf("移动方向无效")
+		return fmt.Errorf("绉诲姩鏂瑰悜鏃犳晥")
 	}
 
 	if target < 0 || target >= len(roots) {
@@ -5872,7 +6362,7 @@ func (a *App) GetSubFolders(relPath string) ([]string, error) {
 	} else {
 		resolved, err := a.resolveRootPath(relPath)
 		if err != nil {
-			return nil, fmt.Errorf("无法读取子目录: %w", err)
+			return nil, fmt.Errorf("鏃犳硶璇诲彇瀛愮洰褰? %w", err)
 		}
 		base = resolved
 	}
@@ -6218,7 +6708,7 @@ func (a *App) AddCustomPromptEntry(entry PromptLibraryEntry) (PromptLibraryEntry
 	}
 	for _, item := range systemEntries {
 		if promptEntriesDuplicate(item, entry) {
-			return PromptLibraryEntry{}, fmt.Errorf("系统词库中已存在重复提示词")
+			return PromptLibraryEntry{}, fmt.Errorf("\u7cfb\u7edf\u8bcd\u5e93\u4e2d\u5df2\u5b58\u5728\u91cd\u590d\u63d0\u793a\u8bcd")
 		}
 	}
 
@@ -6228,7 +6718,7 @@ func (a *App) AddCustomPromptEntry(entry PromptLibraryEntry) (PromptLibraryEntry
 	}
 	for _, item := range customEntries {
 		if promptEntriesDuplicate(item, entry) {
-			return PromptLibraryEntry{}, fmt.Errorf("我的词库中已存在重复提示词")
+			return PromptLibraryEntry{}, fmt.Errorf("\u6211\u7684\u8bcd\u5e93\u4e2d\u5df2\u5b58\u5728\u91cd\u590d\u63d0\u793a\u8bcd")
 		}
 	}
 
@@ -6425,3 +6915,4 @@ func (a *App) DeletePromptTemplate(id string) error {
 	}
 	return a.savePromptTemplates(newTemplates)
 }
+

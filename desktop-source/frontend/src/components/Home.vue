@@ -33,7 +33,7 @@ const props = defineProps({
   archiveRootId: { type: String, default: 'output' },
 })
 
-const emit = defineEmits(['navigate-root', 'clear-filters'])
+const emit = defineEmits(['navigate-root', 'clear-filters', 'open-prompt-assistant'])
 
 // Custom Confirm Dialog Logic
 const deleteDialogOpen = ref(false)
@@ -449,6 +449,7 @@ const navigateToArchive = () => {
         @delete="handleLightboxDelete"
         @open-location="openImageLocation"
         @favorite-groups-changed="fetchImages"
+        @open-prompt-assistant="emit('open-prompt-assistant', $event)"
     />
 
     <AlertDialog v-model:open="deleteDialogOpen">

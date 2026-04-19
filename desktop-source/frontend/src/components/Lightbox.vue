@@ -76,6 +76,7 @@ const promptTemplateInitialType = ref('')
 const noteText = ref('')
 const noteSaving = ref(false)
 const noteExpanded = ref(true)
+const promptDebugExpanded = ref(false)
 
 const currentNote = computed(() => {
   if (!currentDisplayImage.value) return ''
@@ -159,6 +160,46 @@ const metadataFacts = computed(() => {
 })
 
 const extraMetadataEntries = computed(() => Object.entries(metadata.value?.extraFields || {}))
+
+const promptDebugSections = computed(() => {
+  const promptDebug = metadata.value?.promptDebug
+  if (!promptDebug) return []
+
+  return [
+    { key: 'positive', label: '正向解析', data: promptDebug.positive },
+    { key: 'negative', label: '反向解析', data: promptDebug.negative },
+  ].filter(section => section.data?.selectedText || section.data?.candidates?.length)
+})
+
+const promptDebugStrategyLabel = (strategy) => {
+  const labels = {
+    'preferred-key': '优先字段',
+    'semantic-key': '语义字段',
+    'mce-config': '多角色编辑器',
+    'direct-value': '直接值',
+    'fallback/fallback-positive-node': '全图兜底',
+    'fallback/fallback-negative-node': '全图兜底',
+  }
+
+  if (!strategy) return '未标记'
+  if (labels[strategy]) return labels[strategy]
+  if (strategy.startsWith('sdxl-tuple/')) {
+    const inner = strategy.slice('sdxl-tuple/'.length)
+    return `SDXL 回退 / ${labels[inner] || inner}`
+  }
+  if (strategy.startsWith('fallback/')) {
+    const inner = strategy.slice('fallback/'.length)
+    return `全图兜底 / ${labels[inner] || inner}`
+  }
+  return labels[strategy] || strategy
+}
+
+const promptDebugSourceLabel = (candidate) => {
+  if (!candidate) return ''
+  const parts = [candidate.sourceTitle, candidate.sourceClass].filter(Boolean)
+  const nodeLabel = candidate.sourceNodeId ? `#${candidate.sourceNodeId}` : ''
+  return [nodeLabel, ...parts].filter(Boolean).join(' ')
+}
 
 const resetZoom = () => {
   scale.value = 1
@@ -766,6 +807,64 @@ onUnmounted(() => {
                     </div>
                     <div class="text-xs leading-5 text-white/60">
                       {{ metadata.nodeCount ? `已检测到 ${metadata.nodeCount} 个 workflow 节点，可直接复制回 ComfyUI。` : '已检测到 workflow JSON，可直接复制回 ComfyUI。' }}
+                    </div>
+                  </div>
+
+                  <div v-if="promptDebugSections.length > 0" class="space-y-3 rounded-lg border border-white/10 bg-black/15 p-3">
+                    <button
+                      type="button"
+                      class="flex w-full items-center justify-between gap-3 text-left"
+                      @click="promptDebugExpanded = !promptDebugExpanded"
+                    >
+                      <div>
+                        <div class="text-[11px] font-semibold uppercase tracking-wider text-white/45">提示词解析调试</div>
+                        <div class="mt-1 text-xs leading-5 text-white/55">查看本次命中的节点来源、策略和候选排序。</div>
+                      </div>
+                      <ChevronUp v-if="promptDebugExpanded" class="h-4 w-4 text-white/45" />
+                      <ChevronDown v-else class="h-4 w-4 text-white/45" />
+                    </button>
+
+                    <div v-if="promptDebugExpanded" class="space-y-3">
+                      <div
+                        v-for="section in promptDebugSections"
+                        :key="section.key"
+                        class="min-w-0 space-y-2 overflow-hidden rounded-lg border border-white/10 bg-white/5 p-3"
+                      >
+                        <div class="flex min-w-0 items-center justify-between gap-3">
+                          <div class="min-w-0 text-xs font-semibold tracking-wide text-white/80">{{ section.label }}</div>
+                          <div class="text-[11px] text-white/45">{{ promptDebugStrategyLabel(section.data?.strategy) }}</div>
+                        </div>
+
+                        <div v-if="section.data?.selectedText" class="min-w-0 space-y-1 overflow-hidden rounded-md border border-emerald-400/20 bg-emerald-400/5 p-2">
+                          <div class="text-[11px] uppercase tracking-wider text-emerald-100/70">当前命中</div>
+                          <div class="whitespace-pre-wrap break-all text-xs leading-5 text-white/90">{{ section.data.selectedText }}</div>
+                          <div v-if="promptDebugSourceLabel(section.data)" class="whitespace-pre-wrap break-all text-[11px] leading-5 text-white/50">
+                            来源：{{ promptDebugSourceLabel(section.data) }}
+                            <span v-if="section.data?.sourceKey"> / {{ section.data.sourceKey }}</span>
+                          </div>
+                        </div>
+
+                        <div v-if="section.data?.candidates?.length" class="space-y-2">
+                          <div class="text-[11px] uppercase tracking-wider text-white/45">候选排序</div>
+                          <div class="space-y-2">
+                            <div
+                              v-for="candidate in section.data.candidates.slice(0, 5)"
+                              :key="`${section.key}-${candidate.text}-${candidate.score}`"
+                              class="min-w-0 overflow-hidden rounded-md border border-white/10 bg-black/20 p-2"
+                            >
+                              <div class="flex min-w-0 items-center justify-between gap-3">
+                                <div class="min-w-0 text-[11px] text-white/55">{{ promptDebugStrategyLabel(candidate.strategy) }}</div>
+                                <div class="text-[11px] text-white/40">分数 {{ candidate.score }}</div>
+                              </div>
+                              <div class="mt-1 whitespace-pre-wrap break-all text-xs leading-5 text-white/85">{{ candidate.text }}</div>
+                              <div v-if="promptDebugSourceLabel(candidate)" class="mt-1 whitespace-pre-wrap break-all text-[11px] leading-5 text-white/45">
+                                来源：{{ promptDebugSourceLabel(candidate) }}
+                                <span v-if="candidate.sourceKey"> / {{ candidate.sourceKey }}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

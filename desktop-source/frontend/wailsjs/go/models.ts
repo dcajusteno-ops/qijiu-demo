@@ -248,6 +248,106 @@ export namespace main {
 	        this.searchText = source["searchText"];
 	    }
 	}
+	export class PromptCandidateDebug {
+	    text: string;
+	    score: number;
+	    sourceNodeId?: string;
+	    sourceClass?: string;
+	    sourceTitle?: string;
+	    sourceKey?: string;
+	    strategy?: string;
+	    depth?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptCandidateDebug(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.text = source["text"];
+	        this.score = source["score"];
+	        this.sourceNodeId = source["sourceNodeId"];
+	        this.sourceClass = source["sourceClass"];
+	        this.sourceTitle = source["sourceTitle"];
+	        this.sourceKey = source["sourceKey"];
+	        this.strategy = source["strategy"];
+	        this.depth = source["depth"];
+	    }
+	}
+	export class PromptSelectionDebug {
+	    selectedText?: string;
+	    strategy?: string;
+	    sourceNodeId?: string;
+	    sourceClass?: string;
+	    sourceTitle?: string;
+	    sourceKey?: string;
+	    candidates?: PromptCandidateDebug[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptSelectionDebug(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.selectedText = source["selectedText"];
+	        this.strategy = source["strategy"];
+	        this.sourceNodeId = source["sourceNodeId"];
+	        this.sourceClass = source["sourceClass"];
+	        this.sourceTitle = source["sourceTitle"];
+	        this.sourceKey = source["sourceKey"];
+	        this.candidates = this.convertValues(source["candidates"], PromptCandidateDebug);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PromptDebugInfo {
+	    positive: PromptSelectionDebug;
+	    negative: PromptSelectionDebug;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptDebugInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.positive = this.convertValues(source["positive"], PromptSelectionDebug);
+	        this.negative = this.convertValues(source["negative"], PromptSelectionDebug);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ImageMetadata {
 	    relPath: string;
 	    format: string;
@@ -267,6 +367,7 @@ export namespace main {
 	    loras: string[];
 	    nodeCount: number;
 	    extraFields: Record<string, string>;
+	    promptDebug?: PromptDebugInfo;
 	
 	    static createFrom(source: any = {}) {
 	        return new ImageMetadata(source);
@@ -292,7 +393,26 @@ export namespace main {
 	        this.loras = source["loras"];
 	        this.nodeCount = source["nodeCount"];
 	        this.extraFields = source["extraFields"];
+	        this.promptDebug = this.convertValues(source["promptDebug"], PromptDebugInfo);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class LauncherTool {
 	    id: string;
@@ -344,6 +464,8 @@ export namespace main {
 	        this.currentPage = source["currentPage"];
 	    }
 	}
+	
+	
 	export class PromptLibraryEntry {
 	    id: string;
 	    source: string;
@@ -374,6 +496,7 @@ export namespace main {
 	        this.search_text = source["search_text"];
 	    }
 	}
+	
 	export class PromptTemplate {
 	    id: string;
 	    name: string;

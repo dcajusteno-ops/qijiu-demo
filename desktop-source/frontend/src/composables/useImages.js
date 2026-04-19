@@ -59,6 +59,19 @@ const getDateSegment = (path) => {
 const normalizeSearchText = (value) => String(value ?? '').trim().toLowerCase()
 const normalizeFilterValue = (value) => normalizeSearchText(value).replace(/\s+/g, ' ')
 const stripPathSegments = (value) => String(value ?? '').split(/[\\/]/).pop() || ''
+const buildImageDisplayPath = (pathValue, modTime, size) => {
+  const normalizedPath = String(pathValue || '').trim()
+  if (!normalizedPath) return ''
+
+  const version = [String(modTime || '').trim(), String(size ?? '').trim()]
+    .filter(Boolean)
+    .join('-')
+
+  if (!version) return normalizedPath
+
+  const separator = normalizedPath.includes('?') ? '&' : '?'
+  return `${normalizedPath}${separator}v=${encodeURIComponent(version)}`
+}
 const stripModelExtension = (value) =>
   String(value ?? '').replace(/\.(safetensors|ckpt|pt|pth|bin)$/i, '')
 const prettifyAssetLabel = (value) =>
@@ -226,6 +239,7 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
       favorites.value = getFavoritePathSet(groups)
       images.value = (imgs || []).map((img) => ({
         ...img,
+        path: buildImageDisplayPath(img.path, img.modTime, img.size),
         loras: Array.isArray(img.loras) ? img.loras : [],
         isFavorite: favorites.value.has(normalizeFolderPath(img.relPath)),
       }))

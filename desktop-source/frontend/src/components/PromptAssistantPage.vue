@@ -1044,7 +1044,7 @@ onMounted(async () => {
         </CardHeader>
 
         <CardContent class="space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 px-4 py-3 text-sm">
+          <div class="sticky top-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/95 px-4 py-3 text-sm shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
             <div>
               当前显示 <span class="font-medium text-foreground">{{ pageStart }}-{{ pageEnd }}</span> / <span class="font-medium text-foreground">{{ filteredEntries.length }}</span>
             </div>
@@ -1056,8 +1056,8 @@ onMounted(async () => {
                 <ChevronLeft class="h-4 w-4" />
               </Button>
               <Button
-                v-for="page in visiblePages"
-                :key="`page-${page}`"
+                v-for="(page, index) in visiblePages"
+                :key="`page-${page}-${index}`"
                 :variant="page === currentPage ? 'default' : 'ghost'"
                 size="sm"
                 :disabled="page === '...'"

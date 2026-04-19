@@ -1,13 +1,8 @@
 # Comfy Manager 发布指南
 
-## 前置条件
+当前版本：`v2.1.5`
 
-- 已安装 [Wails CLI](https://wails.io/)
-- 已安装 [GitHub CLI](https://cli.github.com/)
-- 远程仓库已配置
-- 推送账号对仓库具备写权限
-
-当前远程仓库：
+远程仓库：
 
 - `origin`: `https://github.com/dcajusteno-ops/qijiu-demo.git`
 
@@ -19,11 +14,9 @@
 - `MINOR`：向后兼容的新功能
 - `PATCH`：向后兼容的问题修复
 
-当前最新版本：`v2.1.5`
-
 ## 标准发布流程
 
-### 1. 完成功能开发
+### 1. 完成功能与文档同步
 
 确保以下内容已同步：
 
@@ -36,45 +29,52 @@
 
 ### 2. 构建桌面端
 
-```bash
-cd desktop-source
+在 `desktop-source` 下执行：
+
+```powershell
 wails build --nsis
 ```
 
 ### 3. 覆盖根目录产物
 
-```bash
-copy desktop-source\build\bin\desktop-app.exe desktop-app.exe
-copy desktop-source\build\bin\ComfyManager-amd64-installer.exe ComfyManager-amd64-installer.exe
+```powershell
+Copy-Item .\desktop-source\build\bin\desktop-app.exe .\desktop-app.exe -Force
+Copy-Item .\desktop-source\build\bin\ComfyManager-amd64-installer.exe .\ComfyManager-amd64-installer.exe -Force
 ```
 
 ### 4. 提交代码
 
-```bash
+```powershell
 git add -A
 git commit -m "release: v2.1.5"
 ```
 
-### 5. 打标签
+### 5. 处理版本标签
 
-```bash
+如果当前版本标签尚不存在：
+
+```powershell
 git tag -a v2.1.5 -m "v2.1.5"
 ```
 
+如果 `v2.1.5` 已经存在，不要默认强推覆盖标签；优先继续推送 `main`，必要时明确创建新 patch 版本。
+
 ### 6. 推送到 GitHub
 
-```bash
+```powershell
 git push origin main
 git push origin v2.1.5
 ```
 
+如果标签已存在于远端且无需改写，只推送 `main` 即可。
+
 ### 7. 创建 GitHub Release
 
-```bash
-gh release create v2.1.5 ^
-  ./desktop-app.exe#Comfy^ Manager^ v2.1.5^ 桌面端 ^
-  ./ComfyManager-amd64-installer.exe#Comfy^ Manager^ v2.1.5^ Windows^ 安装程序 ^
-  --title "v2.1.5" ^
+```powershell
+gh release create v2.1.5 `
+  ./desktop-app.exe#Comfy Manager v2.1.5 桌面端 `
+  ./ComfyManager-amd64-installer.exe#Comfy Manager v2.1.5 Windows 安装程序 `
+  --title "v2.1.5" `
   --notes "## v2.1.5 更新内容"
 ```
 
@@ -86,44 +86,47 @@ Release 地址：
 
 本次版本重点：
 
-- 新增 Windows 安装程序，支持安装时选择目标目录
-- 安装包内置 `data/prompt-library/`，首次安装即可使用提示词词库
-- 安装版运行时数据统一跟随安装目录，不再落到系统盘其他位置
-- 新增 `docs/WINDOWS_INSTALLER.md` 并同步更新 README 与项目文档
+- 新增 Windows 安装程序，支持安装目录选择
+- 安装包内置 `data/prompt-library/`
+- 安装版运行时数据统一落在安装目录内
+- 提示词提示器分页固定显示与重复省略号修复
+- 图片删除后重新生成同名文件时的旧缓存显示修复
+- 工作台总览打开提示词提示器无响应修复
+- ComfyUI Prompt 提取逻辑增强，支持更复杂工作流
+- 新增 Prompt 解析调试视图
+- 修复调试面板中的长文本溢出问题
 
 ## 快速发布命令模板
 
-```bash
-set VER=v2.1.5
+```powershell
+$VER = "v2.1.5"
 
 cd desktop-source
 wails build --nsis
 cd ..
 
-copy desktop-source\build\bin\desktop-app.exe desktop-app.exe
-copy desktop-source\build\bin\ComfyManager-amd64-installer.exe ComfyManager-amd64-installer.exe
+Copy-Item .\desktop-source\build\bin\desktop-app.exe .\desktop-app.exe -Force
+Copy-Item .\desktop-source\build\bin\ComfyManager-amd64-installer.exe .\ComfyManager-amd64-installer.exe -Force
 
 git add -A
-git commit -m "release: %VER%"
-git tag -a %VER% -m "%VER%"
-
+git commit -m "release: $VER"
 git push origin main
-git push origin %VER%
+```
 
-gh release create %VER% ^
-  ./desktop-app.exe#Comfy^ Manager^ %VER%^ 桌面端 ^
-  ./ComfyManager-amd64-installer.exe#Comfy^ Manager^ %VER%^ Windows^ 安装程序 ^
-  --title "%VER%" ^
-  --notes "## %VER% 更新内容"
+如需首次创建标签，再追加：
+
+```powershell
+git tag -a $VER -m $VER
+git push origin $VER
 ```
 
 ## 历史版本
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
-| v2.1.5 | 2026-04-18 | Windows 安装程序、安装目录选择、安装目录内数据落盘、发布流程更新 |
-| v2.1.0 | 2026-04-18 | 提示词编辑器、运行时词库、自定义提示词、模板复用、文档更新 |
+| v2.1.5 | 2026-04-19 | 安装版同步、Prompt 提取增强、调试视图、缓存修复、分页与布局修复 |
+| v2.1.0 | 2026-04-18 | 提示词提示器、自定义提示词、模板复用、文档同步 |
 | v2.0.1 | 2026-04-17 | 内置文档页更新、乱码修复、文档同步 |
-| v2.0.0 | 2026-04-17 | 目录绑定升级、设置中心、工具菜单配置、日期范围筛选 |
-| v1.8.1 | 2026-04-16 | 自动刷新修复、去轮询、中文文档页更新 |
+| v2.0.0 | 2026-04-17 | 目录绑定升级、设置中心、工具菜单配置、日期筛选 |
+| v1.8.1 | 2026-04-16 | 自动刷新修复、中文文档更新 |
 | v1.8.0 | 2026-04-16 | 日期产出工作台、模型 / LoRA 筛选 |
