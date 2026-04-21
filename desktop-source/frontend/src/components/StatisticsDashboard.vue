@@ -59,7 +59,7 @@ const showToast = (message, type) => {
 const confirmAction = async (message) => window.confirm(message)
 
 const {
-  images,
+  sourceImages,
   favoriteGroups,
   tags,
   imageTags,
@@ -68,7 +68,7 @@ const {
   addTagToImage,
   removeTagFromImage,
   openImageLocation,
-  fetchImages,
+  fetchImageIndex,
   fetchTags,
   fetchImageTags,
   fetchImageNotes,
@@ -185,7 +185,7 @@ const loadStats = async () => {
 
 const refreshAll = async () => {
   if (loading.value) return
-  await fetchImages()
+  await fetchImageIndex()
   await Promise.all([loadStats(), fetchTags(), fetchImageTags(), fetchImageNotes()])
   toast.success('数据视界已刷新')
 }
@@ -222,7 +222,7 @@ watch(activeTimelineKey, () => {
 
 onMounted(async () => {
   await Promise.all([
-    images.value.length ? Promise.resolve() : fetchImages(),
+    sourceImages.value.length ? Promise.resolve() : fetchImageIndex(),
     fetchTags(),
     fetchImageTags(),
     fetchImageNotes(),
@@ -231,7 +231,7 @@ onMounted(async () => {
   await nextTick()
   setupChartResizeObserver()
   unsubscribeImagesChanged = EventsOn('images:changed', async () => {
-    await Promise.all([fetchImages(), loadStats(), fetchTags(), fetchImageTags(), fetchImageNotes()])
+    await Promise.all([fetchImageIndex(), loadStats(), fetchTags(), fetchImageTags(), fetchImageNotes()])
   })
 })
 
@@ -243,7 +243,7 @@ onUnmounted(() => {
 })
 
 const sortedImages = computed(() =>
-  [...images.value].sort((a, b) => new Date(b.modTime) - new Date(a.modTime)),
+  [...sourceImages.value].sort((a, b) => new Date(b.modTime) - new Date(a.modTime)),
 )
 
 const latestCreation = computed(() => sortedImages.value[0] || null)

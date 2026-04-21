@@ -33,7 +33,7 @@ Unicode true
 !define INFO_PROJECTNAME "ComfyManager"
 !define INFO_COMPANYNAME "ComfyManager"
 !define INFO_PRODUCTNAME "Comfy Manager"
-!define INFO_PRODUCTVERSION "2.1.5"
+!define INFO_PRODUCTVERSION "2.2.0"
 !define PRODUCT_EXECUTABLE "desktop-app.exe"
 !define UNINST_KEY_NAME "ComfyManager"
 

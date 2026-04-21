@@ -31,6 +31,7 @@ import {
   Eye,
   EyeOff,
   FolderTree,
+  Gauge,
   Heart,
   Keyboard,
   Loader2,
@@ -39,6 +40,7 @@ import {
   Pencil,
   RotateCcw,
   Save,
+  ShieldCheck,
   Sparkles,
   Sun,
   Trash2,
@@ -71,10 +73,10 @@ const emit = defineEmits([
 const sections = [
   { id: 'toolmenu', label: '工具菜单', icon: ListOrdered, description: '控制菜单顺序与显示' },
   { id: 'appearance', label: '外观模式', icon: Sparkles, description: '主题与视觉偏好' },
+  { id: 'performance', label: '性能模式', icon: Gauge, description: '大型图库加载策略' },
   { id: 'favorites', label: '收藏分组', icon: Heart, description: '整理收藏夹结构' },
   { id: 'shortcuts', label: '快捷键设置', icon: Keyboard, description: '调整全局快捷键' },
-  { id: 'cache', label: '缓存清理', icon: BrushCleaning, description: '清空预览缓存' },
-  { id: 'folders', label: '文件夹维护', icon: FolderTree, description: '清理空文件夹' },
+  { id: 'health', label: '目录健康', icon: ShieldCheck, description: '缓存与引用检查' },
 ]
 
 const activeSection = ref('appearance')
@@ -91,6 +93,8 @@ watch(() => props.open, (open) => {
   activeSection.value = 'toolmenu'
   loadShortcutSettings()
   loadUtilityMenuSettings()
+  loadPerformanceSettings()
+  loadDirectoryHealthSummary()
   resetFavoriteEditing()
 })
 
@@ -217,6 +221,29 @@ const handleThemeToggle = (event) => {
 
 const clearingCache = ref(false)
 const cleanEmptyLoading = ref(false)
+const performanceSettingsLoading = ref(false)
+const performanceSettingsSaving = ref(false)
+const directoryHealthLoading = ref(false)
+const directoryHealthRunningAction = ref('')
+const performanceForm = ref({
+  mode: 'auto',
+  initialBatchSize: 60,
+  pageSize: 50,
+  thumbPreferred: true,
+  backgroundVariantWarmup: true,
+  metadataLazy: true,
+})
+const directoryHealthSummary = ref({
+  totalImages: 0,
+  emptyFolderCount: 0,
+  invalidTagReferenceCount: 0,
+  invalidFavoriteReferenceCount: 0,
+  thumbCacheCount: 0,
+  thumbCacheBytes: 0,
+  previewCacheCount: 0,
+  previewCacheBytes: 0,
+  issues: [],
+})
 
 const formatBytes = (value) => {
   if (!value) return '0 B'
@@ -228,6 +255,69 @@ const formatBytes = (value) => {
     index += 1
   }
   return `${size.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+}
+
+const normalizePerformanceSettings = (settings = {}) => ({
+  mode: ['auto', 'standard', 'performance'].includes(settings?.mode) ? settings.mode : 'auto',
+  initialBatchSize: Math.min(Math.max(Number(settings?.initialBatchSize) || 60, 20), 500),
+  pageSize: Math.min(Math.max(Number(settings?.pageSize) || 50, 20), 500),
+  thumbPreferred: settings?.thumbPreferred !== false,
+  backgroundVariantWarmup: settings?.backgroundVariantWarmup !== false,
+  metadataLazy: settings?.metadataLazy !== false,
+})
+
+const loadPerformanceSettings = async () => {
+  performanceSettingsLoading.value = true
+  try {
+    const settings = await App.GetGalleryPerformanceSettings()
+    performanceForm.value = normalizePerformanceSettings(settings || {})
+  } catch (error) {
+    performanceForm.value = normalizePerformanceSettings()
+    toast.error(normalizeError(error, '加载性能模式设置失败'))
+  } finally {
+    performanceSettingsLoading.value = false
+  }
+}
+
+const savePerformanceSettings = async () => {
+  performanceSettingsSaving.value = true
+  try {
+    const saved = await App.SaveGalleryPerformanceSettings(normalizePerformanceSettings(performanceForm.value))
+    performanceForm.value = normalizePerformanceSettings(saved || {})
+    toast.success('性能模式设置已保存')
+    emit('refresh-images')
+  } catch (error) {
+    toast.error(normalizeError(error, '保存性能模式设置失败'))
+  } finally {
+    performanceSettingsSaving.value = false
+  }
+}
+
+const loadDirectoryHealthSummary = async () => {
+  directoryHealthLoading.value = true
+  try {
+    directoryHealthSummary.value = await App.GetDirectoryHealthSummary()
+  } catch (error) {
+    toast.error(normalizeError(error, '加载目录健康状态失败'))
+  } finally {
+    directoryHealthLoading.value = false
+  }
+}
+
+const runDirectoryHealthAction = async (action) => {
+  directoryHealthRunningAction.value = action
+  try {
+    directoryHealthSummary.value = await App.RunDirectoryHealthAction(action)
+    emit('refresh-images')
+    if (action === 'clear_preview_cache') toast.success('预览缓存已清理')
+    if (action === 'clean_empty_folders') toast.success('空文件夹已清理')
+    if (action === 'cleanup_tags') toast.success('失效标签引用已清理')
+    if (action === 'cleanup_favorites') toast.success('失效收藏引用已清理')
+  } catch (error) {
+    toast.error(normalizeError(error, '目录健康操作失败'))
+  } finally {
+    directoryHealthRunningAction.value = ''
+  }
 }
 
 const clearPreviewCache = async () => {
@@ -589,6 +679,69 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <div v-else-if="activeSection === 'performance'" class="space-y-4">
+              <div class="rounded-2xl border bg-muted/20 p-5 space-y-5">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <div class="text-base font-semibold">性能模式</div>
+                    <div class="text-sm text-muted-foreground">控制大型图库下的加载、分页与元数据策略。</div>
+                  </div>
+                  <Button :disabled="performanceSettingsLoading || performanceSettingsSaving" @click="savePerformanceSettings">
+                    <Save class="mr-2 h-4 w-4" />
+                    {{ performanceSettingsSaving ? '保存中...' : '保存设置' }}
+                  </Button>
+                </div>
+
+                <div v-if="performanceSettingsLoading" class="rounded-xl border bg-background px-4 py-10 text-center text-sm text-muted-foreground">
+                  正在加载性能设置...
+                </div>
+                <template v-else>
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <label class="space-y-2">
+                      <div class="text-sm font-medium">当前模式</div>
+                      <select v-model="performanceForm.mode" class="h-10 w-full rounded-xl border bg-background px-3 text-sm">
+                        <option value="auto">自动</option>
+                        <option value="standard">标准</option>
+                        <option value="performance">性能优先</option>
+                      </select>
+                    </label>
+                    <label class="space-y-2">
+                      <div class="text-sm font-medium">首屏加载数量</div>
+                      <Input v-model.number="performanceForm.initialBatchSize" type="number" min="20" max="500" />
+                    </label>
+                    <label class="space-y-2">
+                      <div class="text-sm font-medium">默认每页数量</div>
+                      <Input v-model.number="performanceForm.pageSize" type="number" min="20" max="500" />
+                    </label>
+                  </div>
+
+                  <div class="grid gap-3">
+                    <div class="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
+                      <div>
+                        <div class="font-medium">优先显示缩略图</div>
+                        <div class="text-sm text-muted-foreground">降低列表阶段的原图解码压力。</div>
+                      </div>
+                      <Switch v-model:checked="performanceForm.thumbPreferred" />
+                    </div>
+                    <div class="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
+                      <div>
+                        <div class="font-medium">后台预热缩略图</div>
+                        <div class="text-sm text-muted-foreground">在空闲时提前生成缩略图，降低后续等待。</div>
+                      </div>
+                      <Switch v-model:checked="performanceForm.backgroundVariantWarmup" />
+                    </div>
+                    <div class="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
+                      <div>
+                        <div class="font-medium">延迟读取元数据</div>
+                        <div class="text-sm text-muted-foreground">先保证列表流畅度，详情页再补齐完整信息。</div>
+                      </div>
+                      <Switch v-model:checked="performanceForm.metadataLazy" />
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
             <div v-else-if="activeSection === 'favorites'" class="space-y-4">
               <div class="rounded-2xl border bg-muted/20 p-5 space-y-4">
                 <div class="text-base font-semibold">新建收藏分组</div>
@@ -676,6 +829,83 @@ onUnmounted(() => {
                   <Save class="mr-2 h-4 w-4" />
                   {{ shortcutSaving ? '保存中...' : '保存快捷键设置' }}
                 </Button>
+              </div>
+            </div>
+
+            <div v-else-if="activeSection === 'health'" class="space-y-4">
+              <div class="rounded-2xl border bg-muted/20 p-5 space-y-4">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <div class="text-base font-semibold">目录健康</div>
+                    <div class="text-sm text-muted-foreground">检查缓存、空目录和失效引用，并集中执行清理动作。</div>
+                  </div>
+                  <Button variant="outline" :disabled="directoryHealthLoading || !!directoryHealthRunningAction" @click="loadDirectoryHealthSummary">
+                    {{ directoryHealthLoading ? '刷新中...' : '刷新健康状态' }}
+                  </Button>
+                </div>
+
+                <div v-if="directoryHealthLoading" class="rounded-xl border bg-background px-4 py-10 text-center text-sm text-muted-foreground">
+                  正在分析目录健康状态...
+                </div>
+                <template v-else>
+                  <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div class="rounded-xl border bg-background px-4 py-3">
+                      <div class="text-xs text-muted-foreground">图片总数</div>
+                      <div class="mt-1 text-lg font-semibold">{{ directoryHealthSummary.totalImages || 0 }}</div>
+                    </div>
+                    <div class="rounded-xl border bg-background px-4 py-3">
+                      <div class="text-xs text-muted-foreground">缩略图缓存</div>
+                      <div class="mt-1 text-lg font-semibold">{{ formatBytes(directoryHealthSummary.thumbCacheBytes || 0) }}</div>
+                    </div>
+                    <div class="rounded-xl border bg-background px-4 py-3">
+                      <div class="text-xs text-muted-foreground">预览缓存</div>
+                      <div class="mt-1 text-lg font-semibold">{{ formatBytes(directoryHealthSummary.previewCacheBytes || 0) }}</div>
+                    </div>
+                    <div class="rounded-xl border bg-background px-4 py-3">
+                      <div class="text-xs text-muted-foreground">空目录</div>
+                      <div class="mt-1 text-lg font-semibold">{{ directoryHealthSummary.emptyFolderCount || 0 }}</div>
+                    </div>
+                    <div class="rounded-xl border bg-background px-4 py-3">
+                      <div class="text-xs text-muted-foreground">失效标签引用</div>
+                      <div class="mt-1 text-lg font-semibold">{{ directoryHealthSummary.invalidTagReferenceCount || 0 }}</div>
+                    </div>
+                    <div class="rounded-xl border bg-background px-4 py-3">
+                      <div class="text-xs text-muted-foreground">失效收藏引用</div>
+                      <div class="mt-1 text-lg font-semibold">{{ directoryHealthSummary.invalidFavoriteReferenceCount || 0 }}</div>
+                    </div>
+                  </div>
+
+                  <div class="space-y-3">
+                    <div
+                      v-for="issue in directoryHealthSummary.issues || []"
+                      :key="issue.key"
+                      class="rounded-xl border bg-background px-4 py-4"
+                    >
+                      <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="font-medium">{{ issue.title }}</div>
+                          <div class="mt-1 text-sm text-muted-foreground">{{ issue.description }}</div>
+                          <div class="mt-2 text-xs text-muted-foreground">问题数量：{{ issue.count }}</div>
+                        </div>
+                        <Button
+                          v-if="issue.action"
+                          variant="outline"
+                          :disabled="!!directoryHealthRunningAction"
+                          @click="runDirectoryHealthAction(issue.action)"
+                        >
+                          <Loader2 v-if="directoryHealthRunningAction === issue.action" class="mr-2 h-4 w-4 animate-spin" />
+                          执行处理
+                        </Button>
+                      </div>
+                    </div>
+                    <div
+                      v-if="!(directoryHealthSummary.issues || []).length"
+                      class="rounded-xl border bg-background px-4 py-8 text-center text-sm text-muted-foreground"
+                    >
+                      当前没有检测到需要处理的问题。
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
 

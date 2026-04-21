@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"bytes"
@@ -12,7 +12,8 @@ import (
 	"fmt"
 	"image"
 	_ "image/gif"
-	_ "image/png"
+	_ "image/jpeg"
+	"image/png"
 	"io"
 	"io/fs"
 	"log"
@@ -32,22 +33,25 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 type ImageFile struct {
-	Name       string   `json:"name"`
-	Path       string   `json:"path"`
-	RelPath    string   `json:"relPath"`
-	ModTime    string   `json:"modTime"`
-	Size       int64    `json:"size"`
-	Width      int      `json:"width"`
-	Height     int      `json:"height"`
-	Prompt     string   `json:"prompt,omitempty"`
-	Model      string   `json:"model,omitempty"`
-	Loras      []string `json:"loras,omitempty"`
-	SearchText string   `json:"searchText,omitempty"`
+	Name        string   `json:"name"`
+	Path        string   `json:"path"`
+	ThumbPath   string   `json:"thumbPath,omitempty"`
+	PreviewPath string   `json:"previewPath,omitempty"`
+	RelPath     string   `json:"relPath"`
+	ModTime     string   `json:"modTime"`
+	Size        int64    `json:"size"`
+	Width       int      `json:"width"`
+	Height      int      `json:"height"`
+	Prompt      string   `json:"prompt,omitempty"`
+	Model       string   `json:"model,omitempty"`
+	Loras       []string `json:"loras,omitempty"`
+	SearchText  string   `json:"searchText,omitempty"`
 }
 
 type ImageMetaCacheEntry struct {
@@ -142,14 +146,126 @@ type TrashMetadata struct {
 }
 
 type Settings struct {
-	TrashRetentionDays int              `json:"trashRetentionDays"`
-	RootDir            string           `json:"rootDir,omitempty"`
-	OutputDir          string           `json:"outputDir,omitempty"`
-	OutputConfigured   bool             `json:"outputConfigured,omitempty"`
-	PathVersion        int              `json:"pathVersion,omitempty"`
-	ShortcutSettings   ShortcutSettings `json:"shortcutSettings,omitempty"`
-	UserProfile        UserProfile      `json:"userProfile,omitempty"`
-	UtilityMenu        UtilityMenuState `json:"utilityMenu,omitempty"`
+	TrashRetentionDays             int              `json:"trashRetentionDays"`
+	RootDir                        string           `json:"rootDir,omitempty"`
+	OutputDir                      string           `json:"outputDir,omitempty"`
+	OutputConfigured               bool             `json:"outputConfigured,omitempty"`
+	PathVersion                    int              `json:"pathVersion,omitempty"`
+	ShortcutSettings               ShortcutSettings `json:"shortcutSettings,omitempty"`
+	UserProfile                    UserProfile      `json:"userProfile,omitempty"`
+	UtilityMenu                    UtilityMenuState `json:"utilityMenu,omitempty"`
+	GalleryPerformanceMode         string           `json:"galleryPerformanceMode,omitempty"`
+	GalleryInitialBatchSize        int              `json:"galleryInitialBatchSize,omitempty"`
+	GalleryPageSize                int              `json:"galleryPageSize,omitempty"`
+	GalleryThumbPreferred          bool             `json:"galleryThumbPreferred,omitempty"`
+	GalleryBackgroundVariantWarmup bool             `json:"galleryBackgroundVariantWarmup,omitempty"`
+	GalleryMetadataLazy            bool             `json:"galleryMetadataLazy,omitempty"`
+}
+
+type GalleryPerformanceSettings struct {
+	Mode                    string `json:"mode"`
+	InitialBatchSize        int    `json:"initialBatchSize"`
+	PageSize                int    `json:"pageSize"`
+	ThumbPreferred          bool   `json:"thumbPreferred"`
+	BackgroundVariantWarmup bool   `json:"backgroundVariantWarmup"`
+	MetadataLazy            bool   `json:"metadataLazy"`
+}
+
+type ImageGallerySummary struct {
+	TotalImages       int    `json:"totalImages"`
+	ManagedRootCount  int    `json:"managedRootCount"`
+	ActiveMode        string `json:"activeMode"`
+	ModeReason        string `json:"modeReason"`
+	ThumbCacheCount   int    `json:"thumbCacheCount"`
+	ThumbCacheBytes   int64  `json:"thumbCacheBytes"`
+	PreviewCacheCount int    `json:"previewCacheCount"`
+	PreviewCacheBytes int64  `json:"previewCacheBytes"`
+}
+
+type DirectoryHealthIssue struct {
+	Key         string `json:"key"`
+	Level       string `json:"level"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Count       int    `json:"count"`
+	Action      string `json:"action,omitempty"`
+}
+
+type DirectoryHealthSummary struct {
+	TotalImages                   int                    `json:"totalImages"`
+	EmptyFolderCount              int                    `json:"emptyFolderCount"`
+	InvalidTagReferenceCount      int                    `json:"invalidTagReferenceCount"`
+	InvalidFavoriteReferenceCount int                    `json:"invalidFavoriteReferenceCount"`
+	ThumbCacheCount               int                    `json:"thumbCacheCount"`
+	ThumbCacheBytes               int64                  `json:"thumbCacheBytes"`
+	PreviewCacheCount             int                    `json:"previewCacheCount"`
+	PreviewCacheBytes             int64                  `json:"previewCacheBytes"`
+	Issues                        []DirectoryHealthIssue `json:"issues"`
+}
+
+type GetImagesPageQuery struct {
+	SortBy            string `json:"sortBy"`
+	SortOrder         string `json:"sortOrder"`
+	Page              int    `json:"page"`
+	PageSize          int    `json:"pageSize"`
+	ScopeRelPath      string `json:"scopeRelPath,omitempty"`
+	FavoritesOnly     bool   `json:"favoritesOnly,omitempty"`
+	FavoriteGroupID   string `json:"favoriteGroupId,omitempty"`
+	SearchQuery       string `json:"searchQuery,omitempty"`
+	ActiveTagID       string `json:"activeTagId,omitempty"`
+	ActiveModelFilter string `json:"activeModelFilter,omitempty"`
+	ActiveLoraFilter  string `json:"activeLoraFilter,omitempty"`
+	ActiveDatePreset  string `json:"activeDatePreset,omitempty"`
+	ActiveDateStart   string `json:"activeDateStart,omitempty"`
+	ActiveDateEnd     string `json:"activeDateEnd,omitempty"`
+}
+
+type GetImagesPageResult struct {
+	Items      []ImageFile `json:"items"`
+	Total      int         `json:"total"`
+	Page       int         `json:"page"`
+	PageSize   int         `json:"pageSize"`
+	TotalPages int         `json:"totalPages"`
+	HasMore    bool        `json:"hasMore"`
+	Mode       string      `json:"mode"`
+	ModeReason string      `json:"modeReason,omitempty"`
+}
+
+type WorkbenchSummaryQuery struct {
+	ActiveDatePreset  string `json:"activeDatePreset,omitempty"`
+	ActiveDateStart   string `json:"activeDateStart,omitempty"`
+	ActiveDateEnd     string `json:"activeDateEnd,omitempty"`
+	ActiveModelFilter string `json:"activeModelFilter,omitempty"`
+	ActiveLoraFilter  string `json:"activeLoraFilter,omitempty"`
+}
+
+type WorkbenchFilterOption struct {
+	Value   string   `json:"value"`
+	Label   string   `json:"label"`
+	Count   int      `json:"count"`
+	Aliases []string `json:"aliases,omitempty"`
+}
+
+type WorkbenchRecentDate struct {
+	Date  string `json:"date"`
+	Count int    `json:"count"`
+}
+
+type WorkbenchSummary struct {
+	Total       int                   `json:"total"`
+	DatedTotal  int                   `json:"datedTotal"`
+	Today       int                   `json:"today"`
+	Yesterday   int                   `json:"yesterday"`
+	Last7       int                   `json:"last7"`
+	Month       int                   `json:"month"`
+	RecentDates []WorkbenchRecentDate `json:"recentDates"`
+}
+
+type WorkbenchAggregateResult struct {
+	AvailableModels []WorkbenchFilterOption `json:"availableModels"`
+	AvailableLoras  []WorkbenchFilterOption `json:"availableLoras"`
+	Summary         WorkbenchSummary        `json:"summary"`
+	FilteredCount   int                     `json:"filteredCount"`
 }
 
 type UserProfile struct {
@@ -301,6 +417,11 @@ type CacheClearResult struct {
 const defaultFavoriteGroupID = "default"
 const defaultFavoriteGroupName = "Default Favorites"
 const profileAssetPrefix = "__profile__/"
+const variantAssetPrefix = "__variant__/"
+const thumbVariantAssetPrefix = variantAssetPrefix + "thumb/"
+const previewVariantAssetPrefix = variantAssetPrefix + "preview/"
+const thumbVariantMaxDimension = 640
+const previewVariantMaxDimension = 1600
 
 type ImageNotesMap map[string]string // relPath -> note text
 
@@ -310,6 +431,7 @@ type CustomRoot struct {
 	Path      string `json:"path"`
 	Icon      string `json:"icon"`
 	Order     int    `json:"order,omitempty"`
+	Pinned    bool   `json:"pinned,omitempty"`
 	Enabled   bool   `json:"enabled"`
 	Locked    bool   `json:"locked,omitempty"`
 	IsBuiltin bool   `json:"isBuiltin,omitempty"`
@@ -350,7 +472,7 @@ type DirectoryBinding struct {
 var tagMutex sync.Mutex
 
 const pathVersionRootRelative = 2
-const customRootsVersion = 2
+const customRootsVersion = 3
 const builtinDateArchiveRootID = "builtin-date-archive"
 const trashAssetPrefix = "__trash__/"
 
@@ -689,6 +811,187 @@ func (a *App) resolveProfileAssetPath(relPath string) (string, error) {
 		return "", fmt.Errorf("profile asset path is invalid")
 	}
 	return absPath, nil
+}
+
+func imageVariantFilename(kind, relPath string) string {
+	sum := md5.Sum([]byte(kind + ":" + normalizeRelPath(relPath)))
+	return hex.EncodeToString(sum[:]) + ".png"
+}
+
+func (a *App) imageVariantURL(kind, relPath string) string {
+	cleaned := normalizeRelPath(relPath)
+	if cleaned == "" {
+		return ""
+	}
+	switch kind {
+	case "thumb":
+		return thumbVariantAssetPrefix + cleaned
+	case "preview":
+		return previewVariantAssetPrefix + cleaned
+	default:
+		return ""
+	}
+}
+
+func (a *App) resolveVariantSource(relPath string) (kind string, sourceRelPath string, err error) {
+	cleaned := normalizeRelPath(strings.TrimPrefix(relPath, variantAssetPrefix))
+	parts := strings.SplitN(cleaned, "/", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("variant path is invalid")
+	}
+	kind = strings.TrimSpace(parts[0])
+	sourceRelPath = normalizeRelPath(parts[1])
+	if sourceRelPath == "" {
+		return "", "", fmt.Errorf("variant source path is empty")
+	}
+	switch kind {
+	case "thumb", "preview":
+		return kind, sourceRelPath, nil
+	default:
+		return "", "", fmt.Errorf("variant kind is invalid")
+	}
+}
+
+func (a *App) variantSpec(kind string) (dir string, maxDimension int, err error) {
+	switch kind {
+	case "thumb":
+		return a.thumbVariantsDir(), thumbVariantMaxDimension, nil
+	case "preview":
+		return a.previewVariantsDir(), previewVariantMaxDimension, nil
+	default:
+		return "", 0, fmt.Errorf("unsupported variant kind")
+	}
+}
+
+func scaledImageDimensions(width, height, maxDimension int) (int, int) {
+	if width <= 0 || height <= 0 || maxDimension <= 0 {
+		return 0, 0
+	}
+	if width <= maxDimension && height <= maxDimension {
+		return width, height
+	}
+	if width >= height {
+		targetWidth := maxDimension
+		targetHeight := int(float64(height) * float64(maxDimension) / float64(width))
+		if targetHeight < 1 {
+			targetHeight = 1
+		}
+		return targetWidth, targetHeight
+	}
+	targetHeight := maxDimension
+	targetWidth := int(float64(width) * float64(maxDimension) / float64(height))
+	if targetWidth < 1 {
+		targetWidth = 1
+	}
+	return targetWidth, targetHeight
+}
+
+func (a *App) ensureImageVariant(kind, relPath string) (string, error) {
+	sourceRelPath := normalizeRelPath(relPath)
+	if sourceRelPath == "" {
+		return "", fmt.Errorf("variant source path is empty")
+	}
+
+	variantDir, maxDimension, err := a.variantSpec(kind)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(variantDir, 0755); err != nil {
+		return "", err
+	}
+
+	sourcePath, err := a.resolveRootPath(sourceRelPath)
+	if err != nil {
+		return "", err
+	}
+	sourceInfo, err := os.Stat(sourcePath)
+	if err != nil {
+		return "", err
+	}
+
+	variantPath := filepath.Join(variantDir, imageVariantFilename(kind, sourceRelPath))
+	if variantInfo, statErr := os.Stat(variantPath); statErr == nil && !sourceInfo.ModTime().After(variantInfo.ModTime()) {
+		return variantPath, nil
+	}
+
+	sourceFile, err := os.Open(sourcePath)
+	if err != nil {
+		return "", err
+	}
+	defer sourceFile.Close()
+
+	sourceImage, _, err := image.Decode(sourceFile)
+	if err != nil {
+		return "", err
+	}
+
+	bounds := sourceImage.Bounds()
+	targetWidth, targetHeight := scaledImageDimensions(bounds.Dx(), bounds.Dy(), maxDimension)
+	if targetWidth <= 0 || targetHeight <= 0 {
+		return "", fmt.Errorf("invalid image dimensions")
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), sourceImage, bounds, draw.Over, nil)
+
+	tempPath := variantPath + "." + strconv.FormatInt(time.Now().UnixNano(), 10) + ".tmp"
+	outputFile, err := os.Create(tempPath)
+	if err != nil {
+		return "", err
+	}
+	encodeErr := png.Encode(outputFile, dst)
+	closeErr := outputFile.Close()
+	if encodeErr != nil {
+		_ = os.Remove(tempPath)
+		return "", encodeErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tempPath)
+		return "", closeErr
+	}
+
+	_ = os.Remove(variantPath)
+	if err := os.Chtimes(tempPath, sourceInfo.ModTime(), sourceInfo.ModTime()); err != nil {
+		_ = os.Remove(tempPath)
+		return "", err
+	}
+	if err := os.Rename(tempPath, variantPath); err != nil {
+		_ = os.Remove(tempPath)
+		return "", err
+	}
+
+	return variantPath, nil
+}
+
+func (a *App) warmImageVariantsAsync(items []ImageFile, settings GalleryPerformanceSettings) {
+	if !settings.BackgroundVariantWarmup || len(items) == 0 {
+		return
+	}
+
+	targets := make([]ImageFile, len(items))
+	copy(targets, items)
+
+	go func() {
+		previewLimit := 6
+		if settings.InitialBatchSize > 0 && settings.InitialBatchSize < previewLimit {
+			previewLimit = settings.InitialBatchSize
+		}
+		if settings.PageSize > 0 && settings.PageSize < previewLimit {
+			previewLimit = settings.PageSize
+		}
+		if previewLimit < 1 {
+			previewLimit = 1
+		}
+
+		for index, item := range targets {
+			if _, err := a.ensureImageVariant("thumb", item.RelPath); err != nil {
+				continue
+			}
+			if index < previewLimit {
+				_, _ = a.ensureImageVariant("preview", item.RelPath)
+			}
+		}
+	}()
 }
 
 func isLegacyProfileAssetPath(relPath string) bool {
@@ -1079,6 +1382,13 @@ func (a *App) serveImage(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.HasPrefix(path, profileAssetPrefix):
 		absPath, err = a.resolveProfileAssetPath(path)
+	case strings.HasPrefix(path, variantAssetPrefix):
+		kind, sourceRelPath, resolveErr := a.resolveVariantSource(path)
+		if resolveErr != nil {
+			err = resolveErr
+			break
+		}
+		absPath, err = a.ensureImageVariant(kind, sourceRelPath)
 	case strings.HasPrefix(path, trashAssetPrefix):
 		absPath, err = a.resolveTrashAssetPath(path)
 	default:
@@ -1221,6 +1531,133 @@ func uniqueNonEmptyStrings(items []string) []string {
 
 func normalizeSearchValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func collapseSpaces(value string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+}
+
+func prettifyAssetLabel(value string) string {
+	base := filepath.Base(strings.TrimSpace(value))
+	base = strings.TrimSuffix(base, filepath.Ext(base))
+	base = strings.ReplaceAll(base, "_", " ")
+	return strings.TrimSpace(base)
+}
+
+func normalizeAssetKey(value string) string {
+	normalized := strings.ToLower(collapseSpaces(prettifyAssetLabel(value)))
+	normalized = strings.ReplaceAll(normalized, "-", " ")
+	return collapseSpaces(normalized)
+}
+
+func extractDateKeyFromRelPath(relPath string, modTime time.Time) string {
+	parts := strings.Split(normalizeRelPath(relPath), "/")
+	for _, part := range parts {
+		if matched, _ := regexp.MatchString(`^\d{4}-\d{2}-\d{2}$`, part); matched {
+			return part
+		}
+	}
+	if modTime.IsZero() {
+		return ""
+	}
+	return modTime.Format("2006-01-02")
+}
+
+func parseDate(value string) time.Time {
+	parsed, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(value), time.Local)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
+}
+
+func matchesDatePreset(dateKey, preset, start, end string) bool {
+	if strings.TrimSpace(dateKey) == "" {
+		return false
+	}
+	dateValue := parseDate(dateKey)
+	if dateValue.IsZero() {
+		return false
+	}
+
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	switch strings.TrimSpace(strings.ToLower(preset)) {
+	case "", "all":
+		return true
+	case "today":
+		return dateValue.Equal(today)
+	case "yesterday":
+		return dateValue.Equal(today.AddDate(0, 0, -1))
+	case "last7":
+		startDate := today.AddDate(0, 0, -6)
+		return !dateValue.Before(startDate) && !dateValue.After(today)
+	case "month":
+		return dateValue.Year() == today.Year() && dateValue.Month() == today.Month()
+	case "custom":
+		startDate := parseDate(start)
+		endDate := parseDate(end)
+		if !startDate.IsZero() && dateValue.Before(startDate) {
+			return false
+		}
+		if !endDate.IsZero() && dateValue.After(endDate) {
+			return false
+		}
+		return true
+	default:
+		return true
+	}
+}
+
+func resolveGalleryLoadMode(settings GalleryPerformanceSettings, totalImages int) (string, string) {
+	switch settings.Mode {
+	case "performance":
+		return "performance", "已手动启用性能优先模式"
+	case "standard":
+		return "standard", "已手动保持标准模式"
+	default:
+		if totalImages >= 3000 {
+			return "performance", "图库总量较大，已自动切换为性能优先模式"
+		}
+		return "standard", "图库规模尚可，继续使用标准模式"
+	}
+}
+
+func matchesScopeRelPath(relPath, scopeRelPath string) bool {
+	scope := normalizeRelPath(scopeRelPath)
+	current := normalizeRelPath(relPath)
+	if scope == "" {
+		return true
+	}
+	return current == scope || strings.HasPrefix(current, scope+"/")
+}
+
+func hasFavoritePath(groups []FavoriteGroup, relPath string, favoriteGroupID string) bool {
+	target := normalizeRelPath(relPath)
+	if target == "" {
+		return false
+	}
+	for _, group := range groups {
+		if favoriteGroupID != "" && group.ID != favoriteGroupID {
+			continue
+		}
+		for _, path := range group.Paths {
+			if normalizeRelPath(path) == target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func getManagedImagesCount(a *App) int {
+	count := 0
+	_ = a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
+		count++
+		return nil
+	})
+	return count
 }
 
 func stripUTF8BOM(data []byte) []byte {
@@ -2291,6 +2728,123 @@ func findFavoriteGroupIndex(groups []FavoriteGroup, id string) int {
 	return -1
 }
 
+func sortImageFiles(images []ImageFile, sortBy, sortOrder string) {
+	sort.Slice(images, func(i, j int) bool {
+		var less bool
+		switch sortBy {
+		case "time":
+			less = images[i].ModTime < images[j].ModTime
+		case "size":
+			less = images[i].Size < images[j].Size
+		case "name":
+			less = images[i].Name < images[j].Name
+		case "dimensions":
+			less = (images[i].Width * images[i].Height) < (images[j].Width * images[j].Height)
+		default:
+			less = images[i].ModTime < images[j].ModTime
+		}
+
+		if sortOrder == "desc" {
+			return !less
+		}
+		return less
+	})
+}
+
+func aggregateWorkbenchFilterOptions(values []string) []WorkbenchFilterOption {
+	type aggregateEntry struct {
+		Value   string
+		Label   string
+		Count   int
+		Aliases map[string]struct{}
+	}
+
+	grouped := make(map[string]*aggregateEntry)
+	for _, raw := range values {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			continue
+		}
+
+		key := normalizeAssetKey(trimmed)
+		if key == "" {
+			continue
+		}
+
+		label := prettifyAssetLabel(trimmed)
+		if label == "" {
+			label = trimmed
+		}
+
+		entry, exists := grouped[key]
+		if !exists {
+			entry = &aggregateEntry{
+				Value:   key,
+				Label:   label,
+				Count:   0,
+				Aliases: map[string]struct{}{},
+			}
+			grouped[key] = entry
+		}
+
+		entry.Count++
+		entry.Aliases[trimmed] = struct{}{}
+		if len(label) < len(entry.Label) {
+			entry.Label = label
+		}
+	}
+
+	options := make([]WorkbenchFilterOption, 0, len(grouped))
+	for _, entry := range grouped {
+		aliases := make([]string, 0, len(entry.Aliases))
+		for alias := range entry.Aliases {
+			aliases = append(aliases, alias)
+		}
+		sort.Strings(aliases)
+		options = append(options, WorkbenchFilterOption{
+			Value:   entry.Value,
+			Label:   entry.Label,
+			Count:   entry.Count,
+			Aliases: aliases,
+		})
+	}
+
+	sort.Slice(options, func(i, j int) bool {
+		if options[i].Count != options[j].Count {
+			return options[i].Count > options[j].Count
+		}
+		return options[i].Label < options[j].Label
+	})
+
+	return options
+}
+
+func (a *App) GetImagesIndex(sortBy, sortOrder string) ([]ImageFile, error) {
+	if !a.hasDirectoryBinding() {
+		return []ImageFile{}, nil
+	}
+
+	images := make([]ImageFile, 0, 512)
+	err := a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
+		images = append(images, ImageFile{
+			Name:        filepath.Base(path),
+			Path:        relPath,
+			ThumbPath:   a.imageVariantURL("thumb", relPath),
+			PreviewPath: a.imageVariantURL("preview", relPath),
+			RelPath:     relPath,
+			ModTime:     info.ModTime().UTC().Format(time.RFC3339Nano),
+			Size:        info.Size(),
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sortImageFiles(images, sortBy, sortOrder)
+	return images, nil
+}
+
 // --- Images ---
 
 func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
@@ -2406,17 +2960,19 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 		}
 
 		images = append(images, ImageFile{
-			Name:       name,
-			Path:       relPath,
-			RelPath:    relPath,
-			ModTime:    info.ModTime().UTC().Format(time.RFC3339Nano),
-			Size:       info.Size(),
-			Width:      width,
-			Height:     height,
-			Prompt:     entry.Positive,
-			Model:      entry.Model,
-			Loras:      append([]string(nil), entry.Loras...),
-			SearchText: entry.SearchText,
+			Name:        name,
+			Path:        relPath,
+			ThumbPath:   a.imageVariantURL("thumb", relPath),
+			PreviewPath: a.imageVariantURL("preview", relPath),
+			RelPath:     relPath,
+			ModTime:     info.ModTime().UTC().Format(time.RFC3339Nano),
+			Size:        info.Size(),
+			Width:       width,
+			Height:      height,
+			Prompt:      entry.Positive,
+			Model:       entry.Model,
+			Loras:       append([]string(nil), entry.Loras...),
+			SearchText:  entry.SearchText,
 		})
 		return nil
 	})
@@ -2441,26 +2997,7 @@ func (a *App) GetImages(sortBy, sortOrder string) ([]ImageFile, error) {
 		a.scheduleAutoRulesRun(autoRuleCandidates)
 	}
 
-	sort.Slice(images, func(i, j int) bool {
-		var less bool
-		switch sortBy {
-		case "time":
-			less = images[i].ModTime < images[j].ModTime
-		case "size":
-			less = images[i].Size < images[j].Size
-		case "name":
-			less = images[i].Name < images[j].Name
-		case "dimensions":
-			less = (images[i].Width * images[i].Height) < (images[j].Width * images[j].Height)
-		default:
-			less = images[i].ModTime < images[j].ModTime
-		}
-
-		if sortOrder == "desc" {
-			return !less
-		}
-		return less
-	})
+	sortImageFiles(images, sortBy, sortOrder)
 
 	return images, nil
 }
@@ -3362,6 +3899,7 @@ func (a *App) loadSettings() (Settings, error) {
 	originalShortcutSettings := settings.ShortcutSettings
 	originalUserProfile := settings.UserProfile
 	originalUtilityMenu := settings.UtilityMenu
+	originalPerformanceSettings := settingsToGalleryPerformanceSettings(settings)
 	originalOutputConfigured := settings.OutputConfigured
 	originalTrashRetention := settings.TrashRetentionDays
 	if settings.TrashRetentionDays <= 0 {
@@ -3373,23 +3911,96 @@ func (a *App) loadSettings() (Settings, error) {
 	settings.ShortcutSettings = normalizeShortcutSettings(settings.ShortcutSettings)
 	settings.UserProfile = normalizeUserProfile(settings.UserProfile)
 	settings.UtilityMenu = normalizeUtilityMenuState(settings.UtilityMenu)
+	applyGalleryPerformanceSettings(&settings, settingsToGalleryPerformanceSettings(settings))
 	if settings.TrashRetentionDays != originalTrashRetention ||
 		settings.OutputConfigured != originalOutputConfigured ||
 		!reflect.DeepEqual(settings.ShortcutSettings, originalShortcutSettings) ||
 		!reflect.DeepEqual(settings.UserProfile, originalUserProfile) ||
-		!reflect.DeepEqual(settings.UtilityMenu, originalUtilityMenu) {
+		!reflect.DeepEqual(settings.UtilityMenu, originalUtilityMenu) ||
+		!reflect.DeepEqual(settingsToGalleryPerformanceSettings(settings), originalPerformanceSettings) {
 		_ = a.saveSettings(settings)
 	}
 	return settings, nil
 }
 
 func defaultSettings() Settings {
+	perf := defaultGalleryPerformanceSettings()
 	return Settings{
-		TrashRetentionDays: 30,
-		ShortcutSettings:   defaultShortcutSettings(),
-		UserProfile:        defaultUserProfile(),
-		UtilityMenu:        defaultUtilityMenuState(),
+		TrashRetentionDays:             30,
+		ShortcutSettings:               defaultShortcutSettings(),
+		UserProfile:                    defaultUserProfile(),
+		UtilityMenu:                    defaultUtilityMenuState(),
+		GalleryPerformanceMode:         perf.Mode,
+		GalleryInitialBatchSize:        perf.InitialBatchSize,
+		GalleryPageSize:                perf.PageSize,
+		GalleryThumbPreferred:          perf.ThumbPreferred,
+		GalleryBackgroundVariantWarmup: perf.BackgroundVariantWarmup,
+		GalleryMetadataLazy:            perf.MetadataLazy,
 	}
+}
+
+func defaultGalleryPerformanceSettings() GalleryPerformanceSettings {
+	return GalleryPerformanceSettings{
+		Mode:                    "auto",
+		InitialBatchSize:        60,
+		PageSize:                50,
+		ThumbPreferred:          true,
+		BackgroundVariantWarmup: true,
+		MetadataLazy:            true,
+	}
+}
+
+func normalizeGalleryPerformanceSettings(settings GalleryPerformanceSettings) GalleryPerformanceSettings {
+	defaults := defaultGalleryPerformanceSettings()
+
+	switch strings.TrimSpace(strings.ToLower(settings.Mode)) {
+	case "auto", "standard", "performance":
+		settings.Mode = strings.TrimSpace(strings.ToLower(settings.Mode))
+	default:
+		settings.Mode = defaults.Mode
+	}
+
+	if settings.InitialBatchSize <= 0 {
+		settings.InitialBatchSize = defaults.InitialBatchSize
+	}
+	if settings.InitialBatchSize > 500 {
+		settings.InitialBatchSize = 500
+	}
+
+	if settings.PageSize <= 0 {
+		settings.PageSize = defaults.PageSize
+	}
+	if settings.PageSize > 500 {
+		settings.PageSize = 500
+	}
+
+	if !settings.ThumbPreferred && !settings.BackgroundVariantWarmup && !settings.MetadataLazy &&
+		settings.Mode == "" && settings.InitialBatchSize == 0 && settings.PageSize == 0 {
+		return defaults
+	}
+
+	return settings
+}
+
+func settingsToGalleryPerformanceSettings(settings Settings) GalleryPerformanceSettings {
+	return normalizeGalleryPerformanceSettings(GalleryPerformanceSettings{
+		Mode:                    settings.GalleryPerformanceMode,
+		InitialBatchSize:        settings.GalleryInitialBatchSize,
+		PageSize:                settings.GalleryPageSize,
+		ThumbPreferred:          settings.GalleryThumbPreferred,
+		BackgroundVariantWarmup: settings.GalleryBackgroundVariantWarmup,
+		MetadataLazy:            settings.GalleryMetadataLazy,
+	})
+}
+
+func applyGalleryPerformanceSettings(settings *Settings, performance GalleryPerformanceSettings) {
+	performance = normalizeGalleryPerformanceSettings(performance)
+	settings.GalleryPerformanceMode = performance.Mode
+	settings.GalleryInitialBatchSize = performance.InitialBatchSize
+	settings.GalleryPageSize = performance.PageSize
+	settings.GalleryThumbPreferred = performance.ThumbPreferred
+	settings.GalleryBackgroundVariantWarmup = performance.BackgroundVariantWarmup
+	settings.GalleryMetadataLazy = performance.MetadataLazy
 }
 
 func (a *App) saveSettings(settings Settings) error {
@@ -5359,6 +5970,721 @@ func (a *App) SaveUtilityMenuSettings(state UtilityMenuState) (UtilityMenuState,
 	return settings.UtilityMenu, nil
 }
 
+func (a *App) GetGalleryPerformanceSettings() (GalleryPerformanceSettings, error) {
+	settings, err := a.loadSettings()
+	if err != nil {
+		return defaultGalleryPerformanceSettings(), err
+	}
+	return settingsToGalleryPerformanceSettings(settings), nil
+}
+
+func (a *App) SaveGalleryPerformanceSettings(performance GalleryPerformanceSettings) (GalleryPerformanceSettings, error) {
+	settings, err := a.loadSettings()
+	if err != nil {
+		return defaultGalleryPerformanceSettings(), err
+	}
+	applyGalleryPerformanceSettings(&settings, performance)
+	if err := a.saveSettings(settings); err != nil {
+		return defaultGalleryPerformanceSettings(), err
+	}
+	return settingsToGalleryPerformanceSettings(settings), nil
+}
+
+func (a *App) GetImageGallerySummary() (ImageGallerySummary, error) {
+	settings, err := a.loadSettings()
+	if err != nil {
+		return ImageGallerySummary{}, err
+	}
+
+	totalImages := getManagedImagesCount(a)
+	mode, reason := resolveGalleryLoadMode(settingsToGalleryPerformanceSettings(settings), totalImages)
+	thumbFiles, _, thumbBytes, thumbErr := measureDirectoryUsage(a.thumbVariantsDir())
+	if thumbErr != nil && !os.IsNotExist(thumbErr) {
+		return ImageGallerySummary{}, thumbErr
+	}
+	previewFiles, _, previewBytes, previewErr := measureDirectoryUsage(a.previewVariantsDir())
+	if previewErr != nil && !os.IsNotExist(previewErr) {
+		return ImageGallerySummary{}, previewErr
+	}
+
+	return ImageGallerySummary{
+		TotalImages:       totalImages,
+		ManagedRootCount:  len(a.managedImageRoots()),
+		ActiveMode:        mode,
+		ModeReason:        reason,
+		ThumbCacheCount:   thumbFiles,
+		ThumbCacheBytes:   thumbBytes,
+		PreviewCacheCount: previewFiles,
+		PreviewCacheBytes: previewBytes,
+	}, nil
+}
+
+func (a *App) countEmptyFolders() int {
+	if !a.hasDirectoryBinding() {
+		return 0
+	}
+
+	emptyDirs := 0
+	filepath.WalkDir(a.imageDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		if d.Name() == "node_modules" || d.Name() == ".git" || d.Name() == ".trash" || d.Name() == "desktop-source" {
+			return fs.SkipDir
+		}
+		if path == a.imageDir {
+			return nil
+		}
+
+		entries, readErr := os.ReadDir(path)
+		if readErr != nil {
+			return nil
+		}
+		isEmpty := true
+		for _, entry := range entries {
+			if entry.IsDir() {
+				isEmpty = false
+				break
+			}
+			nameUpper := strings.ToUpper(entry.Name())
+			if nameUpper != "THUMBS.DB" && nameUpper != ".DS_STORE" && nameUpper != "DESKTOP.INI" {
+				isEmpty = false
+				break
+			}
+		}
+		if isEmpty {
+			emptyDirs++
+		}
+		return nil
+	})
+
+	return emptyDirs
+}
+
+func (a *App) countInvalidTagReferences() int {
+	imageTags, _ := a.loadImageTags()
+	validPaths := make(map[string]bool)
+	_ = a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
+		validPaths[relPath] = true
+		return nil
+	})
+
+	invalid := 0
+	for relPath := range imageTags {
+		if !validPaths[relPath] {
+			invalid++
+		}
+	}
+	return invalid
+}
+
+func (a *App) countInvalidFavoriteReferences() int {
+	groups, _ := a.loadFavoriteGroups()
+	validPaths := make(map[string]bool)
+	_ = a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
+		validPaths[relPath] = true
+		return nil
+	})
+
+	invalid := 0
+	for _, group := range groups {
+		for _, relPath := range group.Paths {
+			if !validPaths[normalizeRelPath(relPath)] {
+				invalid++
+			}
+		}
+	}
+	return invalid
+}
+
+func (a *App) buildDirectoryHealthSummary() (DirectoryHealthSummary, error) {
+	totalImages := getManagedImagesCount(a)
+	thumbFiles, _, thumbBytes, thumbErr := measureDirectoryUsage(a.thumbVariantsDir())
+	if thumbErr != nil && !os.IsNotExist(thumbErr) {
+		return DirectoryHealthSummary{}, thumbErr
+	}
+	previewFiles, _, previewBytes, previewErr := measureDirectoryUsage(a.previewVariantsDir())
+	if previewErr != nil && !os.IsNotExist(previewErr) {
+		return DirectoryHealthSummary{}, previewErr
+	}
+
+	summary := DirectoryHealthSummary{
+		TotalImages:                   totalImages,
+		EmptyFolderCount:              a.countEmptyFolders(),
+		InvalidTagReferenceCount:      a.countInvalidTagReferences(),
+		InvalidFavoriteReferenceCount: a.countInvalidFavoriteReferences(),
+		ThumbCacheCount:               thumbFiles,
+		ThumbCacheBytes:               thumbBytes,
+		PreviewCacheCount:             previewFiles,
+		PreviewCacheBytes:             previewBytes,
+		Issues:                        []DirectoryHealthIssue{},
+	}
+
+	cacheCount := summary.ThumbCacheCount + summary.PreviewCacheCount
+	if summary.EmptyFolderCount > 0 {
+		summary.Issues = append(summary.Issues, DirectoryHealthIssue{
+			Key:         "empty_folders",
+			Level:       "warning",
+			Title:       "检测到空文件夹",
+			Description: "这些目录不包含图片，可安全清理。",
+			Count:       summary.EmptyFolderCount,
+			Action:      "clean_empty_folders",
+		})
+	}
+	if summary.InvalidTagReferenceCount > 0 {
+		summary.Issues = append(summary.Issues, DirectoryHealthIssue{
+			Key:         "invalid_tag_refs",
+			Level:       "warning",
+			Title:       "存在失效标签引用",
+			Description: "部分标签记录仍然指向不存在的图片。",
+			Count:       summary.InvalidTagReferenceCount,
+			Action:      "cleanup_tags",
+		})
+	}
+	if summary.InvalidFavoriteReferenceCount > 0 {
+		summary.Issues = append(summary.Issues, DirectoryHealthIssue{
+			Key:         "invalid_favorite_refs",
+			Level:       "warning",
+			Title:       "存在失效收藏引用",
+			Description: "部分收藏分组记录仍然指向不存在的图片。",
+			Count:       summary.InvalidFavoriteReferenceCount,
+			Action:      "cleanup_favorites",
+		})
+	}
+	if cacheCount > 0 {
+		summary.Issues = append(summary.Issues, DirectoryHealthIssue{
+			Key:         "cache_usage",
+			Level:       "info",
+			Title:       "存在缓存占用",
+			Description: "可清理预览缓存以回收空间，缩略图会在后续浏览时重新生成。",
+			Count:       cacheCount,
+			Action:      "clear_preview_cache",
+		})
+	}
+
+	return summary, nil
+}
+
+func (a *App) GetDirectoryHealthSummary() (DirectoryHealthSummary, error) {
+	return a.buildDirectoryHealthSummary()
+}
+
+func (a *App) RunDirectoryHealthAction(action string) (DirectoryHealthSummary, error) {
+	switch strings.TrimSpace(action) {
+	case "clear_preview_cache":
+		if _, err := a.ClearPreviewCache(); err != nil {
+			return DirectoryHealthSummary{}, err
+		}
+	case "clean_empty_folders":
+		if _, err := a.CleanEmptyFolders(); err != nil {
+			return DirectoryHealthSummary{}, err
+		}
+	case "cleanup_tags":
+		if _, err := a.CleanupTags(); err != nil {
+			return DirectoryHealthSummary{}, err
+		}
+	case "cleanup_favorites":
+		if _, err := a.CleanupFavoriteReferences(); err != nil {
+			return DirectoryHealthSummary{}, err
+		}
+	default:
+		return DirectoryHealthSummary{}, fmt.Errorf("unsupported health action")
+	}
+
+	a.scheduleImagesChangedEvent()
+	return a.buildDirectoryHealthSummary()
+}
+
+func shouldUseLightweightPagedScan(query GetImagesPageQuery, settings GalleryPerformanceSettings) bool {
+	if !settings.MetadataLazy {
+		return false
+	}
+	if strings.TrimSpace(query.SearchQuery) != "" {
+		return false
+	}
+	if strings.TrimSpace(query.ActiveModelFilter) != "" || strings.TrimSpace(query.ActiveLoraFilter) != "" {
+		return false
+	}
+	if strings.TrimSpace(query.SortBy) == "dimensions" {
+		return false
+	}
+	return true
+}
+
+func (a *App) buildPagedResultFromItems(items []ImageFile, query GetImagesPageQuery, mode, reason string) GetImagesPageResult {
+	total := len(items)
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + query.PageSize - 1) / query.PageSize
+	}
+	if totalPages == 0 {
+		query.Page = 1
+	} else if query.Page > totalPages {
+		query.Page = totalPages
+	}
+
+	startIndex := (query.Page - 1) * query.PageSize
+	if startIndex < 0 {
+		startIndex = 0
+	}
+	endIndex := startIndex + query.PageSize
+	if endIndex > total {
+		endIndex = total
+	}
+
+	pageItems := []ImageFile{}
+	if startIndex < total && startIndex < endIndex {
+		pageItems = items[startIndex:endIndex]
+	}
+
+	return GetImagesPageResult{
+		Items:      pageItems,
+		Total:      total,
+		Page:       query.Page,
+		PageSize:   query.PageSize,
+		TotalPages: totalPages,
+		HasMore:    endIndex < total,
+		Mode:       mode,
+		ModeReason: reason,
+	}
+}
+
+func (a *App) getImagesPageLightweight(query GetImagesPageQuery, settings GalleryPerformanceSettings, mode, reason string) (GetImagesPageResult, error) {
+	a.ensureImageMetaCacheLoaded()
+	cachedMeta := a.snapshotImageMetaCache()
+	newCache := make(ImageMetaCache, len(cachedMeta))
+	imageTags, _ := a.loadImageTags()
+	favoriteGroups, _ := a.loadFavoriteGroups()
+
+	filtered := make([]ImageFile, 0, 256)
+	warmupTaskMap := make(map[string]imageMetaWarmupTask)
+	cacheChanged := len(cachedMeta) == 0
+
+	err := a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
+		modTime := info.ModTime().UTC().Format(time.RFC3339Nano)
+		name := filepath.Base(path)
+
+		entry := ImageMetaCacheEntry{
+			Name:    name,
+			RelPath: relPath,
+			ModTime: modTime,
+			Size:    info.Size(),
+		}
+
+		taskNeeded := false
+		if cached, ok := cachedMeta[relPath]; ok && cached.ModTime == modTime && cached.Size == info.Size() {
+			entry.Width = cached.Width
+			entry.Height = cached.Height
+			entry.MetadataScanned = cached.MetadataScanned
+			entry.HasMetadata = cached.HasMetadata
+			entry.HasWorkflow = cached.HasWorkflow
+			entry.Positive = cached.Positive
+			entry.Negative = cached.Negative
+			entry.Model = cached.Model
+			entry.Sampler = cached.Sampler
+			if len(cached.Loras) > 0 {
+				entry.Loras = append([]string(nil), cached.Loras...)
+			}
+			entry.SearchText = cached.SearchText
+			if entry.Width == 0 && entry.Height == 0 {
+				taskNeeded = true
+			} else if !entry.MetadataScanned {
+				taskNeeded = true
+			}
+		} else {
+			cacheChanged = true
+			taskNeeded = true
+		}
+
+		if entry.SearchText == "" {
+			entry.SearchText = buildImageSearchTextFromCacheEntry(entry)
+			cacheChanged = true
+		}
+		newCache[relPath] = entry
+
+		if taskNeeded {
+			warmupTaskMap[relPath] = imageMetaWarmupTask{
+				Path: path,
+				Entry: ImageMetaCacheEntry{
+					Name:    name,
+					RelPath: relPath,
+					ModTime: modTime,
+					Size:    info.Size(),
+				},
+			}
+		}
+
+		if !matchesScopeRelPath(relPath, query.ScopeRelPath) {
+			return nil
+		}
+		if query.FavoritesOnly && !hasFavoritePath(favoriteGroups, relPath, query.FavoriteGroupID) {
+			return nil
+		}
+		if query.ActiveTagID != "" && !contains(imageTags[relPath], query.ActiveTagID) {
+			return nil
+		}
+
+		dateKey := extractDateKeyFromRelPath(relPath, info.ModTime())
+		if !matchesDatePreset(dateKey, query.ActiveDatePreset, query.ActiveDateStart, query.ActiveDateEnd) {
+			return nil
+		}
+
+		filtered = append(filtered, ImageFile{
+			Name:        name,
+			Path:        relPath,
+			ThumbPath:   a.imageVariantURL("thumb", relPath),
+			PreviewPath: a.imageVariantURL("preview", relPath),
+			RelPath:     relPath,
+			ModTime:     modTime,
+			Size:        info.Size(),
+			Width:       entry.Width,
+			Height:      entry.Height,
+			Prompt:      entry.Positive,
+			Model:       entry.Model,
+			Loras:       append([]string(nil), entry.Loras...),
+			SearchText:  entry.SearchText,
+		})
+		return nil
+	})
+	if err != nil {
+		return GetImagesPageResult{}, err
+	}
+
+	if len(newCache) != len(cachedMeta) {
+		cacheChanged = true
+	}
+
+	a.replaceImageMetaCache(newCache)
+	if cacheChanged {
+		if err := a.saveImageMetaCache(newCache); err != nil {
+			log.Printf("failed to save lightweight image metadata cache: %v", err)
+		}
+	}
+
+	sortImageFiles(filtered, query.SortBy, query.SortOrder)
+	result := a.buildPagedResultFromItems(filtered, query, mode, reason)
+
+	if len(result.Items) > 0 {
+		warmupTasks := make([]imageMetaWarmupTask, 0, len(result.Items))
+		for _, item := range result.Items {
+			if task, ok := warmupTaskMap[item.RelPath]; ok {
+				warmupTasks = append(warmupTasks, task)
+			}
+		}
+		a.scheduleImageMetaWarmup(warmupTasks)
+	}
+	a.warmImageVariantsAsync(result.Items, settings)
+
+	return result, nil
+}
+
+func (a *App) GetWorkbenchAggregate(query WorkbenchSummaryQuery) (WorkbenchAggregateResult, error) {
+	if !a.hasDirectoryBinding() {
+		return WorkbenchAggregateResult{
+			AvailableModels: []WorkbenchFilterOption{},
+			AvailableLoras:  []WorkbenchFilterOption{},
+			Summary:         WorkbenchSummary{RecentDates: []WorkbenchRecentDate{}},
+			FilteredCount:   0,
+		}, nil
+	}
+
+	a.ensureImageMetaCacheLoaded()
+	cachedMeta := a.snapshotImageMetaCache()
+	newCache := make(ImageMetaCache, len(cachedMeta))
+	warmupTaskMap := make(map[string]imageMetaWarmupTask)
+	modelValues := make([]string, 0, 256)
+	loraValues := make([]string, 0, 256)
+	dateCountMap := make(map[string]int)
+	cacheChanged := len(cachedMeta) == 0
+	filteredCount := 0
+	datedTotal := 0
+	todayCount := 0
+	yesterdayCount := 0
+	last7Count := 0
+	monthCount := 0
+
+	err := a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
+		modTime := info.ModTime().UTC().Format(time.RFC3339Nano)
+		name := filepath.Base(path)
+
+		entry := ImageMetaCacheEntry{
+			Name:    name,
+			RelPath: relPath,
+			ModTime: modTime,
+			Size:    info.Size(),
+		}
+
+		taskNeeded := false
+		if cached, ok := cachedMeta[relPath]; ok && cached.ModTime == modTime && cached.Size == info.Size() {
+			entry.Width = cached.Width
+			entry.Height = cached.Height
+			entry.MetadataScanned = cached.MetadataScanned
+			entry.HasMetadata = cached.HasMetadata
+			entry.HasWorkflow = cached.HasWorkflow
+			entry.Positive = cached.Positive
+			entry.Negative = cached.Negative
+			entry.Model = cached.Model
+			entry.Sampler = cached.Sampler
+			if len(cached.Loras) > 0 {
+				entry.Loras = append([]string(nil), cached.Loras...)
+			}
+			entry.SearchText = cached.SearchText
+			if entry.Width == 0 && entry.Height == 0 {
+				taskNeeded = true
+			} else if !entry.MetadataScanned {
+				taskNeeded = true
+			}
+		} else {
+			cacheChanged = true
+			taskNeeded = true
+		}
+
+		if entry.SearchText == "" {
+			entry.SearchText = buildImageSearchTextFromCacheEntry(entry)
+			cacheChanged = true
+		}
+		newCache[relPath] = entry
+
+		if taskNeeded {
+			warmupTaskMap[relPath] = imageMetaWarmupTask{
+				Path: path,
+				Entry: ImageMetaCacheEntry{
+					Name:    name,
+					RelPath: relPath,
+					ModTime: modTime,
+					Size:    info.Size(),
+				},
+			}
+		}
+
+		if strings.TrimSpace(entry.Model) != "" {
+			modelValues = append(modelValues, entry.Model)
+		}
+		if len(entry.Loras) > 0 {
+			loraValues = append(loraValues, entry.Loras...)
+		}
+
+		dateKey := extractDateKeyFromRelPath(relPath, info.ModTime().In(time.Local))
+
+		modelMatched := true
+		if query.ActiveModelFilter != "" {
+			modelMatched = normalizeAssetKey(entry.Model) == normalizeAssetKey(query.ActiveModelFilter)
+		}
+		loraMatched := true
+		if query.ActiveLoraFilter != "" {
+			target := normalizeAssetKey(query.ActiveLoraFilter)
+			loraMatched = false
+			for _, lora := range entry.Loras {
+				if normalizeAssetKey(lora) == target {
+					loraMatched = true
+					break
+				}
+			}
+		}
+
+		if modelMatched && loraMatched {
+			dateMatched := matchesDatePreset(dateKey, query.ActiveDatePreset, query.ActiveDateStart, query.ActiveDateEnd)
+			if dateMatched {
+				filteredCount++
+				if dateKey != "" {
+					dateCountMap[dateKey]++
+					datedTotal++
+				}
+			}
+			if matchesDatePreset(dateKey, "today", "", "") {
+				todayCount++
+			}
+			if matchesDatePreset(dateKey, "yesterday", "", "") {
+				yesterdayCount++
+			}
+			if matchesDatePreset(dateKey, "last7", "", "") {
+				last7Count++
+			}
+			if matchesDatePreset(dateKey, "month", "", "") {
+				monthCount++
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return WorkbenchAggregateResult{}, err
+	}
+
+	if len(newCache) != len(cachedMeta) {
+		cacheChanged = true
+	}
+	a.replaceImageMetaCache(newCache)
+	if cacheChanged {
+		if err := a.saveImageMetaCache(newCache); err != nil {
+			log.Printf("failed to save workbench image metadata cache: %v", err)
+		}
+	}
+
+	if len(warmupTaskMap) > 0 {
+		warmupTasks := make([]imageMetaWarmupTask, 0, len(warmupTaskMap))
+		for _, task := range warmupTaskMap {
+			warmupTasks = append(warmupTasks, task)
+		}
+		a.scheduleImageMetaWarmup(warmupTasks)
+	}
+
+	recentDates := make([]WorkbenchRecentDate, 0, len(dateCountMap))
+	for dateKey, count := range dateCountMap {
+		recentDates = append(recentDates, WorkbenchRecentDate{
+			Date:  dateKey,
+			Count: count,
+		})
+	}
+	sort.Slice(recentDates, func(i, j int) bool {
+		return recentDates[i].Date > recentDates[j].Date
+	})
+	if len(recentDates) > 12 {
+		recentDates = recentDates[:12]
+	}
+
+	return WorkbenchAggregateResult{
+		AvailableModels: aggregateWorkbenchFilterOptions(modelValues),
+		AvailableLoras:  aggregateWorkbenchFilterOptions(loraValues),
+		Summary: WorkbenchSummary{
+			Total:       filteredCount,
+			DatedTotal:  datedTotal,
+			Today:       todayCount,
+			Yesterday:   yesterdayCount,
+			Last7:       last7Count,
+			Month:       monthCount,
+			RecentDates: recentDates,
+		},
+		FilteredCount: filteredCount,
+	}, nil
+}
+
+func (a *App) GetImagesPage(query GetImagesPageQuery) (GetImagesPageResult, error) {
+	if !a.hasDirectoryBinding() {
+		return GetImagesPageResult{
+			Items:      []ImageFile{},
+			Total:      0,
+			Page:       1,
+			PageSize:   1,
+			TotalPages: 0,
+			HasMore:    false,
+			Mode:       "standard",
+		}, nil
+	}
+
+	if strings.TrimSpace(query.SortBy) == "" {
+		query.SortBy = "time"
+	}
+	if strings.TrimSpace(query.SortOrder) == "" {
+		query.SortOrder = "desc"
+	}
+	if query.Page <= 0 {
+		query.Page = 1
+	}
+	if query.PageSize <= 0 {
+		query.PageSize = defaultGalleryPerformanceSettings().PageSize
+	}
+	if query.PageSize > 500 {
+		query.PageSize = 500
+	}
+
+	settings, _ := a.loadSettings()
+	performanceSettings := settingsToGalleryPerformanceSettings(settings)
+	mode, reason := resolveGalleryLoadMode(performanceSettings, getManagedImagesCount(a))
+	if shouldUseLightweightPagedScan(query, performanceSettings) {
+		return a.getImagesPageLightweight(query, performanceSettings, mode, reason)
+	}
+
+	images, err := a.GetImages(query.SortBy, query.SortOrder)
+	if err != nil {
+		return GetImagesPageResult{}, err
+	}
+
+	imageTags, _ := a.loadImageTags()
+	notes, _ := a.loadImageNotes()
+	tags, _ := a.loadTags()
+	tagNameMap := make(map[string]string, len(tags))
+	for _, tag := range tags {
+		tagNameMap[tag.ID] = tag.Name
+	}
+	favoriteGroups, _ := a.loadFavoriteGroups()
+
+	filtered := make([]ImageFile, 0, len(images))
+	for _, img := range images {
+		if !matchesScopeRelPath(img.RelPath, query.ScopeRelPath) {
+			continue
+		}
+		if query.FavoritesOnly && !hasFavoritePath(favoriteGroups, img.RelPath, query.FavoriteGroupID) {
+			continue
+		}
+		if query.ActiveTagID != "" && !contains(imageTags[img.RelPath], query.ActiveTagID) {
+			continue
+		}
+		if query.ActiveModelFilter != "" && normalizeAssetKey(img.Model) != normalizeAssetKey(query.ActiveModelFilter) {
+			continue
+		}
+		if query.ActiveLoraFilter != "" {
+			target := normalizeAssetKey(query.ActiveLoraFilter)
+			matched := false
+			for _, lora := range img.Loras {
+				if normalizeAssetKey(lora) == target {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		modTime, _ := time.Parse(time.RFC3339Nano, img.ModTime)
+		modTime = modTime.In(time.Local)
+		dateKey := extractDateKeyFromRelPath(img.RelPath, modTime)
+		if !matchesDatePreset(dateKey, query.ActiveDatePreset, query.ActiveDateStart, query.ActiveDateEnd) {
+			continue
+		}
+
+		normalizedQuery := normalizeSearchValue(query.SearchQuery)
+		if normalizedQuery != "" {
+			tagTexts := make([]string, 0)
+			for _, tagID := range imageTags[img.RelPath] {
+				if name := strings.TrimSpace(tagNameMap[tagID]); name != "" {
+					tagTexts = append(tagTexts, name)
+				}
+			}
+			searchParts := []string{
+				img.Name,
+				img.RelPath,
+				img.Prompt,
+				img.Model,
+				img.SearchText,
+				notes[img.RelPath],
+				strings.Join(img.Loras, " "),
+				strings.Join(tagTexts, " "),
+			}
+			matched := false
+			for _, part := range searchParts {
+				if strings.Contains(normalizeSearchValue(part), normalizedQuery) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		filtered = append(filtered, img)
+	}
+
+	result := a.buildPagedResultFromItems(filtered, query, mode, reason)
+	a.warmImageVariantsAsync(result.Items, performanceSettings)
+	return result, nil
+}
+
 func (a *App) GetUserProfile() (UserProfile, error) {
 	settings, err := a.loadSettings()
 	if err != nil {
@@ -5643,6 +6969,10 @@ func (a *App) CleanupTags() (int, error) {
 	return a.cleanupTagsSilent()
 }
 
+func (a *App) CleanupFavoriteReferences() (int, error) {
+	return a.cleanupFavoriteReferencesSilent()
+}
+
 func (a *App) cleanupTagsSilent() (int, error) {
 	imageTags, _ := a.loadImageTags()
 
@@ -5664,6 +6994,47 @@ func (a *App) cleanupTagsSilent() (int, error) {
 
 	if removedCount > 0 {
 		a.saveImageTags(newImageTags)
+	}
+
+	return removedCount, nil
+}
+
+func (a *App) cleanupFavoriteReferencesSilent() (int, error) {
+	groups, err := a.loadFavoriteGroups()
+	if err != nil {
+		return 0, err
+	}
+
+	validPaths := make(map[string]bool)
+	_ = a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
+		validPaths[relPath] = true
+		return nil
+	})
+
+	removedCount := 0
+	changed := false
+	for i := range groups {
+		filtered := make([]string, 0, len(groups[i].Paths))
+		for _, relPath := range groups[i].Paths {
+			normalized := normalizeRelPath(relPath)
+			if normalized == "" || !validPaths[normalized] {
+				removedCount++
+				changed = true
+				continue
+			}
+			filtered = append(filtered, normalized)
+		}
+		filtered = uniqueNonEmptyStrings(filtered)
+		if len(filtered) != len(groups[i].Paths) {
+			changed = true
+		}
+		groups[i].Paths = filtered
+	}
+
+	if changed {
+		if err := a.saveFavoriteGroups(groups); err != nil {
+			return 0, err
+		}
 	}
 
 	return removedCount, nil
@@ -5881,24 +7252,35 @@ func (a *App) GetStatistics(period string) (*Stats, error) {
 		tagIDsToNames[t.ID] = t.Name
 	}
 
-	now := time.Now()
+	now := time.Now().In(time.Local)
 	today := now.Format("2006-01-02")
 
 	err := a.walkManagedImages(func(path, relPath string, info fs.FileInfo) error {
 		stats.TotalCount++
 		stats.TotalSize += info.Size()
 
-		modTime := info.ModTime()
-		dateStr := modTime.Format("2006-01-02")
+		modTime := info.ModTime().In(time.Local)
+		dateStr := extractDateKeyFromRelPath(relPath, modTime)
+		if strings.TrimSpace(dateStr) == "" {
+			dateStr = modTime.Format("2006-01-02")
+		}
 		if dateStr == today {
 			stats.TodayCount++
 		}
 
 		dateKey := dateStr
 		if period == "month" {
-			dateKey = modTime.Format("2006-01")
+			if parsedDate := parseDate(dateStr); !parsedDate.IsZero() {
+				dateKey = parsedDate.Format("2006-01")
+			} else {
+				dateKey = modTime.Format("2006-01")
+			}
 		} else if period == "year" {
-			dateKey = modTime.Format("2006")
+			if parsedDate := parseDate(dateStr); !parsedDate.IsZero() {
+				dateKey = parsedDate.Format("2006")
+			} else {
+				dateKey = modTime.Format("2006")
+			}
 		}
 		stats.ByDate[dateKey]++
 
@@ -6045,6 +7427,7 @@ func normalizeCustomRoots(roots []CustomRoot, preserveEnabled bool) []CustomRoot
 	builtin := defaultDateArchiveCustomRoot()
 	builtinEnabled := builtin.Enabled
 	builtinOrder := 1
+	builtinPinned := builtin.Pinned
 	allRoots := make([]CustomRoot, 0, len(roots)+1)
 	seenPaths := map[string]bool{}
 
@@ -6061,6 +7444,7 @@ func normalizeCustomRoots(roots []CustomRoot, preserveEnabled bool) []CustomRoot
 			if root.Order > 0 {
 				builtinOrder = root.Order
 			}
+			builtinPinned = root.Pinned
 			continue
 		}
 
@@ -6080,6 +7464,7 @@ func normalizeCustomRoots(roots []CustomRoot, preserveEnabled bool) []CustomRoot
 			Path:      pathValue,
 			Icon:      strings.TrimSpace(root.Icon),
 			Order:     root.Order,
+			Pinned:    root.Pinned,
 			Enabled:   enabled,
 			Locked:    false,
 			IsBuiltin: false,
@@ -6088,9 +7473,13 @@ func normalizeCustomRoots(roots []CustomRoot, preserveEnabled bool) []CustomRoot
 
 	builtin.Enabled = builtinEnabled
 	builtin.Order = builtinOrder
+	builtin.Pinned = builtinPinned
 	allRoots = append(allRoots, builtin)
 
 	sort.SliceStable(allRoots, func(i, j int) bool {
+		if allRoots[i].Pinned != allRoots[j].Pinned {
+			return allRoots[i].Pinned
+		}
 		leftOrder := allRoots[i].Order
 		rightOrder := allRoots[j].Order
 		if leftOrder <= 0 {
@@ -6326,6 +7715,42 @@ func (a *App) MoveCustomRoot(id, direction string) error {
 	}
 
 	roots[index].Order, roots[target].Order = roots[target].Order, roots[index].Order
+	if err := a.saveCustomRoots(roots); err != nil {
+		return err
+	}
+	a.scheduleImagesChangedEvent()
+	return nil
+}
+
+func (a *App) PinCustomRoot(id string) error {
+	roots, _ := a.loadCustomRoots()
+	index := -1
+	for i := range roots {
+		if roots[i].ID == id {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return fmt.Errorf("未找到要置顶的自定义目录")
+	}
+	if roots[index].Pinned {
+		roots[index].Pinned = false
+		roots[index].Order = len(roots) + 1
+		if err := a.saveCustomRoots(roots); err != nil {
+			return err
+		}
+		a.scheduleImagesChangedEvent()
+		return nil
+	}
+
+	for i := range roots {
+		if roots[i].ID != id {
+			roots[i].Order++
+		}
+	}
+	roots[index].Pinned = true
+	roots[index].Order = 1
 	if err := a.saveCustomRoots(roots); err != nil {
 		return err
 	}
@@ -6915,4 +8340,3 @@ func (a *App) DeletePromptTemplate(id string) error {
 	}
 	return a.savePromptTemplates(newTemplates)
 }
-

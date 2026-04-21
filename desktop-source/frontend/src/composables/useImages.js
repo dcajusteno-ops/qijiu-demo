@@ -10,6 +10,7 @@ import {
 } from '@/lib/dateWorkbench'
 
 const images = ref([])
+const indexedImages = ref([])
 const loading = ref(true)
 const activeRoot = ref('dashboard')
 const activeSub = ref('')
@@ -42,6 +43,59 @@ const isStackingEnabled = ref(localStorage.getItem('isStackingEnabled') !== 'fal
 
 const currentPage = ref(Number(localStorage.getItem('currentPage')) || 1)
 const itemsPerPage = ref(Number(localStorage.getItem('itemsPerPage')) || 50)
+const performanceSettings = ref({
+  mode: 'auto',
+  initialBatchSize: 60,
+  pageSize: 50,
+  thumbPreferred: true,
+  backgroundVariantWarmup: true,
+  metadataLazy: true,
+})
+const gallerySummary = ref({
+  totalImages: 0,
+  managedRootCount: 0,
+  activeMode: 'standard',
+  modeReason: '',
+  thumbCacheCount: 0,
+  thumbCacheBytes: 0,
+  previewCacheCount: 0,
+  previewCacheBytes: 0,
+})
+const directoryHealthSummary = ref({
+  totalImages: 0,
+  emptyFolderCount: 0,
+  invalidTagReferenceCount: 0,
+  invalidFavoriteReferenceCount: 0,
+  thumbCacheCount: 0,
+  thumbCacheBytes: 0,
+  previewCacheCount: 0,
+  previewCacheBytes: 0,
+  issues: [],
+})
+const workbenchAggregate = ref({
+  availableModels: [],
+  availableLoras: [],
+  summary: {
+    total: 0,
+    datedTotal: 0,
+    today: 0,
+    yesterday: 0,
+    last7: 0,
+    month: 0,
+    recentDates: [],
+  },
+  filteredCount: 0,
+})
+const galleryLoadMode = ref('standard')
+const pagedImages = ref([])
+const pagedTotal = ref(0)
+const pagedTotalPages = ref(1)
+const hasMorePagedImages = ref(false)
+const isPagedLoading = ref(false)
+const isPagedAppending = ref(false)
+const modeReason = ref('')
+const lastSuccessfulQuery = ref(null)
+let latestPagedRequestId = 0
 
 const favorites = ref(new Set())
 const favoriteGroups = ref([])
@@ -180,6 +234,15 @@ const getFavoritePathSet = (groups) => {
   return set
 }
 
+const normalizePerformanceSettings = (settings = {}) => ({
+  mode: ['auto', 'standard', 'performance'].includes(settings?.mode) ? settings.mode : 'auto',
+  initialBatchSize: Math.min(Math.max(Number(settings?.initialBatchSize) || 60, 20), 500),
+  pageSize: Math.min(Math.max(Number(settings?.pageSize) || 50, 20), 500),
+  thumbPreferred: settings?.thumbPreferred !== false,
+  backgroundVariantWarmup: settings?.backgroundVariantWarmup !== false,
+  metadataLazy: settings?.metadataLazy !== false,
+})
+
 export function useImages(showToast = () => {}, confirm = async () => false) {
   const fetchCustomRoots = async () => {
     try {
@@ -198,6 +261,58 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     } catch (e) {
       console.error(e)
     }
+  }
+
+  const loadPerformanceSettings = async () => {
+    try {
+      const next = await App.GetGalleryPerformanceSettings()
+      performanceSettings.value = normalizePerformanceSettings(next || {})
+    } catch (e) {
+      console.error('Failed to load performance settings:', e)
+      performanceSettings.value = normalizePerformanceSettings()
+    }
+    itemsPerPage.value = performanceSettings.value.pageSize
+  }
+
+  const savePerformanceSettings = async (nextSettings) => {
+    const saved = await App.SaveGalleryPerformanceSettings(normalizePerformanceSettings(nextSettings))
+    performanceSettings.value = normalizePerformanceSettings(saved || {})
+    itemsPerPage.value = performanceSettings.value.pageSize
+    localStorage.setItem('itemsPerPage', itemsPerPage.value)
+    return performanceSettings.value
+  }
+
+  const fetchGallerySummary = async () => {
+    try {
+      gallerySummary.value = await App.GetImageGallerySummary()
+    } catch (e) {
+      console.error('Failed to fetch gallery summary:', e)
+    }
+    return gallerySummary.value
+  }
+
+  const fetchDirectoryHealthSummary = async () => {
+    try {
+      directoryHealthSummary.value = await App.GetDirectoryHealthSummary()
+    } catch (e) {
+      console.error('Failed to fetch directory health summary:', e)
+    }
+    return directoryHealthSummary.value
+  }
+
+  const fetchWorkbenchAggregate = async () => {
+    try {
+      workbenchAggregate.value = await App.GetWorkbenchAggregate({
+        activeDatePreset: activeDatePreset.value || 'all',
+        activeDateStart: activeDateStart.value || '',
+        activeDateEnd: activeDateEnd.value || '',
+        activeModelFilter: activeModelFilter.value || '',
+        activeLoraFilter: activeLoraFilter.value || '',
+      })
+    } catch (e) {
+      console.error('Failed to fetch workbench aggregate:', e)
+    }
+    return workbenchAggregate.value
   }
 
   const toggleFavorite = async (img) => {
@@ -237,12 +352,7 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
 
       favoriteGroups.value = groups || []
       favorites.value = getFavoritePathSet(groups)
-      images.value = (imgs || []).map((img) => ({
-        ...img,
-        path: buildImageDisplayPath(img.path, img.modTime, img.size),
-        loras: Array.isArray(img.loras) ? img.loras : [],
-        isFavorite: favorites.value.has(normalizeFolderPath(img.relPath)),
-      }))
+      images.value = (imgs || []).map(mapLoadedImage)
     } catch (err) {
       console.error(err)
     } finally {
@@ -250,10 +360,30 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     }
   }
 
+  const fetchImageIndex = async () => {
+    try {
+      const [imgs, groups] = await Promise.all([
+        App.GetImagesIndex(sortBy.value, sortOrder.value),
+        App.GetFavoriteGroups(),
+      ])
+
+      images.value = []
+      favoriteGroups.value = groups || []
+      favorites.value = getFavoritePathSet(groups)
+      indexedImages.value = (imgs || []).map(mapLoadedImage)
+    } catch (err) {
+      console.error('Failed to fetch image index:', err)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const sourceImages = computed(() => (images.value.length > 0 ? images.value : indexedImages.value))
+
   const fileTree = computed(() => {
-    let imagesToUse = images.value
+    let imagesToUse = sourceImages.value
     if (activeTagFilter.value) {
-      imagesToUse = images.value.filter((img) =>
+      imagesToUse = sourceImages.value.filter((img) =>
         imageTags.value[img.relPath]?.includes(activeTagFilter.value),
       )
     }
@@ -262,7 +392,6 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
       .filter((root) => root && root.enabled !== false)
       .sort((a, b) => (a.order || 0) - (b.order || 0))
 
-    const dateArchiveRoot = enabledCustomRoots.find((root) => root.id === 'builtin-date-archive')
     const folderRoots = enabledCustomRoots.filter((root) => root.id !== 'builtin-date-archive')
     const customRootPaths = folderRoots
       .map((root) => normalizeFolderPath(root.path))
@@ -362,6 +491,7 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
         enabled: root.enabled !== false,
         locked: !!root.locked,
         isBuiltin: !!root.isBuiltin,
+        pinned: !!root.pinned,
         images: [],
         children: [],
         subs: [],
@@ -455,6 +585,7 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
         enabled: root.enabled !== false,
         locked: !!root.locked,
         isBuiltin: true,
+        pinned: !!root.pinned,
         images: [],
         children: [],
         subs: [],
@@ -548,10 +679,11 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     defaultRoot.displayName = '默认目录'
 
     const nodes = [favoritesRoot, defaultRoot]
-    if (dateArchiveRoot) {
-      nodes.push(buildDateArchiveNode(dateArchiveRoot, imagesToUse))
-    }
-    folderRoots.forEach((root) => {
+    enabledCustomRoots.forEach((root) => {
+      if (root.id === 'builtin-date-archive') {
+        nodes.push(buildDateArchiveNode(root, imagesToUse))
+        return
+      }
       nodes.push(buildYearGroupedRoot(root, imagesToUse))
     })
 
@@ -560,6 +692,76 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
       subs: node.children || [],
     }))
   })
+
+  const findNodeById = (nodes, id) => {
+    for (const node of nodes || []) {
+      if (node.id === id) return node
+      const found = findNodeById(node.children || node.subs || [], id)
+      if (found) return found
+    }
+    return null
+  }
+
+  const selectedGalleryNode = computed(() => {
+    const root = fileTree.value.find((node) => node.id === activeRoot.value)
+    if (!root) return null
+    if (!activeSub.value) return root
+    return findNodeById(root.children || root.subs || [], activeSub.value) || root
+  })
+
+  const isSpecialGalleryRoot = computed(() =>
+    ['dashboard', 'profile', 'documentation', 'statistics', 'date-workbench', 'prompt-assistant', 'auto-rules']
+      .includes(activeRoot.value),
+  )
+
+  const supportsPagedGalleryView = computed(() => {
+    if (isSpecialGalleryRoot.value) return false
+    if (activeRoot.value === 'favorites') return true
+    if (activeRoot.value === 'output') return true
+    if (activeRoot.value.startsWith('custom:')) {
+      return !!selectedGalleryNode.value?.relPath
+    }
+    return false
+  })
+
+  const hasAdvancedLocalFilters = computed(() => {
+    const { dateRange, size, dimensions } = filters.value
+    return !!(
+      dateRange?.start ||
+      dateRange?.end ||
+      size?.min !== null ||
+      size?.max !== null ||
+      dimensions?.minW !== null ||
+      dimensions?.minH !== null
+    )
+  })
+
+  const effectivePreferredMode = computed(() => {
+    const selectedMode = performanceSettings.value?.mode || 'auto'
+    if (selectedMode === 'performance') return 'performance'
+    if (selectedMode === 'standard') return 'standard'
+    return (gallerySummary.value?.totalImages || 0) >= 3000 ? 'performance' : 'standard'
+  })
+
+  const refreshGalleryMode = () => {
+    const preferred = effectivePreferredMode.value
+    if (preferred === 'performance' && supportsPagedGalleryView.value && !hasAdvancedLocalFilters.value) {
+      galleryLoadMode.value = 'performance'
+      modeReason.value = gallerySummary.value?.modeReason || '已启用性能优先模式'
+      return
+    }
+    galleryLoadMode.value = 'standard'
+    if (preferred === 'performance' && hasAdvancedLocalFilters.value) {
+      modeReason.value = '当前筛选依赖完整结果，已切回标准模式'
+      return
+    }
+    if (preferred === 'performance' && !supportsPagedGalleryView.value) {
+      modeReason.value = '当前视图继续使用标准模式'
+      return
+    }
+    modeReason.value = gallerySummary.value?.modeReason || '当前使用标准模式'
+  }
+
 const toggleRoot = (name) => {
     // 如果已经在该根目录，则切换到dashboard
     if (activeRoot.value === name) {
@@ -575,9 +777,10 @@ const toggleRoot = (name) => {
 
   const currentImages = computed(() => {
     if (!activeRoot.value) return []
+    const activeSourceImages = sourceImages.value
 
     if (activeRoot.value === 'favorites') {
-      const imgs = images.value.filter((img) => favorites.value.has(normalizeFolderPath(img.relPath)))
+      const imgs = activeSourceImages.filter((img) => favorites.value.has(normalizeFolderPath(img.relPath)))
       imgs.sort((a, b) => new Date(b.modTime) - new Date(a.modTime))
       if (!activeSub.value) return imgs
 
@@ -625,11 +828,184 @@ const toggleRoot = (name) => {
     return targetNode ? collectImages(targetNode) : collectImages(root)
   })
 
+  const buildPagedQuery = ({ page = currentPage.value, pageSize = itemsPerPage.value } = {}) => {
+    const query = {
+      sortBy: sortBy.value,
+      sortOrder: sortOrder.value,
+      page,
+      pageSize,
+      scopeRelPath: '',
+      favoritesOnly: false,
+      favoriteGroupId: '',
+      searchQuery: searchQuery.value || '',
+      activeTagId: activeTagFilter.value || '',
+      activeModelFilter: activeModelFilter.value || '',
+      activeLoraFilter: activeLoraFilter.value || '',
+      activeDatePreset: activeDatePreset.value || 'all',
+      activeDateStart: activeDateStart.value || '',
+      activeDateEnd: activeDateEnd.value || '',
+    }
+
+    if (activeRoot.value === 'favorites') {
+      query.favoritesOnly = true
+      query.favoriteGroupId = activeSub.value.startsWith('favorite-group:')
+        ? activeSub.value.replace('favorite-group:', '')
+        : ''
+      return query
+    }
+
+    query.scopeRelPath = selectedGalleryNode.value?.relPath || ''
+    return query
+  }
+
+const mapLoadedImage = (img) => ({
+  ...img,
+  path: buildImageDisplayPath(img.path, img.modTime, img.size),
+  thumbPath: buildImageDisplayPath(img.thumbPath, img.modTime, img.size),
+  previewPath: buildImageDisplayPath(img.previewPath, img.modTime, img.size),
+  cardPath:
+    galleryLoadMode.value === 'performance' &&
+    performanceSettings.value.thumbPreferred &&
+    buildImageDisplayPath(img.thumbPath, img.modTime, img.size)
+      ? buildImageDisplayPath(img.thumbPath, img.modTime, img.size)
+      : buildImageDisplayPath(img.path, img.modTime, img.size),
+  loras: Array.isArray(img.loras) ? img.loras : [],
+  isFavorite: favorites.value.has(normalizeFolderPath(img.relPath)),
+})
+
+  const ensureStandardImagesReady = async () => {
+    latestPagedRequestId += 1
+    if (images.value.length > 0) return
+    await fetchImages()
+  }
+
+  const removeImagesLocally = (relPaths) => {
+    const normalizedPaths = (relPaths || [])
+      .map((path) => normalizeFolderPath(path))
+      .filter(Boolean)
+    if (normalizedPaths.length === 0) return
+
+    const pathSet = new Set(normalizedPaths)
+    const filterImages = (list) => (list || []).filter((img) => !pathSet.has(normalizeFolderPath(img.relPath)))
+    const removedFromPaged = (pagedImages.value || []).filter((img) => pathSet.has(normalizeFolderPath(img.relPath))).length
+
+    images.value = filterImages(images.value)
+    indexedImages.value = filterImages(indexedImages.value)
+    pagedImages.value = filterImages(pagedImages.value)
+
+    favorites.value = new Set(
+      Array.from(favorites.value).filter((path) => !pathSet.has(normalizeFolderPath(path))),
+    )
+
+    normalizedPaths.forEach((relPath) => {
+      delete imageTags.value[relPath]
+      delete imageNotes.value[relPath]
+    })
+
+    if (removedFromPaged > 0) {
+      pagedTotal.value = Math.max(0, pagedTotal.value - removedFromPaged)
+      pagedTotalPages.value = pagedTotal.value > 0 ? Math.ceil(pagedTotal.value / itemsPerPage.value) : 0
+      if (currentPage.value > Math.max(pagedTotalPages.value, 1)) {
+        currentPage.value = Math.max(pagedTotalPages.value, 1)
+        localStorage.setItem('currentPage', currentPage.value)
+      }
+      hasMorePagedImages.value = currentPage.value < Math.max(pagedTotalPages.value, 1)
+    }
+
+    if (gallerySummary.value?.totalImages) {
+      gallerySummary.value = {
+        ...gallerySummary.value,
+        totalImages: Math.max(0, gallerySummary.value.totalImages - normalizedPaths.length),
+      }
+    }
+  }
+
+  const fetchImagesPage = async ({ page = currentPage.value, append = false } = {}) => {
+    const requestId = ++latestPagedRequestId
+    const query = buildPagedQuery({ page, pageSize: itemsPerPage.value })
+    if (append) {
+      isPagedAppending.value = true
+    } else {
+      isPagedLoading.value = true
+      loading.value = true
+    }
+
+    try {
+      const result = await App.GetImagesPage(query)
+      if (requestId !== latestPagedRequestId) return
+      const mappedItems = (result?.items || []).map(mapLoadedImage)
+      pagedImages.value = append ? [...pagedImages.value, ...mappedItems] : mappedItems
+      pagedTotal.value = Number(result?.total) || 0
+      pagedTotalPages.value = Number(result?.totalPages) || (pagedTotal.value > 0 ? 1 : 0)
+      hasMorePagedImages.value = !!result?.hasMore
+      currentPage.value = Number(result?.page) || page || 1
+      localStorage.setItem('currentPage', currentPage.value)
+      lastSuccessfulQuery.value = query
+      if (result?.modeReason) {
+        modeReason.value = result.modeReason
+      }
+    } catch (err) {
+      if (requestId !== latestPagedRequestId) return
+      console.error('Failed to fetch paged images:', err)
+      if (!append) {
+        pagedImages.value = []
+        pagedTotal.value = 0
+        pagedTotalPages.value = 0
+        hasMorePagedImages.value = false
+      }
+    } finally {
+      if (requestId !== latestPagedRequestId) return
+      isPagedLoading.value = false
+      isPagedAppending.value = false
+      if (!append) {
+        loading.value = false
+      }
+    }
+  }
+
+  const refreshCurrentGalleryView = async ({ syncSourceImages = false } = {}) => {
+    loading.value = true
+    await fetchGallerySummary()
+    const preferIndexedSource =
+      effectivePreferredMode.value === 'performance' && !hasAdvancedLocalFilters.value
+    if (syncSourceImages) {
+      if (preferIndexedSource) {
+        await fetchImageIndex()
+      } else {
+        await fetchImages()
+      }
+    }
+    refreshGalleryMode()
+    if (galleryLoadMode.value === 'performance') {
+      if (!syncSourceImages && images.value.length === 0 && indexedImages.value.length === 0) {
+        await fetchImageIndex()
+      }
+      await fetchImagesPage({ page: currentPage.value || 1 })
+      loading.value = false
+      return
+    }
+    latestPagedRequestId += 1
+    pagedImages.value = []
+    pagedTotal.value = 0
+    pagedTotalPages.value = 1
+    hasMorePagedImages.value = false
+    if (!syncSourceImages) {
+      await fetchImages()
+    }
+    loading.value = false
+  }
+
   const availableModels = computed(() => {
+    if ((workbenchAggregate.value?.availableModels || []).length > 0) {
+      return workbenchAggregate.value.availableModels
+    }
     return buildGroupedFilterOptions(images.value.map((img) => img?.model || ''))
   })
 
   const availableLoras = computed(() => {
+    if ((workbenchAggregate.value?.availableLoras || []).length > 0) {
+      return workbenchAggregate.value.availableLoras
+    }
     const loraValues = []
     images.value.forEach((img) => {
       ;(img?.loras || []).forEach((lora) => {
@@ -664,7 +1040,7 @@ const toggleRoot = (name) => {
     ),
   )
 
-  const dateWorkbenchSummary = computed(() => {
+  const fallbackDateWorkbenchSummary = computed(() => {
     const dateCountMap = buildDateCountMap(images.value)
     const datedImages = images.value.filter((img) => getImageDateKey(img))
     const countWithPreset = (preset) =>
@@ -692,6 +1068,18 @@ const toggleRoot = (name) => {
       recentDates,
     }
   })
+  const dateWorkbenchSummary = computed(() => {
+    const summary = workbenchAggregate.value?.summary
+    if (summary && (summary.recentDates?.length || workbenchAggregate.value?.filteredCount || summary.datedTotal)) {
+      return summary
+    }
+    return fallbackDateWorkbenchSummary.value
+  })
+  const workbenchFilteredCount = computed(() =>
+    Number.isFinite(Number(workbenchAggregate.value?.filteredCount))
+      ? Number(workbenchAggregate.value.filteredCount)
+      : workbenchFilteredImages.value.length,
+  )
 
   const finalImages = computed(() => {
     let imgs = currentImages.value
@@ -779,14 +1167,29 @@ const toggleRoot = (name) => {
   const { stackedImages } = useImageStacks(finalImages, isStackingEnabled)
 
   const paginatedImages = computed(() => {
+    if (galleryLoadMode.value === 'performance') {
+      return pagedImages.value
+    }
     const startIndex = (currentPage.value - 1) * itemsPerPage.value
     const endIndex = startIndex + itemsPerPage.value
     return stackedImages.value.slice(startIndex, endIndex)
   })
 
-  const totalPages = computed(() => Math.ceil(stackedImages.value.length / itemsPerPage.value))
+  const totalPages = computed(() => {
+    if (galleryLoadMode.value === 'performance') {
+      return pagedTotalPages.value || 1
+    }
+    return Math.max(1, Math.ceil(stackedImages.value.length / itemsPerPage.value))
+  })
 
   const setPage = (page) => {
+    if (galleryLoadMode.value === 'performance') {
+      if (page < 1) return
+      currentPage.value = page
+      localStorage.setItem('currentPage', page)
+      fetchImagesPage({ page })
+      return
+    }
     if (page < 1 || page > totalPages.value) return
     currentPage.value = page
     localStorage.setItem('currentPage', page)
@@ -798,20 +1201,37 @@ const toggleRoot = (name) => {
   const setItemsPerPage = (count) => {
     itemsPerPage.value = count
     localStorage.setItem('itemsPerPage', count)
+    if (galleryLoadMode.value === 'performance') {
+      currentPage.value = 1
+      fetchImagesPage({ page: 1 })
+      return
+    }
     setPage(1)
   }
 
   const resetPage = () => {
+    if (galleryLoadMode.value === 'performance') {
+      currentPage.value = 1
+      localStorage.setItem('currentPage', 1)
+      return
+    }
     setPage(1)
   }
 
   watch([activeRoot, activeSub, activeChild], () => {
     resetPage()
+    refreshGalleryMode()
+    if (galleryLoadMode.value === 'performance') {
+      fetchImagesPage({ page: 1 })
+    }
   })
 
   watch(searchQuery, (value) => {
     localStorage.setItem('gallerySearchQuery', value)
     resetPage()
+    if (galleryLoadMode.value === 'performance') {
+      fetchImagesPage({ page: 1 })
+    }
   })
 
   watch(availableModels, (options) => {
@@ -840,8 +1260,35 @@ const toggleRoot = (name) => {
     [activeDatePreset, activeDateStart, activeDateEnd, activeModelFilter, activeLoraFilter],
     () => {
       resetPage()
+      fetchWorkbenchAggregate()
+      if (galleryLoadMode.value === 'performance') {
+        fetchImagesPage({ page: 1 })
+      }
     },
   )
+
+  watch(activeTagFilter, () => {
+    resetPage()
+    if (galleryLoadMode.value === 'performance') {
+      fetchImagesPage({ page: 1 })
+    }
+  })
+
+  watch(filters, async () => {
+    refreshGalleryMode()
+    if (galleryLoadMode.value === 'performance') {
+      await fetchImagesPage({ page: 1 })
+      return
+    }
+    await ensureStandardImagesReady()
+  }, { deep: true })
+
+  watch([effectivePreferredMode, supportsPagedGalleryView], async () => {
+    refreshGalleryMode()
+    if (galleryLoadMode.value === 'standard') {
+      await ensureStandardImagesReady()
+    }
+  })
 
   const setActiveDatePreset = (preset) => {
     activeDatePreset.value = preset || 'all'
@@ -907,7 +1354,7 @@ const toggleRoot = (name) => {
   }
 
   const startPolling = () => {
-    fetchImages().then(initAutoSelect)
+    refreshCurrentGalleryView({ syncSourceImages: true }).then(initAutoSelect)
     return null
   }
 
@@ -916,7 +1363,16 @@ const toggleRoot = (name) => {
     if (!ok) return
 
     const original = images.value
-    images.value = images.value.filter((i) => i.relPath !== img.relPath)
+    const originalIndexed = indexedImages.value
+    const originalPaged = pagedImages.value
+    const originalPagedTotal = pagedTotal.value
+    const originalPagedTotalPages = pagedTotalPages.value
+    const originalHasMorePaged = hasMorePagedImages.value
+    const originalFavorites = new Set(favorites.value)
+    const originalTags = imageTags.value[img.relPath] ? [...imageTags.value[img.relPath]] : null
+    const originalNote = imageNotes.value[img.relPath]
+    const originalGallerySummary = { ...gallerySummary.value }
+    removeImagesLocally([img.relPath])
     try {
       await App.DeleteImage(img.relPath)
       showToast('删除成功', 'success')
@@ -924,12 +1380,22 @@ const toggleRoot = (name) => {
         favorites.value.delete(img.relPath)
         App.RemoveFavorite(img.relPath).catch(console.error)
       }
-      if (imageTags.value[img.relPath]) {
-        delete imageTags.value[img.relPath]
-      }
     } catch (err) {
       showToast('删除失败', 'error')
       images.value = original
+      indexedImages.value = originalIndexed
+      pagedImages.value = originalPaged
+      pagedTotal.value = originalPagedTotal
+      pagedTotalPages.value = originalPagedTotalPages
+      hasMorePagedImages.value = originalHasMorePaged
+      favorites.value = originalFavorites
+      gallerySummary.value = originalGallerySummary
+      if (originalTags) {
+        imageTags.value[img.relPath] = originalTags
+      }
+      if (originalNote !== undefined) {
+        imageNotes.value[img.relPath] = originalNote
+      }
     }
   }
 
@@ -1132,13 +1598,13 @@ const toggleRoot = (name) => {
       localStorage.setItem('sortBy', newSortBy)
       localStorage.setItem('sortOrder', 'desc')
     }
-    fetchImages()
+    refreshCurrentGalleryView({ syncSourceImages: galleryLoadMode.value !== 'performance' })
   }
 
   const setSortOrder = (order) => {
     sortOrder.value = order
     localStorage.setItem('sortOrder', order)
-    fetchImages()
+    refreshCurrentGalleryView({ syncSourceImages: galleryLoadMode.value !== 'performance' })
   }
 
   const openImageLocation = async (img) => {
@@ -1151,8 +1617,15 @@ const toggleRoot = (name) => {
     }
   }
 
+  const totalVisibleImages = computed(() =>
+    galleryLoadMode.value === 'performance' ? pagedTotal.value : finalImages.value.length,
+  )
+
+  const isPerformanceModeActive = computed(() => galleryLoadMode.value === 'performance')
+
   return {
     images,
+    sourceImages,
     favorites,
     favoriteGroups,
     loading,
@@ -1162,8 +1635,17 @@ const toggleRoot = (name) => {
     fileTree,
     scopeImageCount: computed(() => currentImages.value.length),
     currentImages: finalImages,
+    totalVisibleImages,
     fetchImages,
+    fetchImageIndex,
+    fetchImagesPage,
     fetchFavorites,
+    loadPerformanceSettings,
+    savePerformanceSettings,
+    fetchGallerySummary,
+    fetchDirectoryHealthSummary,
+    fetchWorkbenchAggregate,
+    refreshCurrentGalleryView,
     toggleFavorite,
     startPolling,
     toggleRoot,
@@ -1207,6 +1689,7 @@ const toggleRoot = (name) => {
     availableLoras,
     workbenchFilteredImages,
     dateWorkbenchSummary,
+    workbenchFilteredCount,
     activeDatePreset,
     activeDateStart,
     activeDateEnd,
@@ -1221,6 +1704,21 @@ const toggleRoot = (name) => {
     setActiveLora,
     clearWorkbenchFilters,
     clearSearchQuery,
+    performanceSettings,
+    gallerySummary,
+    directoryHealthSummary,
+    workbenchAggregate,
+    galleryLoadMode,
+    pagedImages,
+    pagedTotal,
+    pagedTotalPages,
+    hasMorePagedImages,
+    isPagedLoading,
+    isPagedAppending,
+    isPerformanceModeActive,
+    modeReason,
+    lastSuccessfulQuery,
+    removeImagesLocally,
     toggleStacking: () => {
       isStackingEnabled.value = !isStackingEnabled.value
       localStorage.setItem('isStackingEnabled', isStackingEnabled.value)

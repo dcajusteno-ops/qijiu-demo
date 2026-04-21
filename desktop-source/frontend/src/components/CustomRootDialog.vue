@@ -17,6 +17,7 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
+  ChevronsUp,
   FolderOpen,
   FolderSymlink,
   Loader2,
@@ -179,12 +180,28 @@ const moveRoot = async (root, direction) => {
     busyId.value = ''
   }
 }
+
+const pinRoot = async (root) => {
+  busyId.value = root.id
+  try {
+    await App.PinCustomRoot(root.id)
+    toast.success(root.pinned ? '已取消置顶' : '目录已置顶')
+    emit('change')
+  } catch (error) {
+    toast.error(normalizeError(error, '置顶目录失败'))
+  } finally {
+    busyId.value = ''
+  }
+}
+
+const isFirstRoot = (root) => props.customRoots.findIndex((item) => item.id === root.id) === 0
+const isLastRoot = (root) => props.customRoots.findIndex((item) => item.id === root.id) === props.customRoots.length - 1
 </script>
 
 <template>
   <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="sm:max-w-[760px] overflow-hidden p-0">
-      <div class="max-h-[85vh] overflow-y-auto p-6">
+    <DialogContent class="flex max-h-[88vh] overflow-hidden p-0 sm:max-w-[760px]">
+      <div class="flex min-h-0 w-full flex-col p-6">
         <DialogHeader class="pr-8">
           <DialogTitle class="flex items-center gap-2">
             <FolderSymlink class="h-5 w-5 text-primary" />
@@ -195,13 +212,13 @@ const moveRoot = async (root, direction) => {
           </DialogDescription>
         </DialogHeader>
 
-        <div class="mt-5 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-          <div class="space-y-4">
-            <div class="space-y-2">
+        <div class="mt-5 min-h-0 flex-1 grid items-stretch gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+          <div class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+            <div class="flex min-h-0 flex-1 flex-col space-y-2 overflow-hidden">
               <div class="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 当前目录（{{ customRoots.length }}）
               </div>
-              <div class="max-h-[380px] space-y-2 overflow-y-auto rounded-xl border bg-muted/10 p-2">
+              <div class="custom-root-list-scroll min-h-[280px] flex-1 space-y-2 overflow-y-auto rounded-xl border bg-muted/10 p-2 lg:min-h-0">
                 <div
                   v-for="root in customRoots"
                   :key="root.id"
@@ -218,6 +235,9 @@ const moveRoot = async (root, direction) => {
                         <span v-if="root.locked || root.isBuiltin" class="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
                           默认目录
                         </span>
+                        <span v-if="root.pinned" class="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+                          已置顶
+                        </span>
                         <span v-if="root.enabled === false" class="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
                           已隐藏
                         </span>
@@ -225,7 +245,7 @@ const moveRoot = async (root, direction) => {
                       <div class="truncate text-xs text-muted-foreground">{{ root.path }}</div>
 
                       <div class="flex flex-wrap items-center gap-2 pt-1">
-                        <div class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs">
+                        <div class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs" @click.stop>
                           <span class="text-muted-foreground">侧边栏显示</span>
                           <Switch
                             :model-value="root.enabled !== false"
@@ -234,18 +254,44 @@ const moveRoot = async (root, direction) => {
                           />
                         </div>
 
-                        <Button variant="outline" size="icon" class="h-8 w-8" :disabled="busyId === root.id" @click="moveRoot(root, 'up')">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8"
+                          :disabled="busyId === root.id || isFirstRoot(root)"
+                          :title="isFirstRoot(root) ? '已经在最上方' : '上移一位'"
+                          @click.stop="moveRoot(root, 'up')"
+                        >
                           <ArrowUp class="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="outline" size="icon" class="h-8 w-8" :disabled="busyId === root.id" @click="moveRoot(root, 'down')">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8"
+                          :disabled="busyId === root.id || isLastRoot(root)"
+                          :title="isLastRoot(root) ? '已经在最下方' : '下移一位'"
+                          @click.stop="moveRoot(root, 'down')"
+                        >
                           <ArrowDown class="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="outline"
                           size="icon"
                           class="h-8 w-8"
+                          :class="root.pinned ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/15' : ''"
+                          :disabled="busyId === root.id"
+                          :title="root.pinned ? '取消置顶' : '置顶目录'"
+                          @click.stop="pinRoot(root)"
+                        >
+                          <ChevronsUp class="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          class="h-8 w-8"
                           :disabled="busyId === root.id || root.locked || root.isBuiltin"
-                          @click="startEdit(root)"
+                          :title="root.locked || root.isBuiltin ? '内置目录不可编辑' : '编辑目录'"
+                          @click.stop="startEdit(root)"
                         >
                           <Pencil class="h-3.5 w-3.5" />
                         </Button>
@@ -254,7 +300,8 @@ const moveRoot = async (root, direction) => {
                           size="icon"
                           class="h-8 w-8"
                           :disabled="busyId === root.id || root.locked || root.isBuiltin"
-                          @click="handleDelete(root)"
+                          :title="root.locked || root.isBuiltin ? '内置目录不可删除' : '删除目录'"
+                          @click.stop="handleDelete(root)"
                         >
                           <Trash2 class="h-3.5 w-3.5" />
                         </Button>
@@ -267,8 +314,8 @@ const moveRoot = async (root, direction) => {
               </div>
             </div>
 
-            <div v-if="editingRoot" class="space-y-3 rounded-xl border bg-muted/20 p-4">
-              <div class="flex items-center justify-between gap-2">
+            <div v-if="editingRoot" class="flex max-h-[280px] min-h-[280px] shrink-0 flex-col overflow-hidden rounded-xl border bg-muted/20">
+              <div class="flex items-center justify-between gap-2 border-b px-4 py-3">
                 <div>
                   <div class="text-sm font-semibold">编辑目录</div>
                   <div class="text-xs text-muted-foreground">{{ editingRoot.path }}</div>
@@ -278,35 +325,37 @@ const moveRoot = async (root, direction) => {
                 </Button>
               </div>
 
-              <Input v-model="editingName" placeholder="显示名称" @keydown.enter="handleUpdate" />
+              <div class="custom-root-edit-scroll min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+                <Input v-model="editingName" placeholder="显示名称" @keydown.enter="handleUpdate" />
 
-              <div class="space-y-2">
-                <div class="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  图标（{{ iconCount }}）
-                </div>
-                <div class="max-h-[180px] space-y-3 overflow-y-auto rounded-xl border bg-background/70 p-3">
-                  <div v-for="(icons, category) in categorizedIcons" :key="`edit-${category}`" class="space-y-2">
-                    <div class="border-l-2 border-primary/30 pl-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                      {{ category }}
-                    </div>
-                    <div class="grid grid-cols-7 gap-1.5">
-                      <button
-                        v-for="iconName in icons"
-                        :key="`edit-${iconName}`"
-                        type="button"
-                        class="flex items-center justify-center rounded-md p-2 transition-all hover:scale-105"
-                        :class="editingIcon === iconName ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'"
-                        :title="iconName"
-                        @click="editingIcon = iconName"
-                      >
-                        <component :is="availableIcons[iconName]" class="h-4 w-4" />
-                      </button>
+                <div class="space-y-2">
+                  <div class="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    图标（{{ iconCount }}）
+                  </div>
+                  <div class="custom-root-icon-scroll max-h-[180px] space-y-3 overflow-y-auto rounded-xl border bg-background/70 p-3">
+                    <div v-for="(icons, category) in categorizedIcons" :key="`edit-${category}`" class="space-y-2">
+                      <div class="border-l-2 border-primary/30 pl-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                        {{ category }}
+                      </div>
+                      <div class="grid grid-cols-7 gap-1.5">
+                        <button
+                          v-for="iconName in icons"
+                          :key="`edit-${iconName}`"
+                          type="button"
+                          class="flex items-center justify-center rounded-md p-2 transition-all hover:scale-105"
+                          :class="editingIcon === iconName ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'"
+                          :title="iconName"
+                          @click="editingIcon = iconName"
+                        >
+                          <component :is="availableIcons[iconName]" class="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="flex justify-end gap-2">
+              <div class="flex justify-end gap-2 border-t px-4 py-3">
                 <Button variant="outline" @click="resetEditState">取消</Button>
                 <Button class="gap-2" :disabled="isUpdating" @click="handleUpdate">
                   <Loader2 v-if="isUpdating" class="h-4 w-4 animate-spin" />
@@ -317,7 +366,7 @@ const moveRoot = async (root, direction) => {
             </div>
           </div>
 
-          <div class="space-y-3 rounded-xl border bg-muted/20 p-4">
+          <div class="flex h-full min-h-0 flex-col space-y-3 overflow-hidden rounded-xl border bg-muted/20 p-4">
             <div class="text-sm font-semibold">新增目录</div>
 
             <div class="flex gap-2">
@@ -346,7 +395,7 @@ const moveRoot = async (root, direction) => {
               <div class="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 图标（{{ iconCount }}）
               </div>
-              <div class="max-h-[220px] space-y-3 overflow-y-auto rounded-xl border bg-background/70 p-3">
+              <div class="custom-root-icon-scroll max-h-[220px] flex-1 space-y-3 overflow-y-auto rounded-xl border bg-background/70 p-3">
                 <div v-for="(icons, category) in categorizedIcons" :key="category" class="space-y-2">
                   <div class="border-l-2 border-primary/30 pl-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
                     {{ category }}
@@ -368,11 +417,11 @@ const moveRoot = async (root, direction) => {
               </div>
             </div>
 
-            <div class="rounded-lg border border-dashed bg-background/60 px-3 py-2 text-xs leading-5 text-muted-foreground">
+            <div class="shrink-0 rounded-lg border border-dashed bg-background/60 px-3 py-2 text-xs leading-5 text-muted-foreground">
               新增成功后会以多层折叠结构显示在侧边栏中，你可以随时调整显示顺序，或临时关闭显示。
             </div>
 
-            <div class="flex justify-end pt-1">
+            <div class="flex shrink-0 justify-end pt-1">
               <Button class="gap-2 px-5" :disabled="!selectedPath || isAdding" @click="handleAdd">
                 <Loader2 v-if="isAdding" class="h-4 w-4 animate-spin" />
                 <Plus v-else class="h-4 w-4" />
@@ -382,10 +431,27 @@ const moveRoot = async (root, direction) => {
           </div>
         </div>
 
-        <DialogFooter class="mt-5">
+        <DialogFooter class="mt-5 shrink-0">
           <Button variant="outline" @click="$emit('update:open', false)">关闭</Button>
         </DialogFooter>
       </div>
     </DialogContent>
   </Dialog>
 </template>
+
+<style scoped>
+.custom-root-list-scroll,
+.custom-root-icon-scroll,
+.custom-root-edit-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.custom-root-list-scroll::-webkit-scrollbar,
+.custom-root-icon-scroll::-webkit-scrollbar,
+.custom-root-edit-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+</style>

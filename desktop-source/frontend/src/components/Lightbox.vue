@@ -67,7 +67,10 @@ const metadata = ref(null)
 const metadataLoading = ref(false)
 const metadataError = ref('')
 const favoriteGroupsDialogOpen = ref(false)
+const displayImageSrc = ref('')
+const fullImageLoading = ref(false)
 let metadataRequestId = 0
+let imageRequestId = 0
 
 const promptTemplateDialogOpen = ref(false)
 const promptTemplateInitialContent = ref('')
@@ -84,6 +87,45 @@ const currentNote = computed(() => {
 })
 
 const hasNote = computed(() => currentNote.value.trim() !== '')
+const lightboxPreviewSrc = computed(
+  () => currentDisplayImage.value?.previewPath || currentDisplayImage.value?.thumbPath || currentDisplayImage.value?.path || '',
+)
+const lightboxFullSrc = computed(() => currentDisplayImage.value?.path || '')
+
+const syncLightboxImageSource = () => {
+  const requestId = ++imageRequestId
+  const previewSrc = lightboxPreviewSrc.value
+  const fullSrc = lightboxFullSrc.value
+
+  if (!props.isOpen || !fullSrc) {
+    displayImageSrc.value = ''
+    fullImageLoading.value = false
+    return
+  }
+
+  if (!previewSrc || previewSrc === fullSrc) {
+    displayImageSrc.value = fullSrc
+    fullImageLoading.value = false
+    return
+  }
+
+  displayImageSrc.value = previewSrc
+  fullImageLoading.value = true
+
+  const loader = new Image()
+  loader.decoding = 'async'
+  loader.onload = () => {
+    if (requestId !== imageRequestId) return
+    displayImageSrc.value = fullSrc
+    fullImageLoading.value = false
+  }
+  loader.onerror = () => {
+    if (requestId !== imageRequestId) return
+    displayImageSrc.value = fullSrc
+    fullImageLoading.value = false
+  }
+  loader.src = fullSrc
+}
 
 watch(() => [props.isOpen, currentDisplayImage.value?.relPath], () => {
   noteText.value = currentNote.value
@@ -365,6 +407,14 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => [props.isOpen, currentDisplayImage.value?.relPath, currentDisplayImage.value?.previewPath, currentDisplayImage.value?.path],
+  () => {
+    syncLightboxImageSource()
+  },
+  { immediate: true }
+)
+
 onMounted(() => {
   window.addEventListener('keydown', handleKey)
 })
@@ -396,8 +446,8 @@ onUnmounted(() => {
           leave-to-class="opacity-0"
         >
           <img
-            :key="currentDisplayImage.path"
-            :src="currentDisplayImage.path"
+            :key="displayImageSrc || currentDisplayImage.path"
+            :src="displayImageSrc || currentDisplayImage.path"
             class="h-full w-full scale-110 object-cover opacity-40 blur-[60px]"
             loading="eager"
             decoding="async"
@@ -553,11 +603,18 @@ onUnmounted(() => {
           @mouseleave="handleMouseUp"
         >
           <div
+            v-if="fullImageLoading"
+            class="absolute top-8 z-[65] flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-sm text-white/80 shadow-lg backdrop-blur-xl"
+          >
+            <Loader2 class="h-4 w-4 animate-spin" />
+            <span>正在载入原图</span>
+          </div>
+          <div
             class="relative select-none transition-transform duration-75 ease-out"
             :style="{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }"
           >
             <img
-              :src="currentDisplayImage.path"
+              :src="displayImageSrc || currentDisplayImage.path"
               :alt="currentDisplayImage.name"
               loading="eager"
               decoding="async"

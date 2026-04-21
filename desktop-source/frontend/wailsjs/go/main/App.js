@@ -66,6 +66,10 @@ export function CleanEmptyFolders() {
   return window['go']['main']['App']['CleanEmptyFolders']();
 }
 
+export function CleanupFavoriteReferences() {
+  return window['go']['main']['App']['CleanupFavoriteReferences']();
+}
+
 export function CleanupTags() {
   return window['go']['main']['App']['CleanupTags']();
 }
@@ -162,12 +166,24 @@ export function GetDirectoryBinding() {
   return window['go']['main']['App']['GetDirectoryBinding']();
 }
 
+export function GetDirectoryHealthSummary() {
+  return window['go']['main']['App']['GetDirectoryHealthSummary']();
+}
+
 export function GetFavoriteGroups() {
   return window['go']['main']['App']['GetFavoriteGroups']();
 }
 
 export function GetFavorites() {
   return window['go']['main']['App']['GetFavorites']();
+}
+
+export function GetGalleryPerformanceSettings() {
+  return window['go']['main']['App']['GetGalleryPerformanceSettings']();
+}
+
+export function GetImageGallerySummary() {
+  return window['go']['main']['App']['GetImageGallerySummary']();
 }
 
 export function GetImageMetadata(arg1) {
@@ -184,6 +200,14 @@ export function GetImageTags() {
 
 export function GetImages(arg1, arg2) {
   return window['go']['main']['App']['GetImages'](arg1, arg2);
+}
+
+export function GetImagesIndex(arg1, arg2) {
+  return window['go']['main']['App']['GetImagesIndex'](arg1, arg2);
+}
+
+export function GetImagesPage(arg1) {
+  return window['go']['main']['App']['GetImagesPage'](arg1);
 }
 
 export function GetLauncherTools() {
@@ -246,6 +270,10 @@ export function GetUtilityMenuSettings() {
   return window['go']['main']['App']['GetUtilityMenuSettings']();
 }
 
+export function GetWorkbenchAggregate(arg1) {
+  return window['go']['main']['App']['GetWorkbenchAggregate'](arg1);
+}
+
 export function MoveCustomRoot(arg1, arg2) {
   return window['go']['main']['App']['MoveCustomRoot'](arg1, arg2);
 }
@@ -270,6 +298,10 @@ export function OrganizeFiles(arg1) {
   return window['go']['main']['App']['OrganizeFiles'](arg1);
 }
 
+export function PinCustomRoot(arg1) {
+  return window['go']['main']['App']['PinCustomRoot'](arg1);
+}
+
 export function RemoveFavorite(arg1) {
   return window['go']['main']['App']['RemoveFavorite'](arg1);
 }
@@ -290,12 +322,20 @@ export function RunAutoRulesNow() {
   return window['go']['main']['App']['RunAutoRulesNow']();
 }
 
+export function RunDirectoryHealthAction(arg1) {
+  return window['go']['main']['App']['RunDirectoryHealthAction'](arg1);
+}
+
 export function RunLauncherTool(arg1) {
   return window['go']['main']['App']['RunLauncherTool'](arg1);
 }
 
 export function SaveDirectoryBinding(arg1, arg2) {
   return window['go']['main']['App']['SaveDirectoryBinding'](arg1, arg2);
+}
+
+export function SaveGalleryPerformanceSettings(arg1) {
+  return window['go']['main']['App']['SaveGalleryPerformanceSettings'](arg1);
 }
 
 export function SaveOutputDirectory(arg1) {

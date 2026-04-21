@@ -1,10 +1,10 @@
 # Windows Installer Notes
 
-Current version: `v2.1.6`
+Current version: `v2.2.0`
 
 ## Goal
 
-This project now supports a more standard Windows installation flow:
+This project supports a standard Windows installation flow:
 
 - The installer shows a directory selection page with a default path of `%USERPROFILE%\Comfy Manager`
 - Program files and runtime data stay together under the selected install folder
@@ -36,7 +36,7 @@ desktop-source\build\bin\ComfyManager-amd64-installer.exe
 
 ## Installer Behavior
 
-The NSIS installer now:
+The NSIS installer:
 
 - shows a normal install-directory page and defaults to `%USERPROFILE%\Comfy Manager`
 - creates Start Menu and desktop shortcuts

@@ -162,6 +162,7 @@ export namespace main {
 	    path: string;
 	    icon: string;
 	    order?: number;
+	    pinned?: boolean;
 	    enabled: boolean;
 	    locked?: boolean;
 	    isBuiltin?: boolean;
@@ -177,6 +178,7 @@ export namespace main {
 	        this.path = source["path"];
 	        this.icon = source["icon"];
 	        this.order = source["order"];
+	        this.pinned = source["pinned"];
 	        this.enabled = source["enabled"];
 	        this.locked = source["locked"];
 	        this.isBuiltin = source["isBuiltin"];
@@ -200,6 +202,74 @@ export namespace main {
 	        this.configured = source["configured"];
 	    }
 	}
+	export class DirectoryHealthIssue {
+	    key: string;
+	    level: string;
+	    title: string;
+	    description: string;
+	    count: number;
+	    action?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DirectoryHealthIssue(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.level = source["level"];
+	        this.title = source["title"];
+	        this.description = source["description"];
+	        this.count = source["count"];
+	        this.action = source["action"];
+	    }
+	}
+	export class DirectoryHealthSummary {
+	    totalImages: number;
+	    emptyFolderCount: number;
+	    invalidTagReferenceCount: number;
+	    invalidFavoriteReferenceCount: number;
+	    thumbCacheCount: number;
+	    thumbCacheBytes: number;
+	    previewCacheCount: number;
+	    previewCacheBytes: number;
+	    issues: DirectoryHealthIssue[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DirectoryHealthSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.totalImages = source["totalImages"];
+	        this.emptyFolderCount = source["emptyFolderCount"];
+	        this.invalidTagReferenceCount = source["invalidTagReferenceCount"];
+	        this.invalidFavoriteReferenceCount = source["invalidFavoriteReferenceCount"];
+	        this.thumbCacheCount = source["thumbCacheCount"];
+	        this.thumbCacheBytes = source["thumbCacheBytes"];
+	        this.previewCacheCount = source["previewCacheCount"];
+	        this.previewCacheBytes = source["previewCacheBytes"];
+	        this.issues = this.convertValues(source["issues"], DirectoryHealthIssue);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class FavoriteGroup {
 	    id: string;
 	    name: string;
@@ -216,9 +286,71 @@ export namespace main {
 	        this.paths = source["paths"];
 	    }
 	}
+	export class GalleryPerformanceSettings {
+	    mode: string;
+	    initialBatchSize: number;
+	    pageSize: number;
+	    thumbPreferred: boolean;
+	    backgroundVariantWarmup: boolean;
+	    metadataLazy: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new GalleryPerformanceSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.mode = source["mode"];
+	        this.initialBatchSize = source["initialBatchSize"];
+	        this.pageSize = source["pageSize"];
+	        this.thumbPreferred = source["thumbPreferred"];
+	        this.backgroundVariantWarmup = source["backgroundVariantWarmup"];
+	        this.metadataLazy = source["metadataLazy"];
+	    }
+	}
+	export class GetImagesPageQuery {
+	    sortBy: string;
+	    sortOrder: string;
+	    page: number;
+	    pageSize: number;
+	    scopeRelPath?: string;
+	    favoritesOnly?: boolean;
+	    favoriteGroupId?: string;
+	    searchQuery?: string;
+	    activeTagId?: string;
+	    activeModelFilter?: string;
+	    activeLoraFilter?: string;
+	    activeDatePreset?: string;
+	    activeDateStart?: string;
+	    activeDateEnd?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GetImagesPageQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sortBy = source["sortBy"];
+	        this.sortOrder = source["sortOrder"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.scopeRelPath = source["scopeRelPath"];
+	        this.favoritesOnly = source["favoritesOnly"];
+	        this.favoriteGroupId = source["favoriteGroupId"];
+	        this.searchQuery = source["searchQuery"];
+	        this.activeTagId = source["activeTagId"];
+	        this.activeModelFilter = source["activeModelFilter"];
+	        this.activeLoraFilter = source["activeLoraFilter"];
+	        this.activeDatePreset = source["activeDatePreset"];
+	        this.activeDateStart = source["activeDateStart"];
+	        this.activeDateEnd = source["activeDateEnd"];
+	    }
+	}
 	export class ImageFile {
 	    name: string;
 	    path: string;
+	    thumbPath?: string;
+	    previewPath?: string;
 	    relPath: string;
 	    modTime: string;
 	    size: number;
@@ -237,6 +369,8 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.path = source["path"];
+	        this.thumbPath = source["thumbPath"];
+	        this.previewPath = source["previewPath"];
 	        this.relPath = source["relPath"];
 	        this.modTime = source["modTime"];
 	        this.size = source["size"];
@@ -246,6 +380,77 @@ export namespace main {
 	        this.model = source["model"];
 	        this.loras = source["loras"];
 	        this.searchText = source["searchText"];
+	    }
+	}
+	export class GetImagesPageResult {
+	    items: ImageFile[];
+	    total: number;
+	    page: number;
+	    pageSize: number;
+	    totalPages: number;
+	    hasMore: boolean;
+	    mode: string;
+	    modeReason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GetImagesPageResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], ImageFile);
+	        this.total = source["total"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.totalPages = source["totalPages"];
+	        this.hasMore = source["hasMore"];
+	        this.mode = source["mode"];
+	        this.modeReason = source["modeReason"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class ImageGallerySummary {
+	    totalImages: number;
+	    managedRootCount: number;
+	    activeMode: string;
+	    modeReason: string;
+	    thumbCacheCount: number;
+	    thumbCacheBytes: number;
+	    previewCacheCount: number;
+	    previewCacheBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageGallerySummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.totalImages = source["totalImages"];
+	        this.managedRootCount = source["managedRootCount"];
+	        this.activeMode = source["activeMode"];
+	        this.modeReason = source["modeReason"];
+	        this.thumbCacheCount = source["thumbCacheCount"];
+	        this.thumbCacheBytes = source["thumbCacheBytes"];
+	        this.previewCacheCount = source["previewCacheCount"];
+	        this.previewCacheBytes = source["previewCacheBytes"];
 	    }
 	}
 	export class PromptCandidateDebug {
@@ -666,6 +871,12 @@ export namespace main {
 	    shortcutSettings?: ShortcutSettings;
 	    userProfile?: UserProfile;
 	    utilityMenu?: UtilityMenuState;
+	    galleryPerformanceMode?: string;
+	    galleryInitialBatchSize?: number;
+	    galleryPageSize?: number;
+	    galleryThumbPreferred?: boolean;
+	    galleryBackgroundVariantWarmup?: boolean;
+	    galleryMetadataLazy?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -681,6 +892,12 @@ export namespace main {
 	        this.shortcutSettings = this.convertValues(source["shortcutSettings"], ShortcutSettings);
 	        this.userProfile = this.convertValues(source["userProfile"], UserProfile);
 	        this.utilityMenu = this.convertValues(source["utilityMenu"], UtilityMenuState);
+	        this.galleryPerformanceMode = source["galleryPerformanceMode"];
+	        this.galleryInitialBatchSize = source["galleryInitialBatchSize"];
+	        this.galleryPageSize = source["galleryPageSize"];
+	        this.galleryThumbPreferred = source["galleryThumbPreferred"];
+	        this.galleryBackgroundVariantWarmup = source["galleryBackgroundVariantWarmup"];
+	        this.galleryMetadataLazy = source["galleryMetadataLazy"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -793,6 +1010,140 @@ export namespace main {
 	}
 	
 	
+	
+	export class WorkbenchRecentDate {
+	    date: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkbenchRecentDate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.count = source["count"];
+	    }
+	}
+	export class WorkbenchSummary {
+	    total: number;
+	    datedTotal: number;
+	    today: number;
+	    yesterday: number;
+	    last7: number;
+	    month: number;
+	    recentDates: WorkbenchRecentDate[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkbenchSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total = source["total"];
+	        this.datedTotal = source["datedTotal"];
+	        this.today = source["today"];
+	        this.yesterday = source["yesterday"];
+	        this.last7 = source["last7"];
+	        this.month = source["month"];
+	        this.recentDates = this.convertValues(source["recentDates"], WorkbenchRecentDate);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class WorkbenchFilterOption {
+	    value: string;
+	    label: string;
+	    count: number;
+	    aliases?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkbenchFilterOption(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.value = source["value"];
+	        this.label = source["label"];
+	        this.count = source["count"];
+	        this.aliases = source["aliases"];
+	    }
+	}
+	export class WorkbenchAggregateResult {
+	    availableModels: WorkbenchFilterOption[];
+	    availableLoras: WorkbenchFilterOption[];
+	    summary: WorkbenchSummary;
+	    filteredCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkbenchAggregateResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.availableModels = this.convertValues(source["availableModels"], WorkbenchFilterOption);
+	        this.availableLoras = this.convertValues(source["availableLoras"], WorkbenchFilterOption);
+	        this.summary = this.convertValues(source["summary"], WorkbenchSummary);
+	        this.filteredCount = source["filteredCount"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	export class WorkbenchSummaryQuery {
+	    activeDatePreset?: string;
+	    activeDateStart?: string;
+	    activeDateEnd?: string;
+	    activeModelFilter?: string;
+	    activeLoraFilter?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkbenchSummaryQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.activeDatePreset = source["activeDatePreset"];
+	        this.activeDateStart = source["activeDateStart"];
+	        this.activeDateEnd = source["activeDateEnd"];
+	        this.activeModelFilter = source["activeModelFilter"];
+	        this.activeLoraFilter = source["activeLoraFilter"];
+	    }
+	}
 
 }
 

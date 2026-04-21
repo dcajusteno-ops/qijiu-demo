@@ -34,6 +34,8 @@ export function BatchRestoreTrash(arg1:Array<string>):Promise<number>;
 
 export function CleanEmptyFolders():Promise<number>;
 
+export function CleanupFavoriteReferences():Promise<number>;
+
 export function CleanupTags():Promise<number>;
 
 export function ClearPreviewCache():Promise<main.CacheClearResult>;
@@ -82,9 +84,15 @@ export function GetCustomRoots():Promise<Array<main.CustomRoot>>;
 
 export function GetDirectoryBinding():Promise<main.DirectoryBinding>;
 
+export function GetDirectoryHealthSummary():Promise<main.DirectoryHealthSummary>;
+
 export function GetFavoriteGroups():Promise<Array<main.FavoriteGroup>>;
 
 export function GetFavorites():Promise<Array<string>>;
+
+export function GetGalleryPerformanceSettings():Promise<main.GalleryPerformanceSettings>;
+
+export function GetImageGallerySummary():Promise<main.ImageGallerySummary>;
 
 export function GetImageMetadata(arg1:string):Promise<main.ImageMetadata>;
 
@@ -93,6 +101,10 @@ export function GetImageNotes():Promise<main.ImageNotesMap>;
 export function GetImageTags():Promise<main.ImageTagsMap>;
 
 export function GetImages(arg1:string,arg2:string):Promise<Array<main.ImageFile>>;
+
+export function GetImagesIndex(arg1:string,arg2:string):Promise<Array<main.ImageFile>>;
+
+export function GetImagesPage(arg1:main.GetImagesPageQuery):Promise<main.GetImagesPageResult>;
 
 export function GetLauncherTools():Promise<Array<main.LauncherTool>>;
 
@@ -124,6 +136,8 @@ export function GetUserProfile():Promise<main.UserProfile>;
 
 export function GetUtilityMenuSettings():Promise<main.UtilityMenuState>;
 
+export function GetWorkbenchAggregate(arg1:main.WorkbenchSummaryQuery):Promise<main.WorkbenchAggregateResult>;
+
 export function MoveCustomRoot(arg1:string,arg2:string):Promise<void>;
 
 export function OpenCurrentOutputDirectory():Promise<void>;
@@ -136,6 +150,8 @@ export function OpenImageLocation(arg1:string):Promise<void>;
 
 export function OrganizeFiles(arg1:string):Promise<number>;
 
+export function PinCustomRoot(arg1:string):Promise<void>;
+
 export function RemoveFavorite(arg1:string):Promise<void>;
 
 export function RemoveImageFromFavoriteGroup(arg1:string,arg2:string):Promise<void>;
@@ -146,9 +162,13 @@ export function RestoreTrash(arg1:string):Promise<string>;
 
 export function RunAutoRulesNow():Promise<main.AutoRulesRunSummary>;
 
+export function RunDirectoryHealthAction(arg1:string):Promise<main.DirectoryHealthSummary>;
+
 export function RunLauncherTool(arg1:string):Promise<void>;
 
 export function SaveDirectoryBinding(arg1:string,arg2:string):Promise<main.DirectoryBinding>;
+
+export function SaveGalleryPerformanceSettings(arg1:main.GalleryPerformanceSettings):Promise<main.GalleryPerformanceSettings>;
 
 export function SaveOutputDirectory(arg1:string):Promise<main.DirectoryBinding>;
 

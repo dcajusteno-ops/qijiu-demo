@@ -117,6 +117,7 @@ const {
     availableLoras,
     workbenchFilteredImages,
     dateWorkbenchSummary,
+    workbenchFilteredCount,
     activeDatePreset,
     activeDateStart,
     activeDateEnd,
@@ -130,6 +131,16 @@ const {
     setActiveLora,
     clearWorkbenchFilters,
     clearSearchQuery,
+    totalVisibleImages,
+    loadPerformanceSettings,
+    fetchGallerySummary,
+    fetchDirectoryHealthSummary,
+    fetchWorkbenchAggregate,
+    refreshCurrentGalleryView,
+    galleryLoadMode,
+    isPagedLoading,
+    modeReason,
+    removeImagesLocally,
 } = useImages(showToast, confirm)
 
 // Selection State (Global or App level)
@@ -245,7 +256,7 @@ const getDateArchiveRootId = () => {
 
 const finalPaginatedImages = computed(() => paginatedImages.value)
 
-const finalTotalImages = computed(() => currentImages.value.length)
+const finalTotalImages = computed(() => totalVisibleImages.value)
 
 import { watch } from 'vue'
 watch(activeRoot, (next, prev) => {
@@ -287,7 +298,7 @@ const handleCleanEmpty = async () => {
     try {
         const count = await App.CleanEmptyFolders()
         showToast(`已清理 ${count} 个空文件夹`, 'success')
-        fetchImages()
+        await handleRefresh()
     } catch (e) {
         showToast(`清理失败: ${e}`, 'error')
     }
@@ -329,7 +340,7 @@ const handleOrganizeFiles = async () => {
 }
 
 const handleFavoriteGroupsChanged = async () => {
-    await fetchImages()
+    await refreshCurrentGalleryView({ syncSourceImages: true })
 }
 
 const handleCustomRootChanged = async () => {
@@ -383,7 +394,7 @@ const deleteSelected = async () => {
     const targets = Array.from(selectedPaths.value)
     
     // Optimistic UI Update
-    images.value = images.value.filter(img => !selectedPaths.value.has(img.relPath))
+    removeImagesLocally(targets)
     
     // Update tag counts by removing tags for deleted images
     selectedPaths.value.forEach(path => {
@@ -403,21 +414,23 @@ const deleteSelected = async () => {
         results.forEach(r => { if (r.status === 'fulfilled') successCount++; else failCount++ })
         if (failCount > 0) {
             showToast(`${failCount} 张图片删除失败`, 'error')
-            fetchImages()
+            await refreshCurrentGalleryView({ syncSourceImages: true })
         } else {
             showToast(`成功删除 ${successCount} 张图片`, 'success')
         }
     } catch (e) {
         showToast(`删除请求失败: ${e}`, 'error')
-        fetchImages()
+        await refreshCurrentGalleryView({ syncSourceImages: true })
     }
 }
 
 const handleRefresh = async () => {
-    await fetchImages()
+    await refreshCurrentGalleryView({ syncSourceImages: true })
+    await fetchWorkbenchAggregate()
     await fetchTags()
     await fetchImageTags()
     await fetchImageNotes()
+    await fetchDirectoryHealthSummary()
 }
 
 const handleDirectoryBindingChanged = async () => {
@@ -440,6 +453,8 @@ let unsubscribeImagesChanged = null
 let unsubscribeShortcutTriggered = null
 onMounted(async () => {
     await fetchCustomRoots()
+    await loadPerformanceSettings()
+    await fetchGallerySummary()
     try {
         const binding = await App.GetDirectoryBinding()
         if (!binding?.configured) {
@@ -457,10 +472,12 @@ onMounted(async () => {
     } catch (e) {
         console.error('Failed to load preferred start page:', e)
     }
-    await fetchImages()
+    await refreshCurrentGalleryView({ syncSourceImages: true })
+    await fetchWorkbenchAggregate()
     fetchTags()
     fetchImageTags()
     fetchImageNotes()
+    fetchDirectoryHealthSummary()
     unsubscribeImagesChanged = EventsOn('images:changed', async () => {
         await handleRefresh()
     })
@@ -546,7 +563,7 @@ onUnmounted(() => {
                 :active-model-filter="activeModelFilter"
                 :active-lora-filter="activeLoraFilter"
                 :active-date-label="activeDateLabel"
-                :filtered-count="workbenchFilteredImages.length"
+                :filtered-count="workbenchFilteredCount"
                 @update:date-preset="setActiveDatePreset"
                 @update:date-range="setActiveDateRange"
                 @update:model-filter="setActiveModel"
@@ -592,8 +609,11 @@ onUnmounted(() => {
             :has-active-workbench-filters="hasActiveWorkbenchFilters"
             :current-page="currentPage"
             :items-per-page="itemsPerPage"
-            :total-pages="totalPages"
-            @delete="deleteImage"
+             :total-pages="totalPages"
+             :gallery-load-mode="galleryLoadMode"
+             :gallery-mode-reason="modeReason"
+             :page-loading="isPagedLoading"
+             @delete="deleteImage"
             @toggle-selection="toggleSelection"
             @select-all="selectAllCurrent"
             @clear-selection="clearSelection"

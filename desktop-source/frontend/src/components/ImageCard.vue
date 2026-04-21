@@ -70,7 +70,7 @@ const handleMouseLeave = () => {
 
         <div class="relative aspect-[3/4] bg-muted overflow-hidden">
             <img 
-               :src="image.path" 
+               :src="image.cardPath || image.thumbPath || image.path" 
                :alt="image.name" 
                loading="lazy" 
                decoding="async"
@@ -176,7 +176,7 @@ const handleMouseLeave = () => {
 
 <style scoped>
 .group:hover {
-    z-index: 50;
+    z-index: 20;
     box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 </style>

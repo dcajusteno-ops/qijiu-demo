@@ -74,7 +74,7 @@ watch(deleteDialogOpen, (newVal) => {
 
 // Pass dependencies to useImages
 const { 
-  images, 
+  sourceImages, 
   loading: imagesLoading, 
   favorites, 
   favoriteGroups,
@@ -85,7 +85,7 @@ const {
   removeTagFromImage,
   handleDelete,
   openImageLocation,
-  fetchImages 
+  fetchImageIndex 
 } = useImages(
     (msg, type) => {
         if (type === 'error') toast.error(msg)
@@ -99,7 +99,7 @@ const {
 const handleLightboxDelete = async (img) => {
     await handleDelete(img)
     // Check if image is gone from the current list context
-    const stillExists = images.value.find(i => i.path === img.path)
+    const stillExists = sourceImages.value.find(i => i.path === img.path)
     if (!stillExists) {
         lightboxOpen.value = false
     }
@@ -109,9 +109,9 @@ const handleLightboxDelete = async (img) => {
 
 // 1. Recent Images (Latest 4 by modTime)
 const recentImages = computed(() => {
-    if (!images.value || images.value.length === 0) return []
+    if (!sourceImages.value || sourceImages.value.length === 0) return []
     // Create a shallow copy to sort
-    return [...images.value]
+    return [...sourceImages.value]
         .sort((a, b) => new Date(b.modTime) - new Date(a.modTime))
         .slice(0, 15)
 })
@@ -166,7 +166,7 @@ const formatSize = (bytes) => {
 
 // 3. Recent Favorites (Top 10 by modTime)
 const recentFavorites = computed(() => {
-    return images.value
+    return sourceImages.value
         .filter(img => favorites.value.has(img.relPath))
         .sort((a, b) => new Date(b.modTime) - new Date(a.modTime))
         .slice(0, 10)
@@ -210,14 +210,14 @@ const handleNavigate = (direction) => {
     currentImage.value = list[currentImageIndex.value]
 }
 
-onMounted(() => {
+onMounted(async () => {
   pickGreetingMessage()
-  loadStats()
-  if (images.value.length === 0) {
-      fetchImages() 
+  await loadStats()
+  if (sourceImages.value.length === 0) {
+      await fetchImageIndex()
   }
   unsubscribeImagesChanged = EventsOn('images:changed', async () => {
-    await Promise.all([fetchImages(), loadStats()])
+    await Promise.all([fetchImageIndex(), loadStats()])
   })
 })
 

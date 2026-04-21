@@ -57,7 +57,10 @@ const props = defineProps({
   hasActiveWorkbenchFilters: { type: Boolean, default: false },
   currentPage: { type: Number, default: 1 },
   itemsPerPage: { type: Number, default: 50 },
-  totalPages: { type: Number, default: 1 }
+  totalPages: { type: Number, default: 1 },
+  galleryLoadMode: { type: String, default: 'standard' },
+  galleryModeReason: { type: String, default: '' },
+  pageLoading: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -517,6 +520,14 @@ watch(() => props.currentPage, () => {
                       清空全部筛选
                     </Button>
                   </div>
+                  <div
+                    v-if="galleryLoadMode === 'performance'"
+                    class="flex flex-wrap items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm"
+                  >
+                    <span class="font-medium text-primary">性能优先模式</span>
+                    <span class="text-muted-foreground">{{ galleryModeReason || '当前视图使用分页式加载。' }}</span>
+                    <span v-if="pageLoading" class="text-muted-foreground">正在加载当前结果页...</span>
+                  </div>
               </div>
           </div>
       </header>
@@ -532,43 +543,46 @@ watch(() => props.currentPage, () => {
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
 
-      <div v-else-if="images.length > 0" ref="galleryContainer" class="flex-1 p-6 overflow-y-auto custom-scrollbar flex flex-col gap-4">
-          <!-- Pagination Controls (Top) -->
-          <PaginationControls 
-            v-if="totalImages > 0"
-            :current-page="currentPage"
-            :total-items="totalImages"
-            :items-per-page="itemsPerPage"
-            @page-change="emit('page-change', $event)"
-            @items-per-page-change="emit('items-per-page-change', $event)"
-          />
+      <div v-else-if="images.length > 0" class="relative flex-1 min-h-0">
+          <div ref="galleryContainer" class="h-full overflow-y-auto custom-scrollbar p-6 pb-28">
+            <div class="flex flex-col gap-4">
+              <div
+                v-if="pageLoading"
+                class="rounded-2xl border border-dashed bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
+              >
+                正在切换结果页...
+              </div>
 
-          <div class="grid gap-6" :style="{ gridTemplateColumns: `repeat(auto-fill, minmax(${thumbnailSize[0]}px, 1fr))` }">
-              <ImageCard
-                v-for="img in images"
-                :key="img.relPath"
-                :image="img"
-                :selectable="isSelectionMode"
-                :selected="selectedPaths.has(img.relPath)"
-                :has-note="!!imageNotes[img.relPath]"
-                @view="openLightbox(img)"
-                @delete="emit('delete', img)"
-                @toggle="emit('toggle-selection', img)"
-                @manage-favorites="openFavoriteDialog(img)"
-                @manage-tags="openLightbox(img, true)"
-                @open-location="emit('open-location', img)"
-              />
+              <div class="grid gap-6" :style="{ gridTemplateColumns: `repeat(auto-fill, minmax(${thumbnailSize[0]}px, 1fr))` }">
+                <ImageCard
+                  v-for="img in images"
+                  :key="img.relPath"
+                  :image="img"
+                  :selectable="isSelectionMode"
+                  :selected="selectedPaths.has(img.relPath)"
+                  :has-note="!!imageNotes[img.relPath]"
+                  @view="openLightbox(img)"
+                  @delete="emit('delete', img)"
+                  @toggle="emit('toggle-selection', img)"
+                  @manage-favorites="openFavoriteDialog(img)"
+                  @manage-tags="openLightbox(img, true)"
+                  @open-location="emit('open-location', img)"
+                />
+              </div>
+            </div>
           </div>
 
-          <!-- Pagination Controls (Bottom) -->
-          <PaginationControls 
-            v-if="totalImages > 0"
-            :current-page="currentPage"
-            :total-items="totalImages"
-            :items-per-page="itemsPerPage"
-            @page-change="emit('page-change', $event)"
-            @items-per-page-change="emit('items-per-page-change', $event)"
-          />
+          <div v-if="totalImages > 0" class="pointer-events-none absolute bottom-4 right-6 z-40 flex justify-end">
+            <PaginationControls
+              compact
+              class="pointer-events-auto"
+              :current-page="currentPage"
+              :total-items="totalImages"
+              :items-per-page="itemsPerPage"
+              @page-change="emit('page-change', $event)"
+              @items-per-page-change="emit('items-per-page-change', $event)"
+            />
+          </div>
       </div>
 
       <div v-else class="flex-1 flex flex-col items-center justify-center gap-4 px-6 pt-20 text-center text-muted-foreground">

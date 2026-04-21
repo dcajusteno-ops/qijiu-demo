@@ -472,6 +472,12 @@ const handleDrawerClick = (subId) => {
                   <div class="flex items-center gap-2">
                     <component :is="getIcon(root)" class="h-4 w-4" :class="activeRoot === root.id ? 'text-primary' : 'text-muted-foreground'" />
                     <span v-if="!collapsed" class="truncate">{{ root.displayName || root.name }}</span>
+                    <span
+                      v-if="!collapsed && root.pinned"
+                      class="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] leading-none text-primary"
+                    >
+                      顶
+                    </span>
                   </div>
                   <span v-if="!collapsed && (root.children && root.children.length > 0 || getRecursiveCount(root) > 0)" class="text-xs font-normal opacity-60">
                     {{ getRecursiveCount(root) }}
