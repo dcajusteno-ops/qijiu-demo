@@ -1,6 +1,7 @@
 package main
 
 import (
+	"comfy-manager-wails/backend"
 	"embed"
 	"net/http"
 
@@ -13,7 +14,7 @@ import (
 var assets embed.FS
 
 func main() {
-	app := NewApp()
+	app := backend.NewApp()
 
 	err := wails.Run(&options.App{
 		Title:            "ComfyUI Manager",
@@ -22,11 +23,11 @@ func main() {
 		MinWidth:         900,
 		MinHeight:        600,
 		BackgroundColour: &options.RGBA{R: 18, G: 18, B: 18, A: 255},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
+		OnStartup:        app.Startup,
+		OnShutdown:       app.Shutdown,
 		AssetServer: &assetserver.Options{
 			Assets:  assets,
-			Handler: http.HandlerFunc(app.serveImage),
+			Handler: http.HandlerFunc(app.ServeImage),
 		},
 		Bind: []interface{}{
 			app,

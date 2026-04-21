@@ -1,5 +1,5 @@
 const getApp = () => {
-  const app = window.go?.main?.App
+  const app = window.go?.backend?.App ?? window.go?.main?.App
   if (!app) {
     throw new Error('ComfyUI Manager 仅支持桌面端运行。')
   }

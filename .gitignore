@@ -6,3 +6,5 @@ desktop-source/build/bin/
 desktop-source/build/windows/installer/tmp/
 data/
 ComfyManager-*-installer.exe
+tools/
+提示词/

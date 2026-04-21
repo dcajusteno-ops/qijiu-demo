@@ -622,7 +622,6 @@ onUnmounted(() => {
             @add-tag="addTagToImage"
             @remove-tag="removeTagFromImage"
             @view-favorites="toggleRoot('favorites')"
-            @view-statistics="toggleRoot('statistics')"
             @refresh-images="handleRefresh"
             @favorite-groups-changed="handleFavoriteGroupsChanged"
             @page-change="setPage"

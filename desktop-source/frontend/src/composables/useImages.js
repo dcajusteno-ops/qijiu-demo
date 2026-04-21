@@ -1,29 +1,22 @@
 ﻿import { ref, computed, watch } from 'vue'
 import * as App from '@/api'
 import { useImageStacks } from './useImageStacks'
+import { useGalleryData } from './useGalleryData'
+import { useLibraryMeta } from './useLibraryMeta'
+import { useWorkbenchFilters } from './useWorkbenchFilters'
 import {
-  buildDateCountMap,
-  extractDateFolder,
-  formatDateKey,
-  getDatePresetLabel,
-  matchesDatePreset,
-} from '@/lib/dateWorkbench'
+  buildImageDisplayPath,
+  getDateSegment,
+  normalizeFolderPath,
+  syncGroupedFilterValue,
+} from './useGalleryHelpers'
 
-const images = ref([])
-const indexedImages = ref([])
-const loading = ref(true)
 const activeRoot = ref('dashboard')
 const activeSub = ref('')
 const activeChild = ref('')
 const isInitialized = ref(false)
 
-const tags = ref([])
-const imageTags = ref({})
-const activeTagFilter = ref(null)
-
 const customRoots = ref([])
-
-const imageNotes = ref({})
 
 const filters = ref({
   dateRange: { start: null, end: null },
@@ -31,219 +24,98 @@ const filters = ref({
   dimensions: { minW: null, minH: null },
 })
 const searchQuery = ref(localStorage.getItem('gallerySearchQuery') || '')
-const activeDatePreset = ref('all')
-const activeDateStart = ref('')
-const activeDateEnd = ref('')
-const activeModelFilter = ref('')
-const activeLoraFilter = ref('')
 
 const sortBy = ref(localStorage.getItem('sortBy') || 'time')
 const sortOrder = ref(localStorage.getItem('sortOrder') || 'desc')
 const isStackingEnabled = ref(localStorage.getItem('isStackingEnabled') !== 'false') // default true
 
-const currentPage = ref(Number(localStorage.getItem('currentPage')) || 1)
-const itemsPerPage = ref(Number(localStorage.getItem('itemsPerPage')) || 50)
-const performanceSettings = ref({
-  mode: 'auto',
-  initialBatchSize: 60,
-  pageSize: 50,
-  thumbPreferred: true,
-  backgroundVariantWarmup: true,
-  metadataLazy: true,
-})
-const gallerySummary = ref({
-  totalImages: 0,
-  managedRootCount: 0,
-  activeMode: 'standard',
-  modeReason: '',
-  thumbCacheCount: 0,
-  thumbCacheBytes: 0,
-  previewCacheCount: 0,
-  previewCacheBytes: 0,
-})
-const directoryHealthSummary = ref({
-  totalImages: 0,
-  emptyFolderCount: 0,
-  invalidTagReferenceCount: 0,
-  invalidFavoriteReferenceCount: 0,
-  thumbCacheCount: 0,
-  thumbCacheBytes: 0,
-  previewCacheCount: 0,
-  previewCacheBytes: 0,
-  issues: [],
-})
-const workbenchAggregate = ref({
-  availableModels: [],
-  availableLoras: [],
-  summary: {
-    total: 0,
-    datedTotal: 0,
-    today: 0,
-    yesterday: 0,
-    last7: 0,
-    month: 0,
-    recentDates: [],
-  },
-  filteredCount: 0,
-})
-const galleryLoadMode = ref('standard')
-const pagedImages = ref([])
-const pagedTotal = ref(0)
-const pagedTotalPages = ref(1)
-const hasMorePagedImages = ref(false)
-const isPagedLoading = ref(false)
-const isPagedAppending = ref(false)
-const modeReason = ref('')
-const lastSuccessfulQuery = ref(null)
-let latestPagedRequestId = 0
-
-const favorites = ref(new Set())
-const favoriteGroups = ref([])
-
-const normalizeFolderPath = (path) => (path || '')
-  .replace(/\\/g, '/')
-  .replace(/^\/+|\/+$/g, '')
-
-const dateFolderPattern = /^\d{4}-\d{2}-\d{2}$/
-const getDateSegment = (path) => {
-  const parts = normalizeFolderPath(path).split('/').filter(Boolean)
-  return parts.find((part) => dateFolderPattern.test(part)) || ''
-}
-
-const normalizeSearchText = (value) => String(value ?? '').trim().toLowerCase()
-const normalizeFilterValue = (value) => normalizeSearchText(value).replace(/\s+/g, ' ')
-const stripPathSegments = (value) => String(value ?? '').split(/[\\/]/).pop() || ''
-const buildImageDisplayPath = (pathValue, modTime, size) => {
-  const normalizedPath = String(pathValue || '').trim()
-  if (!normalizedPath) return ''
-
-  const version = [String(modTime || '').trim(), String(size ?? '').trim()]
-    .filter(Boolean)
-    .join('-')
-
-  if (!version) return normalizedPath
-
-  const separator = normalizedPath.includes('?') ? '&' : '?'
-  return `${normalizedPath}${separator}v=${encodeURIComponent(version)}`
-}
-const stripModelExtension = (value) =>
-  String(value ?? '').replace(/\.(safetensors|ckpt|pt|pth|bin)$/i, '')
-const prettifyAssetLabel = (value) =>
-  stripModelExtension(stripPathSegments(value)).replace(/[_]+/g, ' ').trim()
-const normalizeAssetKey = (value) =>
-  normalizeFilterValue(prettifyAssetLabel(value)).replace(/[-]+/g, ' ')
-
-const buildGroupedFilterOptions = (values = []) => {
-  const grouped = new Map()
-
-  values.forEach((rawValue) => {
-    const raw = String(rawValue || '').trim()
-    if (!raw) return
-
-    const key = normalizeAssetKey(raw)
-    if (!key) return
-
-    const label = prettifyAssetLabel(raw) || raw
-    if (!grouped.has(key)) {
-      grouped.set(key, {
-        value: key,
-        label,
-        count: 0,
-        aliases: new Set(),
-      })
-    }
-
-    const entry = grouped.get(key)
-    entry.count += 1
-    entry.aliases.add(raw)
-
-    if (label.length < entry.label.length) {
-      entry.label = label
-    }
-  })
-
-  return Array.from(grouped.values())
-    .sort((a, b) => {
-      const diff = b.count - a.count
-      if (diff !== 0) return diff
-      return a.label.localeCompare(b.label)
-    })
-    .map((item) => ({
-      value: item.value,
-      label: item.label,
-      count: item.count,
-      aliases: Array.from(item.aliases),
-    }))
-}
-
-const syncGroupedFilterValue = (currentValue, options = []) => {
-  const normalizedCurrent = normalizeAssetKey(currentValue)
-  if (!normalizedCurrent) return ''
-
-  const matched = (options || []).find((option) => option.value === normalizedCurrent)
-  return matched ? matched.value : ''
-}
-
-const getImageDateKey = (img) => {
-  const folderDate = extractDateFolder(img?.relPath)
-  if (folderDate) return folderDate
-
-  const modTime = img?.modTime ? new Date(img.modTime) : null
-  if (modTime && !Number.isNaN(modTime.getTime())) {
-    return formatDateKey(modTime)
-  }
-
-  return ''
-}
-
-const imageMatchesWorkbenchFilters = (img, datePreset, customRange, modelFilter, loraFilter) => {
-  if (datePreset && datePreset !== 'all') {
-    const dateKey = getImageDateKey(img)
-    if (!dateKey || !matchesDatePreset(dateKey, datePreset, customRange)) {
-      return false
-    }
-  }
-
-  if (modelFilter) {
-    const imageModelKey = normalizeAssetKey(img?.model)
-    const selectedModelKey = normalizeAssetKey(modelFilter)
-    if (!imageModelKey || !selectedModelKey || imageModelKey !== selectedModelKey) {
-      return false
-    }
-  }
-
-  if (loraFilter) {
-    const loras = Array.isArray(img?.loras) ? img.loras : []
-    const target = normalizeAssetKey(loraFilter)
-    if (!target || !loras.some((item) => normalizeAssetKey(item) === target)) {
-      return false
-    }
-  }
-
-  return true
-}
-
-const getFavoritePathSet = (groups) => {
-  const set = new Set()
-  ;(groups || []).forEach((group) => {
-    ;(group.paths || []).forEach((path) => {
-      const normalized = normalizeFolderPath(path)
-      if (normalized) set.add(normalized)
-    })
-  })
-  return set
-}
-
-const normalizePerformanceSettings = (settings = {}) => ({
-  mode: ['auto', 'standard', 'performance'].includes(settings?.mode) ? settings.mode : 'auto',
-  initialBatchSize: Math.min(Math.max(Number(settings?.initialBatchSize) || 60, 20), 500),
-  pageSize: Math.min(Math.max(Number(settings?.pageSize) || 50, 20), 500),
-  thumbPreferred: settings?.thumbPreferred !== false,
-  backgroundVariantWarmup: settings?.backgroundVariantWarmup !== false,
-  metadataLazy: settings?.metadataLazy !== false,
-})
-
 export function useImages(showToast = () => {}, confirm = async () => false) {
+  const {
+    images,
+    indexedImages,
+    loading,
+    currentPage,
+    itemsPerPage,
+    performanceSettings,
+    gallerySummary,
+    directoryHealthSummary,
+    workbenchAggregate,
+    galleryLoadMode,
+    pagedImages,
+    pagedTotal,
+    pagedTotalPages,
+    hasMorePagedImages,
+    isPagedLoading,
+    isPagedAppending,
+    modeReason,
+    lastSuccessfulQuery,
+    loadPerformanceSettings: loadGalleryPerformanceSettings,
+    savePerformanceSettings: saveGalleryPerformanceSettings,
+    fetchGallerySummary,
+    fetchDirectoryHealthSummary,
+    fetchWorkbenchAggregate: fetchGalleryWorkbenchAggregate,
+    fetchImages: fetchGalleryImages,
+    fetchImageIndex: fetchGalleryImageIndex,
+    ensureStandardImagesReady: ensureGalleryStandardImagesReady,
+    removeImagesLocally: removeGalleryImagesLocally,
+    fetchImagesPage: fetchGalleryImagesPage,
+    invalidatePagedRequests,
+    useGalleryPagination,
+  } = useGalleryData()
+
+  const sourceImages = computed(() => (images.value.length > 0 ? images.value : indexedImages.value))
+
+  const {
+    tags,
+    imageTags,
+    imageNotes,
+    favorites,
+    favoriteGroups,
+    activeTagFilter,
+    fetchFavorites,
+    fetchTags,
+    fetchImageTags,
+    fetchImageNotes,
+    createTag,
+    deleteTag,
+    batchDeleteTags,
+    batchUpdateTags,
+    updateTag,
+    addTagToImage,
+    removeTagFromImage,
+    toggleTagFilter,
+    getTagCount,
+    toggleFavorite,
+  } = useLibraryMeta({
+    showToast,
+    confirm,
+    activeRoot,
+    activeSub,
+  })
+
+  const {
+    activeDatePreset,
+    activeDateStart,
+    activeDateEnd,
+    activeModelFilter,
+    activeLoraFilter,
+    activeDateRange,
+    activeDateLabel,
+    hasActiveWorkbenchFilters,
+    workbenchFilteredImages,
+    availableModels,
+    availableLoras,
+    dateWorkbenchSummary,
+    workbenchFilteredCount,
+    imageMatchesWorkbenchFilters,
+    setActiveDatePreset,
+    setActiveDateRange,
+    clearDateFilter,
+    setActiveModel,
+    setActiveLora,
+    clearWorkbenchFilters,
+  } = useWorkbenchFilters(sourceImages, workbenchAggregate)
+
   const fetchCustomRoots = async () => {
     try {
       const roots = await App.GetCustomRoots()
@@ -253,132 +125,43 @@ export function useImages(showToast = () => {}, confirm = async () => false) {
     }
   }
 
-  const fetchFavorites = async () => {
-    try {
-      const groups = await App.GetFavoriteGroups()
-      favoriteGroups.value = groups || []
-      favorites.value = getFavoritePathSet(groups)
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
   const loadPerformanceSettings = async () => {
-    try {
-      const next = await App.GetGalleryPerformanceSettings()
-      performanceSettings.value = normalizePerformanceSettings(next || {})
-    } catch (e) {
-      console.error('Failed to load performance settings:', e)
-      performanceSettings.value = normalizePerformanceSettings()
-    }
-    itemsPerPage.value = performanceSettings.value.pageSize
+    await loadGalleryPerformanceSettings()
   }
 
   const savePerformanceSettings = async (nextSettings) => {
-    const saved = await App.SaveGalleryPerformanceSettings(normalizePerformanceSettings(nextSettings))
-    performanceSettings.value = normalizePerformanceSettings(saved || {})
-    itemsPerPage.value = performanceSettings.value.pageSize
-    localStorage.setItem('itemsPerPage', itemsPerPage.value)
-    return performanceSettings.value
-  }
-
-  const fetchGallerySummary = async () => {
-    try {
-      gallerySummary.value = await App.GetImageGallerySummary()
-    } catch (e) {
-      console.error('Failed to fetch gallery summary:', e)
-    }
-    return gallerySummary.value
-  }
-
-  const fetchDirectoryHealthSummary = async () => {
-    try {
-      directoryHealthSummary.value = await App.GetDirectoryHealthSummary()
-    } catch (e) {
-      console.error('Failed to fetch directory health summary:', e)
-    }
-    return directoryHealthSummary.value
+    return saveGalleryPerformanceSettings(nextSettings)
   }
 
   const fetchWorkbenchAggregate = async () => {
-    try {
-      workbenchAggregate.value = await App.GetWorkbenchAggregate({
-        activeDatePreset: activeDatePreset.value || 'all',
-        activeDateStart: activeDateStart.value || '',
-        activeDateEnd: activeDateEnd.value || '',
-        activeModelFilter: activeModelFilter.value || '',
-        activeLoraFilter: activeLoraFilter.value || '',
-      })
-    } catch (e) {
-      console.error('Failed to fetch workbench aggregate:', e)
-    }
-    return workbenchAggregate.value
-  }
-
-  const toggleFavorite = async (img) => {
-    if (!img) return
-
-    const path = normalizeFolderPath(img.relPath)
-    const isFav = favorites.value.has(path)
-    const activeFavoriteGroupId =
-      activeRoot.value === 'favorites' && activeSub.value.startsWith('favorite-group:')
-        ? activeSub.value.replace('favorite-group:', '')
-        : ''
-
-    try {
-      if (isFav) {
-        if (activeFavoriteGroupId) {
-          await App.RemoveImageFromFavoriteGroup(img.relPath, activeFavoriteGroupId)
-        } else {
-          await App.RemoveFavorite(img.relPath)
-        }
-      } else {
-        await App.AddImageToFavoriteGroup(img.relPath, activeFavoriteGroupId || 'default')
-      }
-      await fetchFavorites()
-      img.isFavorite = favorites.value.has(normalizeFolderPath(img.relPath))
-    } catch (e) {
-      console.error(e)
-      showToast('操作失败', 'error')
-    }
+    return fetchGalleryWorkbenchAggregate({
+      activeDatePreset: activeDatePreset.value || 'all',
+      activeDateStart: activeDateStart.value || '',
+      activeDateEnd: activeDateEnd.value || '',
+      activeModelFilter: activeModelFilter.value || '',
+      activeLoraFilter: activeLoraFilter.value || '',
+    })
   }
 
   const fetchImages = async () => {
-    try {
-      const [imgs, groups] = await Promise.all([
-        App.GetImages(sortBy.value, sortOrder.value),
-        App.GetFavoriteGroups(),
-      ])
-
-      favoriteGroups.value = groups || []
-      favorites.value = getFavoritePathSet(groups)
-      images.value = (imgs || []).map(mapLoadedImage)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      loading.value = false
-    }
+    await fetchGalleryImages({
+      sortBy: sortBy.value,
+      sortOrder: sortOrder.value,
+      favoriteGroupsRef: favoriteGroups,
+      favoritesRef: favorites,
+      mapLoadedImage,
+    })
   }
 
   const fetchImageIndex = async () => {
-    try {
-      const [imgs, groups] = await Promise.all([
-        App.GetImagesIndex(sortBy.value, sortOrder.value),
-        App.GetFavoriteGroups(),
-      ])
-
-      images.value = []
-      favoriteGroups.value = groups || []
-      favorites.value = getFavoritePathSet(groups)
-      indexedImages.value = (imgs || []).map(mapLoadedImage)
-    } catch (err) {
-      console.error('Failed to fetch image index:', err)
-    } finally {
-      loading.value = false
-    }
+    await fetchGalleryImageIndex({
+      sortBy: sortBy.value,
+      sortOrder: sortOrder.value,
+      favoriteGroupsRef: favoriteGroups,
+      favoritesRef: favorites,
+      mapLoadedImage,
+    })
   }
-
-  const sourceImages = computed(() => (images.value.length > 0 ? images.value : indexedImages.value))
 
   const fileTree = computed(() => {
     let imagesToUse = sourceImages.value
@@ -858,109 +641,41 @@ const toggleRoot = (name) => {
     return query
   }
 
-const mapLoadedImage = (img) => ({
-  ...img,
-  path: buildImageDisplayPath(img.path, img.modTime, img.size),
-  thumbPath: buildImageDisplayPath(img.thumbPath, img.modTime, img.size),
-  previewPath: buildImageDisplayPath(img.previewPath, img.modTime, img.size),
-  cardPath:
-    galleryLoadMode.value === 'performance' &&
-    performanceSettings.value.thumbPreferred &&
-    buildImageDisplayPath(img.thumbPath, img.modTime, img.size)
-      ? buildImageDisplayPath(img.thumbPath, img.modTime, img.size)
-      : buildImageDisplayPath(img.path, img.modTime, img.size),
-  loras: Array.isArray(img.loras) ? img.loras : [],
-  isFavorite: favorites.value.has(normalizeFolderPath(img.relPath)),
-})
+  const mapLoadedImage = (img) => ({
+    ...img,
+    path: buildImageDisplayPath(img.path, img.modTime, img.size),
+    thumbPath: buildImageDisplayPath(img.thumbPath, img.modTime, img.size),
+    previewPath: buildImageDisplayPath(img.previewPath, img.modTime, img.size),
+    cardPath:
+      galleryLoadMode.value === 'performance' &&
+      performanceSettings.value.thumbPreferred &&
+      buildImageDisplayPath(img.thumbPath, img.modTime, img.size)
+        ? buildImageDisplayPath(img.thumbPath, img.modTime, img.size)
+        : buildImageDisplayPath(img.path, img.modTime, img.size),
+    loras: Array.isArray(img.loras) ? img.loras : [],
+    isFavorite: favorites.value.has(normalizeFolderPath(img.relPath)),
+  })
 
   const ensureStandardImagesReady = async () => {
-    latestPagedRequestId += 1
-    if (images.value.length > 0) return
-    await fetchImages()
+    await ensureGalleryStandardImagesReady({ fetchImagesFn: fetchImages })
   }
 
   const removeImagesLocally = (relPaths) => {
-    const normalizedPaths = (relPaths || [])
-      .map((path) => normalizeFolderPath(path))
-      .filter(Boolean)
-    if (normalizedPaths.length === 0) return
-
-    const pathSet = new Set(normalizedPaths)
-    const filterImages = (list) => (list || []).filter((img) => !pathSet.has(normalizeFolderPath(img.relPath)))
-    const removedFromPaged = (pagedImages.value || []).filter((img) => pathSet.has(normalizeFolderPath(img.relPath))).length
-
-    images.value = filterImages(images.value)
-    indexedImages.value = filterImages(indexedImages.value)
-    pagedImages.value = filterImages(pagedImages.value)
-
-    favorites.value = new Set(
-      Array.from(favorites.value).filter((path) => !pathSet.has(normalizeFolderPath(path))),
-    )
-
-    normalizedPaths.forEach((relPath) => {
-      delete imageTags.value[relPath]
-      delete imageNotes.value[relPath]
+    removeGalleryImagesLocally({
+      relPaths,
+      favoritesRef: favorites,
+      imageTagsRef: imageTags,
+      imageNotesRef: imageNotes,
     })
-
-    if (removedFromPaged > 0) {
-      pagedTotal.value = Math.max(0, pagedTotal.value - removedFromPaged)
-      pagedTotalPages.value = pagedTotal.value > 0 ? Math.ceil(pagedTotal.value / itemsPerPage.value) : 0
-      if (currentPage.value > Math.max(pagedTotalPages.value, 1)) {
-        currentPage.value = Math.max(pagedTotalPages.value, 1)
-        localStorage.setItem('currentPage', currentPage.value)
-      }
-      hasMorePagedImages.value = currentPage.value < Math.max(pagedTotalPages.value, 1)
-    }
-
-    if (gallerySummary.value?.totalImages) {
-      gallerySummary.value = {
-        ...gallerySummary.value,
-        totalImages: Math.max(0, gallerySummary.value.totalImages - normalizedPaths.length),
-      }
-    }
   }
 
   const fetchImagesPage = async ({ page = currentPage.value, append = false } = {}) => {
-    const requestId = ++latestPagedRequestId
-    const query = buildPagedQuery({ page, pageSize: itemsPerPage.value })
-    if (append) {
-      isPagedAppending.value = true
-    } else {
-      isPagedLoading.value = true
-      loading.value = true
-    }
-
-    try {
-      const result = await App.GetImagesPage(query)
-      if (requestId !== latestPagedRequestId) return
-      const mappedItems = (result?.items || []).map(mapLoadedImage)
-      pagedImages.value = append ? [...pagedImages.value, ...mappedItems] : mappedItems
-      pagedTotal.value = Number(result?.total) || 0
-      pagedTotalPages.value = Number(result?.totalPages) || (pagedTotal.value > 0 ? 1 : 0)
-      hasMorePagedImages.value = !!result?.hasMore
-      currentPage.value = Number(result?.page) || page || 1
-      localStorage.setItem('currentPage', currentPage.value)
-      lastSuccessfulQuery.value = query
-      if (result?.modeReason) {
-        modeReason.value = result.modeReason
-      }
-    } catch (err) {
-      if (requestId !== latestPagedRequestId) return
-      console.error('Failed to fetch paged images:', err)
-      if (!append) {
-        pagedImages.value = []
-        pagedTotal.value = 0
-        pagedTotalPages.value = 0
-        hasMorePagedImages.value = false
-      }
-    } finally {
-      if (requestId !== latestPagedRequestId) return
-      isPagedLoading.value = false
-      isPagedAppending.value = false
-      if (!append) {
-        loading.value = false
-      }
-    }
+    await fetchGalleryImagesPage({
+      page,
+      append,
+      buildPagedQuery,
+      mapLoadedImage,
+    })
   }
 
   const refreshCurrentGalleryView = async ({ syncSourceImages = false } = {}) => {
@@ -984,7 +699,7 @@ const mapLoadedImage = (img) => ({
       loading.value = false
       return
     }
-    latestPagedRequestId += 1
+    invalidatePagedRequests()
     pagedImages.value = []
     pagedTotal.value = 0
     pagedTotalPages.value = 1
@@ -994,92 +709,6 @@ const mapLoadedImage = (img) => ({
     }
     loading.value = false
   }
-
-  const availableModels = computed(() => {
-    if ((workbenchAggregate.value?.availableModels || []).length > 0) {
-      return workbenchAggregate.value.availableModels
-    }
-    return buildGroupedFilterOptions(images.value.map((img) => img?.model || ''))
-  })
-
-  const availableLoras = computed(() => {
-    if ((workbenchAggregate.value?.availableLoras || []).length > 0) {
-      return workbenchAggregate.value.availableLoras
-    }
-    const loraValues = []
-    images.value.forEach((img) => {
-      ;(img?.loras || []).forEach((lora) => {
-        loraValues.push(lora)
-      })
-    })
-    return buildGroupedFilterOptions(loraValues)
-  })
-
-  const activeDateRange = computed(() => ({
-    start: activeDateStart.value || '',
-    end: activeDateEnd.value || '',
-  }))
-
-  const activeDateLabel = computed(() =>
-    getDatePresetLabel(activeDatePreset.value, activeDateRange.value),
-  )
-
-  const hasActiveWorkbenchFilters = computed(() =>
-    activeDatePreset.value !== 'all' || !!activeModelFilter.value || !!activeLoraFilter.value,
-  )
-
-  const workbenchFilteredImages = computed(() =>
-    images.value.filter((img) =>
-      imageMatchesWorkbenchFilters(
-        img,
-        activeDatePreset.value,
-        activeDateRange.value,
-        activeModelFilter.value,
-        activeLoraFilter.value,
-      ),
-    ),
-  )
-
-  const fallbackDateWorkbenchSummary = computed(() => {
-    const dateCountMap = buildDateCountMap(images.value)
-    const datedImages = images.value.filter((img) => getImageDateKey(img))
-    const countWithPreset = (preset) =>
-      datedImages.filter((img) =>
-        imageMatchesWorkbenchFilters(
-          img,
-          preset,
-          null,
-          activeModelFilter.value,
-          activeLoraFilter.value,
-        ),
-      ).length
-
-    const recentDates = Array.from(dateCountMap.entries())
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([date, count]) => ({ date, count }))
-
-    return {
-      total: workbenchFilteredImages.value.length,
-      datedTotal: datedImages.length,
-      today: countWithPreset('today'),
-      yesterday: countWithPreset('yesterday'),
-      last7: countWithPreset('last7'),
-      month: countWithPreset('month'),
-      recentDates,
-    }
-  })
-  const dateWorkbenchSummary = computed(() => {
-    const summary = workbenchAggregate.value?.summary
-    if (summary && (summary.recentDates?.length || workbenchAggregate.value?.filteredCount || summary.datedTotal)) {
-      return summary
-    }
-    return fallbackDateWorkbenchSummary.value
-  })
-  const workbenchFilteredCount = computed(() =>
-    Number.isFinite(Number(workbenchAggregate.value?.filteredCount))
-      ? Number(workbenchAggregate.value.filteredCount)
-      : workbenchFilteredImages.value.length,
-  )
 
   const finalImages = computed(() => {
     let imgs = currentImages.value
@@ -1165,58 +794,19 @@ const mapLoadedImage = (img) => ({
   })
 
   const { stackedImages } = useImageStacks(finalImages, isStackingEnabled)
-
-  const paginatedImages = computed(() => {
-    if (galleryLoadMode.value === 'performance') {
-      return pagedImages.value
-    }
-    const startIndex = (currentPage.value - 1) * itemsPerPage.value
-    const endIndex = startIndex + itemsPerPage.value
-    return stackedImages.value.slice(startIndex, endIndex)
+  const {
+    paginatedImages,
+    totalPages,
+    setPage,
+    prevPage,
+    nextPage,
+    setItemsPerPage,
+    resetPage,
+  } = useGalleryPagination({
+    stackedImagesRef: stackedImages,
+    galleryLoadModeRef: galleryLoadMode,
+    fetchImagesPageFn: fetchImagesPage,
   })
-
-  const totalPages = computed(() => {
-    if (galleryLoadMode.value === 'performance') {
-      return pagedTotalPages.value || 1
-    }
-    return Math.max(1, Math.ceil(stackedImages.value.length / itemsPerPage.value))
-  })
-
-  const setPage = (page) => {
-    if (galleryLoadMode.value === 'performance') {
-      if (page < 1) return
-      currentPage.value = page
-      localStorage.setItem('currentPage', page)
-      fetchImagesPage({ page })
-      return
-    }
-    if (page < 1 || page > totalPages.value) return
-    currentPage.value = page
-    localStorage.setItem('currentPage', page)
-  }
-
-  const prevPage = () => setPage(currentPage.value - 1)
-  const nextPage = () => setPage(currentPage.value + 1)
-
-  const setItemsPerPage = (count) => {
-    itemsPerPage.value = count
-    localStorage.setItem('itemsPerPage', count)
-    if (galleryLoadMode.value === 'performance') {
-      currentPage.value = 1
-      fetchImagesPage({ page: 1 })
-      return
-    }
-    setPage(1)
-  }
-
-  const resetPage = () => {
-    if (galleryLoadMode.value === 'performance') {
-      currentPage.value = 1
-      localStorage.setItem('currentPage', 1)
-      return
-    }
-    setPage(1)
-  }
 
   watch([activeRoot, activeSub, activeChild], () => {
     resetPage()
@@ -1289,40 +879,6 @@ const mapLoadedImage = (img) => ({
       await ensureStandardImagesReady()
     }
   })
-
-  const setActiveDatePreset = (preset) => {
-    activeDatePreset.value = preset || 'all'
-    if (activeDatePreset.value !== 'custom') {
-      activeDateStart.value = ''
-      activeDateEnd.value = ''
-    }
-  }
-
-  const setActiveDateRange = ({ start = '', end = '' } = {}) => {
-    activeDateStart.value = start || ''
-    activeDateEnd.value = end || ''
-    activeDatePreset.value = activeDateStart.value || activeDateEnd.value ? 'custom' : 'all'
-  }
-
-  const clearDateFilter = () => {
-    activeDatePreset.value = 'all'
-    activeDateStart.value = ''
-    activeDateEnd.value = ''
-  }
-
-  const setActiveModel = (value) => {
-    activeModelFilter.value = value || ''
-  }
-
-  const setActiveLora = (value) => {
-    activeLoraFilter.value = value || ''
-  }
-
-  const clearWorkbenchFilters = () => {
-    clearDateFilter()
-    activeModelFilter.value = ''
-    activeLoraFilter.value = ''
-  }
 
   const clearSearchQuery = () => {
     searchQuery.value = ''
@@ -1397,195 +953,6 @@ const mapLoadedImage = (img) => ({
         imageNotes.value[img.relPath] = originalNote
       }
     }
-  }
-
-  const fetchTags = async () => {
-    try {
-      const tgs = await App.GetTags()
-      tags.value = tgs || []
-    } catch (e) {
-      console.error('Failed to fetch tags:', e)
-    }
-  }
-
-  const fetchImageTags = async () => {
-    try {
-      const imgsTags = await App.GetImageTags()
-      imageTags.value = imgsTags || {}
-    } catch (e) {
-      console.error('Failed to fetch image tags:', e)
-    }
-  }
-
-  const fetchImageNotes = async () => {
-    try {
-      const notes = await App.GetImageNotes()
-      imageNotes.value = notes || {}
-    } catch (e) {
-      console.error('Failed to fetch image notes:', e)
-    }
-  }
-
-  const createTag = async (name, color, category = '') => {
-    try {
-      const newTag = await App.CreateTag(name, color, category)
-      tags.value.push(newTag)
-      showToast('标签已创建', 'success')
-      return newTag
-    } catch (e) {
-      console.error(e)
-      showToast('创建失败', 'error')
-      return null
-    }
-  }
-
-  const deleteTag = async (tagId) => {
-    const ok = await confirm('确定要删除该标签吗？此操作将同时移除所有图片的该标签。')
-    if (!ok) return
-
-    try {
-      await App.DeleteTag(tagId)
-      tags.value = tags.value.filter((t) => t.id !== tagId)
-
-      for (const relPath in imageTags.value) {
-        imageTags.value[relPath] = imageTags.value[relPath].filter((id) => id !== tagId)
-      }
-
-      if (activeTagFilter.value === tagId) {
-        activeTagFilter.value = null
-      }
-
-      showToast('标签已删除', 'success')
-    } catch (e) {
-      console.error(e)
-      showToast('删除失败', 'error')
-    }
-  }
-
-  const batchDeleteTags = async (tagIds) => {
-    if (!tagIds || tagIds.length === 0) return
-
-    const ok = await confirm(`确定要删除选中的 ${tagIds.length} 个标签吗？此操作将同时移除所有图片的这些标签。`)
-    if (!ok) return
-
-    try {
-      await App.BatchDeleteTags(tagIds)
-
-      tags.value = tags.value.filter((t) => !tagIds.includes(t.id))
-      for (const relPath in imageTags.value) {
-        imageTags.value[relPath] = imageTags.value[relPath].filter((id) => !tagIds.includes(id))
-      }
-      if (tagIds.includes(activeTagFilter.value)) {
-        activeTagFilter.value = null
-      }
-
-      showToast(`成功删除 ${tagIds.length} 个标签`, 'success')
-    } catch (e) {
-      console.error(e)
-      showToast('删除失败', 'error')
-    }
-  }
-
-  const batchUpdateTags = async (tagIds, data) => {
-    if (!tagIds || tagIds.length === 0) return
-
-    let successCount = 0
-    let failCount = 0
-
-    const promises = tagIds.map(async (tagId) => {
-      try {
-        await App.UpdateTag(tagId, data.name || null, data.color || null, data.category || null)
-        const tag = tags.value.find((t) => t.id === tagId)
-        if (tag) {
-          if (data.name !== undefined) tag.name = data.name
-          if (data.color !== undefined) tag.color = data.color
-          if (data.category !== undefined) tag.category = data.category
-        }
-        successCount++
-      } catch (e) {
-        failCount++
-      }
-    })
-
-    await Promise.all(promises)
-
-    if (failCount === 0) {
-      showToast(`成功更新 ${successCount} 个标签`, 'success')
-    } else {
-      showToast(`更新完成：${successCount} 成功，${failCount} 失败`, 'error')
-    }
-  }
-
-  const updateTag = async (tagId, data) => {
-    try {
-      await App.UpdateTag(tagId, data.name || null, data.color || null, data.category || null)
-
-      const tag = tags.value.find((t) => t.id === tagId)
-      if (tag) {
-        if (data.name !== undefined) tag.name = data.name
-        if (data.color !== undefined) tag.color = data.color
-        if (data.category !== undefined) tag.category = data.category
-      }
-
-      showToast('标签已更新', 'success')
-      return true
-    } catch (e) {
-      console.error(e)
-      showToast('更新失败', 'error')
-      return false
-    }
-  }
-
-  const addTagToImage = async (img, tagId) => {
-    const relPath = img.relPath
-    if (!imageTags.value[relPath]) {
-      imageTags.value[relPath] = []
-    }
-    if (!imageTags.value[relPath].includes(tagId)) {
-      imageTags.value[relPath].push(tagId)
-    }
-
-    try {
-      await App.AddTagToImage(relPath, tagId)
-    } catch (e) {
-      console.error(e)
-      imageTags.value[relPath] = imageTags.value[relPath].filter((id) => id !== tagId)
-      showToast('添加标签失败', 'error')
-    }
-  }
-
-  const removeTagFromImage = async (img, tagId) => {
-    const relPath = img.relPath
-    const originalTags = imageTags.value[relPath] || []
-    if (imageTags.value[relPath]) {
-      imageTags.value[relPath] = imageTags.value[relPath].filter((id) => id !== tagId)
-    }
-
-    try {
-      await App.RemoveTagFromImage(relPath, tagId)
-    } catch (e) {
-      console.error(e)
-      imageTags.value[relPath] = originalTags
-      showToast('移除标签失败', 'error')
-    }
-  }
-
-  const toggleTagFilter = (tagId) => {
-    if (activeTagFilter.value === tagId) {
-      activeTagFilter.value = null
-    } else {
-      activeTagFilter.value = tagId
-    }
-  }
-
-  const getTagCount = (tagId) => {
-    let count = 0
-    for (const relPath in imageTags.value) {
-      if (imageTags.value[relPath]?.includes(tagId)) {
-        count++
-      }
-    }
-    return count
   }
 
   const setSortBy = (newSortBy) => {

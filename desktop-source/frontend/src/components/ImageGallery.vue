@@ -11,9 +11,6 @@ import MoveToFolderDialog from './MoveToFolderDialog.vue'
 import PaginationControls from './PaginationControls.vue'
 import ABCompareSlider from './ABCompareSlider.vue'
 import FavoriteGroupsDialog from './FavoriteGroupsDialog.vue'
-
-// import StatisticsPanel from './StatisticsPanel.vue' - replaced by dashboard
-import StatisticsDashboard from './StatisticsDashboard.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -171,7 +168,7 @@ const handleExport = async ({ targetDir, move }) => {
 
 // Drag & Drop Handlers
 const targetFolder = computed(() => {
-    if (props.rootName === 'favorites' || props.rootName === 'statistics') {
+    if (props.rootName === 'favorites') {
         return '根目录'
     }
     if (props.targetFolderPath) {
@@ -237,7 +234,7 @@ const uploadFiles = async (files) => {
     // However, for drag-and-drop, we can get the actual file path from the dropped File object in Electron/Wails
     // In Wails v2 webview, file.path contains the absolute path on the local system.
     
-    const targetFolderPath = props.rootName === 'favorites' || props.rootName === 'statistics'
+    const targetFolderPath = props.rootName === 'favorites'
         ? ''
         : (props.targetFolderPath || '')
 
@@ -377,11 +374,7 @@ watch(() => props.currentPage, () => {
           <div class="flex flex-col gap-4">
             <div class="min-w-0">
               <div class="flex items-start gap-4">
-                  <div v-if="rootName === 'statistics'" class="flex flex-col justify-center">
-                     <h2 class="text-xl font-semibold tracking-tight">数据视界</h2>
-                     <p class="text-xs text-muted-foreground">生成历史时间线与趋势分析</p>
-                  </div>
-                  <div v-else class="min-w-0 flex-1">
+                  <div class="min-w-0 flex-1">
                      <h2 class="break-words text-[2rem] font-semibold leading-tight tracking-tight">
                         {{ rootLabel || rootName || '图片库' }}
                         <span v-if="subLabel && subLabel !== '默认'" class="text-muted-foreground font-normal">
@@ -397,7 +390,7 @@ watch(() => props.currentPage, () => {
                   </div>
               </div>
             </div>
-              <div v-if="rootName !== 'statistics'" class="flex flex-col gap-3">
+              <div class="flex flex-col gap-3">
                   <div class="flex flex-wrap items-center gap-3">
                       <div class="relative w-full min-w-[260px] md:w-72">
                           <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -533,9 +526,7 @@ watch(() => props.currentPage, () => {
       </header>
 
       <!-- Content -->
-      <StatisticsDashboard v-if="rootName === 'statistics'" class="flex-1" />
-
-      <div v-else-if="!rootName" class="flex-1 flex flex-col items-center justify-center text-muted-foreground p-10">
+      <div v-if="!rootName" class="flex-1 flex flex-col items-center justify-center text-muted-foreground p-10">
           <p class="text-lg font-medium opacity-50">请在左侧选择标签以查看图片</p>
       </div>
 

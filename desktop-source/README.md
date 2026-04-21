@@ -1,19 +1,57 @@
-# README
+# Desktop Source Layout
 
-## About
+`desktop-source` is the Wails desktop application source for Comfy Manager.
 
-This is the official Wails Vue template.
+## Current Go file grouping
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+The backend is no longer organized in the root directory.
+It now lives under `desktop-source/backend/` and is grouped by filename prefix so related code stays easy to find.
 
-## Live Development
+- `backend/app.go`
+  Minimal application shell. Keeps the `App` struct and shared runtime state only.
+- `backend/app_core_*.go`
+  Core runtime and lifecycle logic, such as constants, app startup, shutdown, and common runtime wiring.
+- `backend/app_feature_*.go`
+  Business features exposed by the desktop app, such as gallery, prompt library, favorites, tags, trash, profile, and settings.
+- `backend/app_support_*.go`
+  Internal helpers and infrastructure, such as paths, watchers, metadata cache, and compatibility helpers.
+- `backend/app_types_*.go`
+  Shared data structures split by domain to keep model definitions readable.
+- `backend/exports.go`
+  Small exported wrappers that let the root `main.go` wire Wails hooks without exposing internal layout details.
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+## Quick navigation
 
-## Building
+- `backend/app_core_constants.go`
+  Shared constants used across multiple backend modules.
+- `backend/app_core_lifecycle.go`
+  `NewApp`, startup, and shutdown flow.
+- `backend/app_core_runtime.go`
+  Lightweight runtime helpers.
+- `backend/app_feature_gallery.go`
+  Gallery loading and image browsing related backend methods.
+- `backend/app_feature_prompt.go`
+  Prompt library and prompt assistant related backend methods.
+- `backend/app_feature_settings.go`
+  Settings persistence entry points.
+- `backend/app_feature_profile.go`
+  User profile loading and avatar management.
+- `backend/app_feature_directory_binding.go`
+  Output directory binding and directory configuration.
+- `backend/app_feature_trash.go`
+  Delete and trash behavior.
+- `backend/app_support_metadata_cache.go`
+  Image metadata cache helpers.
+- `backend/app_support_watcher.go`
+  File watching and refresh triggers.
+- `backend/app_support_paths.go`
+  Common path resolution helpers.
 
-To build a redistributable, production mode package, use `wails build`.
+## Intent of this organization
+
+- Keep the Wails entry layer small in the root directory.
+- Move backend implementation into one dedicated folder without doing another deep feature split.
+- Make related backend code easier to scan by directory plus filename.
+- Leave room for future maintenance without re-introducing a giant single file in the root.
+
+For the broader backend map, see [`../docs/BACKEND_FILE_MAP.md`](../docs/BACKEND_FILE_MAP.md).

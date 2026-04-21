@@ -1,39 +1,25 @@
 # Comfy Manager 项目上下文
 
-当前稳定版本：`v2.2.1`  
+当前版本：`v3.0.0`  
 更新时间：`2026-04-21`
 
 ## 1. 项目定位
 
-Comfy Manager（灵动图库）是一套基于 **Wails v2 + Go + Vue 3** 的桌面图库与创作管理工具，服务于 ComfyUI 出图后的浏览、筛选、整理、归档与 Prompt 复用场景。
+Comfy Manager 是一个基于 **Wails v2 + Go + Vue 3** 的桌面应用，面向 ComfyUI 出图后的本地整理场景。
 
-当前项目主线：
+当前主线很明确：
 
-- 浏览 ComfyUI 输出图片和 PNG 元数据
-- 绑定任意 ComfyUI `output` 目录，而不是强依赖 exe 所在位置
-- 按日期、模型、LoRA、标签、收藏、笔记等维度筛图
-- 提供日期工作台、统计视图和提示词助手
-- 提供自动规则、目录治理、缓存治理等整理能力
+- 浏览 ComfyUI output 图片
+- 按日期、模型、LoRA、标签、收藏和笔记回看作品
+- 管理目录、回收站、缓存和自定义目录
+- 提供提示词助手、模板与自动规则，提升复用效率
 
-## 2. v2.2.1 版本重点
+这不是云相册，也不是远程协作系统。  
+它当前的产品重心仍然是：
 
-### 本次新增
+`ComfyUI output 的本地整理器`
 
-- 内置“使用文档”版本与内容同步到 v2.2.1
-- 大型图库性能模式
-- 目录健康中心
-- 缩略图 / 预览图变体缓存
-- 自定义目录置顶状态与侧边栏联动
-
-### 本次重点修复
-
-- 日期工作台、统计页、工作台总览的数据口径问题
-- 性能模式分页请求乱序覆盖
-- 性能模式与标准模式切换后的数据完整性问题
-- 删除后分页列表不同步
-- 自定义目录弹窗布局与编辑区滚动问题
-
-## 3. 技术栈
+## 2. 技术栈
 
 ### 后端
 
@@ -41,18 +27,18 @@ Comfy Manager（灵动图库）是一套基于 **Wails v2 + Go + Vue 3** 的桌�
 - Wails v2
 - fsnotify
 - golang.org/x/image
-- google/uuid
+- github.com/google/uuid
 
 ### 前端
 
-- Vue 3（Composition API）
+- Vue 3
 - Vite
 - Tailwind CSS
 - shadcn-vue
 - lucide-vue-next
 - vue-sonner
 
-## 4. 关键目录
+## 3. 关键目录
 
 ```text
 comfy-manager/
@@ -63,59 +49,81 @@ comfy-manager/
 ├─ desktop-app.exe
 ├─ ComfyManager-amd64-installer.exe
 └─ desktop-source/
-   ├─ app.go
    ├─ main.go
-   ├─ shortcuts.go
-   ├─ wails.json
+   ├─ backend/
+   ├─ frontend/
    ├─ build/
-   └─ frontend/
-      └─ src/
+   └─ wails.json
 ```
 
-## 5. 后端核心结构
+## 4. 当前后端结构
 
-主文件：`desktop-source/app.go`
+当前后端已经不再把主要逻辑堆在根目录 `app.go`。
 
-当前主要职责：
+新的结构是：
 
-- 扫描和筛选受管图片
-- 解析 PNG 元数据、模型、LoRA、Workflow
-- 维护图片元数据缓存
-- 维护缩略图 / 预览图变体缓存
-- 维护目录绑定、自定义目录、收藏夹、标签、笔记、自动规则
-- 提供统计、工作台、目录健康和清理接口
+- `desktop-source/main.go`
+  Wails 入口，只负责启动应用和绑定 `backend.App`
+- `desktop-source/backend/`
+  后端主要实现目录
+- `desktop-source/backend/exports.go`
+  为根入口暴露启动、关闭和图片服务包装
 
-## 6. 前端核心结构
+后端分组规则：
 
-### `frontend/src/App.vue`
+- `app.go`
+  `App` 壳子与共享状态
+- `app_core_*`
+  生命周期、运行时、常量
+- `app_feature_*`
+  业务功能实现
+- `app_support_*`
+  内部辅助与基础设施
+- `app_types_*`
+  类型定义
 
-- 根级页面装配
-- 视图切换
-- 图库与工作台联动
-- 刷新链路协调
+详细映射见：[BACKEND_FILE_MAP.md](./BACKEND_FILE_MAP.md)
 
-### `frontend/src/composables/useImages.js`
+## 5. 当前前端结构
 
-- 图片、收藏、标签、笔记、自定义目录状态
-- 搜索、排序、分页
-- 日期工作台筛选状态
-- 目录树构建
-- 性能模式与标准模式切换
+### 根级页面
 
-### `frontend/src/components/ImageGallery.vue`
+- `frontend/src/App.vue`
+  根级页面装配、视图切换、绑定刷新链路
 
-- 图库视图
-- 悬浮分页
-- 性能模式状态提示
+### 核心页面 / 组件
 
-### `frontend/src/components/CustomRootDialog.vue`
+- `frontend/src/components/Home.vue`
+  工作台总览
+- `frontend/src/components/ImageGallery.vue`
+  图库主视图
+- `frontend/src/components/DateWorkbench.vue`
+  日期产出工作台
+- `frontend/src/components/StatisticsDashboard.vue`
+  数据视界
+- `frontend/src/components/Documentation.vue`
+  软件内使用文档
+- `frontend/src/components/PromptAssistantPage.vue`
+  提示词助手
+- `frontend/src/components/AutoRulesPanel.vue`
+  自动规则引擎
 
-- 自定义目录新增、排序、置顶、显示控制
-- 编辑区状态管理
+### 当前已拆分的 composables
 
-## 7. 数据持久化
+- `useImages.js`
+  主图库状态入口
+- `useGalleryData.js`
+  图库数据与分页请求
+- `useGalleryHelpers.js`
+  辅助格式化与筛选工具
+- `useLibraryMeta.js`
+  标签、收藏、笔记等资料元数据
+- `useWorkbenchFilters.js`
+  工作台日期 / 模型 / LoRA 筛选
 
-常见数据文件：
+## 6. 数据持久化
+
+常见持久化文件位于 `data/`：
 
 - `favorites.json`
 - `tags.json`
@@ -126,46 +134,56 @@ comfy-manager/
 - `auto-rules.json`
 - `trash-metadata.json`
 - `image-meta-cache.json`
+- `prompt-library/`
 
-## 8. 关键业务链路
+## 7. 关键业务链路
 
-### 图库刷新
+### 图片刷新链
 
-`fsnotify` -> `images:changed` -> 前端订阅 -> 图库 / 工作台 / 统计刷新
+`fsnotify` -> `images:changed` 事件 -> 前端订阅 -> 图库 / 工作台 / 统计刷新
 
-### 性能模式
+### output 绑定链
 
-目录摘要 / 轻量索引 -> 分页接口 -> 缩略图或预览图变体 -> Lightbox 原图回落
+用户选择 output -> 后端校验目录 -> 保存 settings -> 重启 watcher -> 前端刷新当前视图
 
-### 日期工作台
+### 大图库性能链
 
-后端聚合接口 -> 日期摘要 / 活跃日期 -> 打开图库继续筛图
+目录扫描 -> 轻量分页 / 预览变体 -> 延迟元数据读取 -> Lightbox 查看原图与细节
 
-## 9. 开发注意事项
+### 提示词复用链
 
-- 涉及筛选、分页、目录树时，优先检查 `useImages.js`
-- 涉及自定义目录顺序和置顶时，优先检查 `app.go` 与 `CustomRootDialog.vue`
-- 涉及性能模式时，注意轻量索引和完整图片数据的切换边界
-- 发布时必须同步根目录产物和 `docs`
+本地词库 -> 搜索 / 分类 / 模板 -> 拼装 Prompt -> 回写使用上下文
 
-## 10. 最近变更记录
+## 8. v3.0.0 当前状态总结
 
-### 2026-04-21 | v2.2.1
+`v3.0.0` 的主要成果：
 
-- 修正软件内使用文档仍停留在 v2.1.0 的问题
-- 同步更新 README、发布说明与 Windows 安装器版本号
-- 重新构建并发布 v2.2.1 桌面端与安装程序
+- 后端源码收纳进 `desktop-source/backend/`
+- 前端与后端绑定兼容问题修复
+- 首页异常文案问题修复
+- 软件内文档、GitHub README 与发布说明重写
+- Windows 安装包构建链恢复
+- 根目录 exe 和安装包重新打包同步
 
-### 2026-04-21 | v2.2.0
+## 9. 当前边界与原则
 
-- 发布大型图库性能模式与目录健康中心
-- 接入缩略图 / 预览图缓存变体
-- 升级分页交互与页码直跳
-- 增强自定义目录管理交互
-- 修复多项性能模式与工作台回归问题
+- 当前阶段不继续做更深的 Go 包拆分
+- 以后新增后端能力，优先继续放进 `backend/` 现有分组
+- 优先维持外部行为稳定，再做结构优化
+- 发布时必须同时同步：
+  - 根目录 exe
+  - 安装程序
+  - 根 README
+  - `docs/README.md`
+  - `docs/PROJECT_CONTEXT.md`
+  - `docs/RELEASE.md`
 
-### 2026-04-19 | v2.1.6
+## 10. 下一步建议
 
-- 同步 Windows 安装版
-- 增强 Prompt 提取和调试视图
-- 修复分页、缓存和布局相关问题
+若继续推进，优先级建议如下：
+
+1. 清理剩余编码历史包袱，统一前端中文文案
+2. 继续收敛前端大组件的职责边界
+3. 检查设置中心与工具菜单的统一入口体验
+4. 评估是否需要补一份图库 / 工作台数据流图
+

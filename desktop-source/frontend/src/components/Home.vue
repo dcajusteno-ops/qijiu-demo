@@ -316,7 +316,7 @@ const navigateToArchive = () => {
                              </Badge>
                              <h1 class="text-3xl font-bold tracking-tight text-foreground">{{ recentImages[0].name }}</h1>
                              <p class="text-muted-foreground mt-1 text-sm font-medium">
-                                {{ new Date(recentImages[0].modTime).toLocaleString() }} 路 {{ (recentImages[0].size / 1024 / 1024).toFixed(2) }} MB
+                                {{ new Date(recentImages[0].modTime).toLocaleString() }} / {{ (recentImages[0].size / 1024 / 1024).toFixed(2) }} MB
                              </p>
                         </div>
                         
