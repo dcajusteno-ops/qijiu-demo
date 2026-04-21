@@ -1,6 +1,6 @@
 # Comfy Manager 发布说明
 
-当前版本：`v2.2.0`
+当前版本：`v2.2.1`
 
 远程仓库：
 
@@ -38,11 +38,19 @@ Copy-Item .\desktop-source\build\bin\ComfyManager-amd64-installer.exe .\ComfyMan
 
 ```powershell
 git add -A
-git commit -m "release: v2.2.0"
-git tag -a v2.2.0 -m "v2.2.0"
+git commit -m "release: v2.2.1"
+git tag -a v2.2.1 -m "v2.2.1"
 git push origin main
-git push origin v2.2.0
+git push origin v2.2.1
 ```
+
+## v2.2.1 发布内容
+
+### 修复
+
+- 修正软件内“使用文档”仍显示 v2.1.0 的版本错位问题
+- 同步软件内文档、README、项目上下文和安装器版本号
+- 重新打包桌面端与 Windows 安装程序，确保发布产物与文档一致
 
 ## v2.2.0 发布内容
 
@@ -71,6 +79,7 @@ git push origin v2.2.0
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
+| v2.2.1 | 2026-04-21 | 修正软件内使用文档版本滞后问题，并同步重打包桌面端与安装器 |
 | v2.2.0 | 2026-04-21 | 大型图库性能模式、目录健康中心、缩略图变体、自定义目录增强、分页交互升级与多项回归修复 |
 | v2.1.6 | 2026-04-19 | Windows 安装版同步、Prompt 提取增强、分页与缓存修复 |
 | v2.1.0 | 2026-04-18 | 提示词助手独立页面与本地 Prompt 工作流 |

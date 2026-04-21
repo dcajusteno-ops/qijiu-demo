@@ -37,6 +37,11 @@ const featureCards = [
     description: '自动从 PNG 元数据中提取模型与 LoRA，用于图库和日期工作台的联合筛选。',
   },
   {
+    icon: Clock3,
+    title: '大型图库性能模式',
+    description: '当目录图片数量较大时，自动切换轻量分页与预览图策略，减少首屏等待和滚动卡顿。',
+  },
+  {
     icon: Search,
     title: '搜索与细查',
     description: '支持按文件名、路径、Prompt、模型、LoRA、标签和笔记进行搜索。',
@@ -70,6 +75,11 @@ const featureCards = [
     icon: Settings2,
     title: '设置中心',
     description: '统一管理主题、快捷键、缓存、文件夹维护和工具菜单顺序与显示。',
+  },
+  {
+    icon: FolderTree,
+    title: '目录健康与治理',
+    description: '提供目录健康中心、自定义目录置顶、侧边栏显示控制与排序管理，方便长期维护图库结构。',
   },
   {
     icon: Trash2,
@@ -135,6 +145,10 @@ const faqs = [
     a: '运行时读取的是项目内 `data/prompt-library/` 下的清洗副本，而不是原始抓取目录；这样更稳定，也便于后续更新和回滚。',
   },
   {
+    q: '为什么会看到“性能优先模式”提示？',
+    a: '当当前目录图片数量较大时，程序会优先启用轻量分页、缩略图 / 预览图变体和更稳的列表刷新策略，以保证浏览体验；点击图片详情时仍可继续查看原图与元数据。',
+  },
+  {
     q: '为什么我删除了自定义提示词，收藏也会变化？',
     a: '因为自定义提示词删除后，程序会同步清理已失效的收藏和最近记录，避免状态残留导致数量和列表不一致。',
   },
@@ -147,7 +161,7 @@ const faqs = [
       <BookOpen class="mr-3 h-5 w-5 text-primary" />
       <div class="flex items-center gap-3">
         <h1 class="text-xl font-bold tracking-tight">使用文档</h1>
-        <Badge variant="outline" class="rounded-full px-3 py-1 text-xs">v2.1.0</Badge>
+        <Badge variant="outline" class="rounded-full px-3 py-1 text-xs">v2.2.1</Badge>
       </div>
     </div>
 
@@ -159,10 +173,10 @@ const faqs = [
               <Clock3 class="h-4 w-4" />
               <span>当前版本说明</span>
             </div>
-            <h2 class="text-3xl font-semibold tracking-tight">v2.1.0 使用说明</h2>
+            <h2 class="text-3xl font-semibold tracking-tight">v2.2.1 使用说明</h2>
             <p class="max-w-3xl text-sm leading-7 text-muted-foreground">
-              这一版重点补齐了提示词编辑器，把看图、找词、拼 Prompt、存模板串成了一个本地工作流。
-              你在软件内看到的文档内容，已经和外部 README、发布说明同步到当前版本。
+              当前稳定版本已经升级到 v2.2.1。你现在看到的软件内文档已与外部 README、发布说明和安装版一起同步，
+              内容覆盖大型图库性能模式、目录健康治理、自定义目录增强、悬浮分页与页码直跳等当前正式能力。
             </p>
           </div>
         </section>
@@ -271,7 +285,7 @@ const faqs = [
         </section>
 
         <div class="pt-4 text-center text-sm text-muted-foreground">
-          Comfy Manager v2.1.0 · 面向 ComfyUI 出图整理与提示词工作流
+          Comfy Manager v2.2.1 · 面向 ComfyUI 出图整理、目录治理与提示词工作流
         </div>
       </div>
     </div>
