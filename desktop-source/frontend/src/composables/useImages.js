@@ -8,6 +8,7 @@ import {
   buildImageDisplayPath,
   getDateSegment,
   normalizeFolderPath,
+  normalizeSearchText,
   syncGroupedFilterValue,
 } from './useGalleryHelpers'
 

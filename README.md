@@ -1,6 +1,6 @@
 # Comfy Manager
 
-当前稳定版本：`v3.0.0`
+当前稳定版本：`v3.0.1`
 
 Comfy Manager 是一个面向 **ComfyUI output 目录** 的桌面整理工具，基于 **Wails v2 + Go + Vue 3** 构建。  
 它不是单纯的“看图器”，而是把 ComfyUI 出图之后真正高频的事情串成一个完整工作流：
@@ -11,14 +11,17 @@ Comfy Manager 是一个面向 **ComfyUI output 目录** 的桌面整理工具，
 - 整理目录、清理缓存、治理侧边栏目录结构
 - 通过提示词助手、模板和自动规则提高复用效率
 
-## v3.0.0 这次有什么变化
+## v3.0.1 这次有什么变化
 
-`v3.0.0` 不是单点修补，而是一轮“结构、文档、发布链”一起升级的版本：
+`v3.0.1` 是在 `v3.0.0` 基础上的稳定性修复版本，重点是把当前发现的归档目录与发布产物问题一次收口：
 
 - 后端 Go 源码从根目录整理进 `desktop-source/backend/`
 - 后端文件按 `app_core_* / app_feature_* / app_support_* / app_types_*` 分组
 - 修复重构后前端对 Wails 绑定名的兼容问题
 - 修复首页最新作品卡片里异常显示的“路”字文案
+- 修复“日期归档目录”进入后黑屏的运行时错误
+- 修复日期归档树中年份分类无法正常折叠的交互问题
+- 确认根目录 `desktop-app.exe` 与 `ComfyManager-amd64-installer.exe` 和 `build/bin` 产物哈希一致
 - 重写软件内使用文档、GitHub README 与发布文档
 - 重新打通 Windows 安装包生成链路
 - 统一重打 `desktop-app.exe` 与 `ComfyManager-amd64-installer.exe`
@@ -108,7 +111,7 @@ comfy-manager/
 ## 仓库信息
 
 - GitHub: [dcajusteno-ops/qijiu-demo](https://github.com/dcajusteno-ops/qijiu-demo)
-- 推荐标签：`v3.0.0`
+- 推荐标签：`v3.0.1`
 
 ## 发布产物
 

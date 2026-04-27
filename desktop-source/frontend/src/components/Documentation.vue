@@ -156,7 +156,7 @@ const faqs = [
       <BookOpen class="mr-3 h-5 w-5 text-primary" />
       <div class="flex items-center gap-3">
         <h1 class="text-xl font-bold tracking-tight">使用文档</h1>
-        <Badge variant="outline" class="rounded-full px-3 py-1 text-xs">v3.0.0</Badge>
+        <Badge variant="outline" class="rounded-full px-3 py-1 text-xs">v3.0.1</Badge>
       </div>
     </div>
 
@@ -168,11 +168,11 @@ const faqs = [
               <Clock3 class="h-4 w-4" />
               <span>当前版本说明</span>
             </div>
-            <h2 class="text-3xl font-semibold tracking-tight">v3.0.0 使用说明</h2>
+            <h2 class="text-3xl font-semibold tracking-tight">v3.0.1 使用说明</h2>
             <p class="max-w-3xl text-sm leading-7 text-muted-foreground">
               你现在看到的软件内文档已经与 GitHub README、发布说明、安装器版本和当前桌面程序同步到
-              <span class="font-medium text-foreground">v3.0.0</span>。这版重点完成了后端结构收纳、文档重写、
-              安装链恢复以及多个兼容与显示问题修复。
+              <span class="font-medium text-foreground">v3.0.1</span>。这版在延续结构整理与文档同步的基础上，重点补齐了日期归档目录黑屏、
+              归档树折叠异常以及根目录发布产物覆盖校验。
             </p>
           </div>
         </section>
@@ -281,7 +281,7 @@ const faqs = [
         </section>
 
         <div class="pt-4 text-center text-sm text-muted-foreground">
-          Comfy Manager v3.0.0 / 面向 ComfyUI 出图整理、目录治理与提示词工作流
+          Comfy Manager v3.0.1 / 面向 ComfyUI 出图整理、目录治理与提示词工作流
         </div>
       </div>
     </div>

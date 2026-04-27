@@ -160,10 +160,40 @@ const toggleSidebar = () => {
     isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
 
+const findFirstBrowsableNode = (nodes = []) => {
+    for (const node of nodes) {
+        if (node?.relPath) {
+            return node
+        }
+        const nested = findFirstBrowsableNode(node?.children || node?.subs || [])
+        if (nested) {
+            return nested
+        }
+    }
+    return null
+}
+
+const resolveInitialSubForRoot = (rootId) => {
+    if (rootId !== 'custom:builtin-date-archive') {
+        return ''
+    }
+    const archiveRoot = fileTree.value.find(node => node.id === rootId)
+    const firstBrowsable = findFirstBrowsableNode(archiveRoot?.children || archiveRoot?.subs || [])
+    return firstBrowsable?.id || ''
+}
+
 const setActiveView = (rootId) => {
     activeRoot.value = rootId
-    activeSub.value = ''
+    activeSub.value = resolveInitialSubForRoot(rootId)
     activeChild.value = ''
+}
+
+const handleSidebarRootChange = (rootId) => {
+    if (activeRoot.value === rootId) {
+        setActiveView('dashboard')
+        return
+    }
+    setActiveView(rootId)
 }
 
 const getPreferredGalleryRoot = () => {
@@ -509,7 +539,7 @@ onUnmounted(() => {
         :collapsed="isSidebarCollapsed"
         :custom-roots="customRoots"
         :favorite-groups="favoriteGroups"
-        @update:activeRoot="toggleRoot"
+        @update:activeRoot="handleSidebarRootChange"
         @update:activeSub="(val) => activeSub = val"
         @update:activeChild="(val) => activeChild = val"
         @toggle-selection-mode="toggleSelectionMode"

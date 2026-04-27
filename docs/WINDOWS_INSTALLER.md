@@ -1,6 +1,6 @@
 # Windows 安装器说明
 
-当前版本：`v3.0.0`
+当前版本：`v3.0.1`
 
 ## 1. 安装器目标
 
@@ -66,7 +66,7 @@ Copy-Item .\desktop-source\build\bin\ComfyManager-amd64-installer.exe .\ComfyMan
 
 ## 6. 当前版本注意事项
 
-- `v3.0.0` 已重新验证安装器生成链
+- `v3.0.1` 已重新验证安装器生成链，并确认根目录安装包与 `build/bin` 产物一致
 - 发布前必须确保根目录安装包是最新构建结果
 - 如果安装器构建失败，优先检查 `makensis` 是否可用
 

@@ -1,14 +1,14 @@
 # Comfy Manager 发布说明
 
-当前版本：`v3.0.0`
+当前版本：`v3.0.1`
 
 远程仓库：
 
 - `origin`: `https://github.com/dcajusteno-ops/qijiu-demo.git`
 
-## 1. v3.0.0 发布重点
+## 1. v3.0.1 发布重点
 
-`v3.0.0` 是一次完整的结构与发布收敛版本，重点不在单个新功能，而在于让项目进入更稳定、更易维护、更适合继续开发的状态。
+`v3.0.1` 是在 `v3.0.0` 基础上的维护发布，重点是修复日期归档相关问题、同步文档版本，并确认根目录发布产物与构建源一致。
 
 ### 本次核心变更
 
@@ -17,8 +17,10 @@
 - 修复前端对 Wails 绑定名的兼容问题
 - 修复首页最新作品区域异常“路”字文案
 - 重写根 README、`docs/README.md`、项目上下文、重构计划和软件内使用文档
-- 软件内使用文档版本同步升级到 `v3.0.0`
-- Windows 安装包重新打通并重建
+- 修复“日期归档目录”进入后黑屏问题
+- 修复日期归档树中年份分类无法正常折叠的问题
+- 软件内使用文档版本同步升级到 `v3.0.1`
+- 发布前校验根目录 exe 与安装包和 `desktop-source/build/bin/` 哈希一致
 
 ## 2. 标准发布流程
 
@@ -62,26 +64,28 @@ Copy-Item .\desktop-source\build\bin\ComfyManager-amd64-installer.exe .\ComfyMan
 
 ```powershell
 git add -A
-git commit -m "release: v3.0.0"
-git tag -a v3.0.0 -m "v3.0.0"
+git commit -m "release: v3.0.1"
+git tag -a v3.0.1 -m "v3.0.1"
 git push origin main
-git push origin v3.0.0
+git push origin v3.0.1
 ```
 
-## 3. v3.0.0 验收清单
+## 3. v3.0.1 验收清单
 
-- 软件内使用文档版本显示为 `v3.0.0`
-- GitHub README 版本显示为 `v3.0.0`
+- 软件内使用文档版本显示为 `v3.0.1`
+- GitHub README 版本显示为 `v3.0.1`
 - 根目录 `desktop-app.exe` 已覆盖最新构建
 - 根目录 `ComfyManager-amd64-installer.exe` 已覆盖最新安装包
 - `wails build -clean` 成功
 - `wails build --nsis -clean` 成功
-- Git tag `v3.0.0` 已推送
+- 根目录发布产物与 `desktop-source/build/bin/` 哈希一致
+- Git tag `v3.0.1` 已推送
 
 ## 4. 历史版本
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
+| v3.0.1 | 2026-04-27 | 日期归档黑屏修复、归档树折叠修复、根目录发布产物哈希校验、版本同步 |
 | v3.0.0 | 2026-04-21 | 后端目录整理、文档全面重写、软件内文档升级、安装链恢复、发布收敛 |
 | v2.2.1 | 2026-04-21 | 软件内使用文档与外部文档版本同步、重新打包桌面端和安装包 |
 | v2.2.0 | 2026-04-21 | 大型图库性能模式、目录健康中心、预览变体、自定义目录增强 |
