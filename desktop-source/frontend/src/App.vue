@@ -4,6 +4,7 @@ import { nextTick } from 'vue'
 import AppSidebar from './components/AppSidebar.vue'
 import ImageGallery from './components/ImageGallery.vue'
 import Home from './components/Home.vue'
+import CompactWindow from './components/CompactWindow.vue'
 import Documentation from './components/Documentation.vue'
 import ProfileCenter from './components/ProfileCenter.vue'
 import DateWorkbench from './components/DateWorkbench.vue'
@@ -67,6 +68,7 @@ provide('confirm', confirm)
 
 const {
     images,
+    sourceImages,
     favorites,
     favoriteGroups,
     loading,
@@ -133,6 +135,8 @@ const {
     clearSearchQuery,
     totalVisibleImages,
     loadPerformanceSettings,
+    gallerySummary,
+    directoryHealthSummary,
     fetchGallerySummary,
     fetchDirectoryHealthSummary,
     fetchWorkbenchAggregate,
@@ -148,6 +152,8 @@ const isSelectionMode = ref(false)
 const selectedPaths = ref(new Set())
 
 const isSidebarCollapsed = ref(false)
+const isCompactWindow = ref(false)
+const isWindowAlwaysOnTop = ref(false)
 const showInitialDirectoryBinding = ref(false)
 const promptAssistantContext = ref({
     initialPositive: '',
@@ -288,6 +294,12 @@ const finalPaginatedImages = computed(() => paginatedImages.value)
 
 const finalTotalImages = computed(() => totalVisibleImages.value)
 
+const compactLatestImages = computed(() =>
+    [...(sourceImages.value || [])]
+        .sort((left, right) => new Date(right.modTime || 0) - new Date(left.modTime || 0))
+        .slice(0, 200)
+)
+
 import { watch } from 'vue'
 watch(activeRoot, (next, prev) => {
     if (next === prev) return
@@ -355,6 +367,54 @@ const handleClearPreviewCache = async () => {
     } catch (e) {
         showToast(`清理失败: ${e}`, 'error')
     }
+}
+
+const loadWindowBehaviorSettings = async () => {
+    try {
+        const settings = await App.GetWindowBehaviorSettings()
+        isWindowAlwaysOnTop.value = !!settings?.alwaysOnTop
+    } catch (e) {
+        console.error('Failed to load window behavior settings:', e)
+    }
+}
+
+const handleToggleAlwaysOnTop = async () => {
+    try {
+        const settings = await App.ToggleAlwaysOnTop(!isWindowAlwaysOnTop.value)
+        isWindowAlwaysOnTop.value = !!settings?.alwaysOnTop
+        showToast(isWindowAlwaysOnTop.value ? '窗口已置顶' : '窗口已取消置顶', 'success')
+    } catch (e) {
+        showToast(`窗口置顶切换失败: ${e}`, 'error')
+    }
+}
+
+const handleOpenCompactWindow = async () => {
+    isCompactWindow.value = true
+    await nextTick()
+    try {
+        await App.ShowCompactWindow()
+        isWindowAlwaysOnTop.value = true
+        showToast('已切换到右下角小窗', 'success')
+    } catch (e) {
+        isCompactWindow.value = false
+        showToast(`小窗打开失败: ${e}`, 'error')
+    }
+}
+
+const handleRestoreMainWindow = async () => {
+    isCompactWindow.value = false
+    await nextTick()
+    try {
+        await App.RestoreMainWindow()
+        await loadWindowBehaviorSettings()
+    } catch (e) {
+        showToast(`恢复主窗口失败: ${e}`, 'error')
+    }
+}
+
+const handleCompactPromptAssistant = async (context = {}) => {
+    await handleRestoreMainWindow()
+    openPromptAssistantPage(context)
 }
 
 const handleOrganizeFiles = async () => {
@@ -484,6 +544,7 @@ let unsubscribeShortcutTriggered = null
 onMounted(async () => {
     await fetchCustomRoots()
     await loadPerformanceSettings()
+    await loadWindowBehaviorSettings()
     await fetchGallerySummary()
     try {
         const binding = await App.GetDirectoryBinding()
@@ -526,7 +587,24 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen bg-background text-foreground font-sans antialiased overflow-hidden">
+  <CompactWindow
+    v-if="isCompactWindow"
+    :latest-images="compactLatestImages"
+    :gallery-summary="gallerySummary"
+    :directory-health-summary="directoryHealthSummary"
+    :file-tree="fileTree"
+    :tags="tags"
+    :image-tags="imageTags"
+    :image-notes="imageNotes"
+    :always-on-top="isWindowAlwaysOnTop"
+    :loading="loading || isPagedLoading"
+    @restore="handleRestoreMainWindow"
+    @toggle-always-on-top="handleToggleAlwaysOnTop"
+    @refresh="handleRefresh"
+    @open-prompt-assistant="handleCompactPromptAssistant"
+  />
+
+  <div v-else class="flex h-screen bg-background text-foreground font-sans antialiased overflow-hidden">
     <AppSidebar
         :file-tree="fileTree"
         :active-root="activeRoot"
@@ -539,6 +617,7 @@ onUnmounted(() => {
         :collapsed="isSidebarCollapsed"
         :custom-roots="customRoots"
         :favorite-groups="favoriteGroups"
+        :always-on-top="isWindowAlwaysOnTop"
         @update:activeRoot="handleSidebarRootChange"
         @update:activeSub="(val) => activeSub = val"
         @update:activeChild="(val) => activeChild = val"
@@ -559,6 +638,8 @@ onUnmounted(() => {
         @organize-files="handleOrganizeFiles"
         @open-current-output="handleOpenCurrentOutput"
         @open-prompt-assistant="openPromptAssistantPage"
+        @open-compact-window="handleOpenCompactWindow"
+        @toggle-always-on-top="handleToggleAlwaysOnTop"
     />
     
     <div class="flex-1 h-screen overflow-hidden transition-all duration-300">
@@ -666,8 +747,6 @@ onUnmounted(() => {
         />
     </div>
 
-    <Toaster position="top-center" richColors />
-    
     <AlertDialog :open="confirmState.isOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -689,5 +768,7 @@ onUnmounted(() => {
       @change="handleDirectoryBindingChanged"
     />
   </div>
+
+  <Toaster position="top-center" richColors />
 </template>
 

@@ -270,6 +270,10 @@ export function GetUtilityMenuSettings() {
   return window['go']['backend']['App']['GetUtilityMenuSettings']();
 }
 
+export function GetWindowBehaviorSettings() {
+  return window['go']['backend']['App']['GetWindowBehaviorSettings']();
+}
+
 export function GetWorkbenchAggregate(arg1) {
   return window['go']['backend']['App']['GetWorkbenchAggregate'](arg1);
 }
@@ -312,6 +316,10 @@ export function RemoveImageFromFavoriteGroup(arg1, arg2) {
 
 export function RemoveTagFromImage(arg1, arg2) {
   return window['go']['backend']['App']['RemoveTagFromImage'](arg1, arg2);
+}
+
+export function RestoreMainWindow() {
+  return window['go']['backend']['App']['RestoreMainWindow']();
 }
 
 export function RestoreTrash(arg1) {
@@ -384,6 +392,14 @@ export function SetImageFavoriteGroups(arg1, arg2) {
 
 export function SetImageNote(arg1, arg2) {
   return window['go']['backend']['App']['SetImageNote'](arg1, arg2);
+}
+
+export function ShowCompactWindow() {
+  return window['go']['backend']['App']['ShowCompactWindow']();
+}
+
+export function ToggleAlwaysOnTop(arg1) {
+  return window['go']['backend']['App']['ToggleAlwaysOnTop'](arg1);
 }
 
 export function UpdateAutoRule(arg1) {

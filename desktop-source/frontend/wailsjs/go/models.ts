@@ -877,6 +877,7 @@ export namespace backend {
 	    galleryThumbPreferred?: boolean;
 	    galleryBackgroundVariantWarmup?: boolean;
 	    galleryMetadataLazy?: boolean;
+	    alwaysOnTop?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -898,6 +899,7 @@ export namespace backend {
 	        this.galleryThumbPreferred = source["galleryThumbPreferred"];
 	        this.galleryBackgroundVariantWarmup = source["galleryBackgroundVariantWarmup"];
 	        this.galleryMetadataLazy = source["galleryMetadataLazy"];
+	        this.alwaysOnTop = source["alwaysOnTop"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1011,6 +1013,18 @@ export namespace backend {
 	
 	
 	
+	export class WindowBehaviorSettings {
+	    alwaysOnTop: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new WindowBehaviorSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.alwaysOnTop = source["alwaysOnTop"];
+	    }
+	}
 	export class WorkbenchRecentDate {
 	    date: string;
 	    count: number;

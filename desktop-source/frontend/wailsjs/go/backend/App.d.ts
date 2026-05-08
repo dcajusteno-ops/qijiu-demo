@@ -137,6 +137,8 @@ export function GetUserProfile():Promise<backend.UserProfile>;
 
 export function GetUtilityMenuSettings():Promise<backend.UtilityMenuState>;
 
+export function GetWindowBehaviorSettings():Promise<backend.WindowBehaviorSettings>;
+
 export function GetWorkbenchAggregate(arg1:backend.WorkbenchSummaryQuery):Promise<backend.WorkbenchAggregateResult>;
 
 export function MoveCustomRoot(arg1:string,arg2:string):Promise<void>;
@@ -158,6 +160,8 @@ export function RemoveFavorite(arg1:string):Promise<void>;
 export function RemoveImageFromFavoriteGroup(arg1:string,arg2:string):Promise<void>;
 
 export function RemoveTagFromImage(arg1:string,arg2:string):Promise<void>;
+
+export function RestoreMainWindow():Promise<void>;
 
 export function RestoreTrash(arg1:string):Promise<string>;
 
@@ -194,6 +198,10 @@ export function SetAutoRulesEnabled(arg1:boolean):Promise<backend.AutoRulesStore
 export function SetImageFavoriteGroups(arg1:string,arg2:Array<string>):Promise<void>;
 
 export function SetImageNote(arg1:string,arg2:string):Promise<void>;
+
+export function ShowCompactWindow():Promise<void>;
+
+export function ToggleAlwaysOnTop(arg1:boolean):Promise<backend.WindowBehaviorSettings>;
 
 export function UpdateAutoRule(arg1:backend.AutoRule):Promise<backend.AutoRule>;
 

@@ -15,6 +15,7 @@ type Settings struct {
 	GalleryThumbPreferred          bool             `json:"galleryThumbPreferred,omitempty"`
 	GalleryBackgroundVariantWarmup bool             `json:"galleryBackgroundVariantWarmup,omitempty"`
 	GalleryMetadataLazy            bool             `json:"galleryMetadataLazy,omitempty"`
+	AlwaysOnTop                    bool             `json:"alwaysOnTop,omitempty"`
 }
 
 type GalleryPerformanceSettings struct {
@@ -24,6 +25,10 @@ type GalleryPerformanceSettings struct {
 	ThumbPreferred          bool   `json:"thumbPreferred"`
 	BackgroundVariantWarmup bool   `json:"backgroundVariantWarmup"`
 	MetadataLazy            bool   `json:"metadataLazy"`
+}
+
+type WindowBehaviorSettings struct {
+	AlwaysOnTop bool `json:"alwaysOnTop"`
 }
 
 type UserProfile struct {

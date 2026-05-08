@@ -1,6 +1,6 @@
 # Comfy Manager
 
-当前稳定版本：`v3.0.1`
+当前稳定版本：`v3.1`
 
 Comfy Manager 是一个面向 **ComfyUI output 目录** 的桌面整理工具，基于 **Wails v2 + Go + Vue 3** 构建。  
 它不是单纯的“看图器”，而是把 ComfyUI 出图之后真正高频的事情串成一个完整工作流：
@@ -11,9 +11,9 @@ Comfy Manager 是一个面向 **ComfyUI output 目录** 的桌面整理工具，
 - 整理目录、清理缓存、治理侧边栏目录结构
 - 通过提示词助手、模板和自动规则提高复用效率
 
-## v3.0.1 这次有什么变化
+## v3.1 这次有什么变化
 
-`v3.0.1` 是在 `v3.0.0` 基础上的稳定性修复版本，重点是把当前发现的归档目录与发布产物问题一次收口：
+`v3.1` 是在 `v3.0.1` 基础上的窗口模式与发布同步版本，重点是把灵动图库小窗、分页、应用内确认弹层、安装器和文档一次收口：
 
 - 后端 Go 源码从根目录整理进 `desktop-source/backend/`
 - 后端文件按 `app_core_* / app_feature_* / app_support_* / app_types_*` 分组
@@ -21,6 +21,10 @@ Comfy Manager 是一个面向 **ComfyUI output 目录** 的桌面整理工具，
 - 修复首页最新作品卡片里异常显示的“路”字文案
 - 修复“日期归档目录”进入后黑屏的运行时错误
 - 修复日期归档树中年份分类无法正常折叠的交互问题
+- 新增右下角灵动图库小窗，支持置顶、恢复主窗口、刷新、目录切换、搜索和快速查看
+- 优化小窗图片可视区域：常用目录与搜索固定在顶部，筛选、排序、清缓存和 Output 收进工具面板
+- 小窗图库支持分页浏览，可在 60 / 120 / 240 张每页之间切换
+- 小窗批量删除、清缓存确认改为应用内暗色弹层，不再出现 `wails.localhost` 原生确认框
 - 确认根目录 `desktop-app.exe` 与 `ComfyManager-amd64-installer.exe` 和 `build/bin` 产物哈希一致
 - 重写软件内使用文档、GitHub README 与发布文档
 - 重新打通 Windows 安装包生成链路
@@ -38,6 +42,7 @@ Comfy Manager 是一个面向 **ComfyUI output 目录** 的桌面整理工具，
 - 目录健康中心、空文件夹清理、缓存治理
 - 回收站保护与恢复
 - 快捷键、工具菜单、性能模式等设置中心能力
+- 灵动图库小窗：适合边生成边看图、批量筛选、临时置顶观察最新 output
 
 ## 适合谁
 
@@ -80,6 +85,7 @@ D:\AiImg\ComfyUI-aki-v3\ComfyUI\output\comfy-manager
 2. 再进“日期产出”，按今天、昨天、最近 7 天回看近期创作
 3. 需要细筛时进入“默认目录”或自定义目录图库
 4. 常用 Prompt 与模板建议放进“提示词助手”统一复用
+5. 需要边做图边观察 output 时，从侧边栏打开“灵动图库小窗”
 
 ## 文档导航
 
@@ -111,7 +117,7 @@ comfy-manager/
 ## 仓库信息
 
 - GitHub: [dcajusteno-ops/qijiu-demo](https://github.com/dcajusteno-ops/qijiu-demo)
-- 推荐标签：`v3.0.1`
+- 推荐标签：`v3.1`
 
 ## 发布产物
 
@@ -123,4 +129,6 @@ comfy-manager/
 - `docs/README.md`
 - `docs/PROJECT_CONTEXT.md`
 - `docs/RELEASE.md`
+- `docs/WINDOWS_INSTALLER.md`
+- `desktop-source/frontend/src/components/Documentation.vue`
 

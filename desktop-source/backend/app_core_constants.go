@@ -16,3 +16,10 @@ const trashAssetPrefix = "__trash__/"
 const pathVersionRootRelative = 2
 const customRootsVersion = 3
 const builtinDateArchiveRootID = "builtin-date-archive"
+
+const mainWindowWidth = 1440
+const mainWindowHeight = 900
+const mainWindowMinWidth = 900
+const mainWindowMinHeight = 600
+const compactWindowMinWidth = 320
+const compactWindowMinHeight = 260

@@ -109,6 +109,8 @@ const utilityMenuCatalog = [
   { id: 'prompt-templates', label: '提示词模板', description: '管理常用提示词模板' },
   { id: 'prompt-assistant', label: '提示词提示器', description: '搜索词库并拼装 Prompt' },
   { id: 'auto-rules', label: '自动规则引擎', description: '执行自动规则处理' },
+  { id: 'compact-window', label: '右下角小窗', description: '将主界面切换为桌面角落小窗' },
+  { id: 'always-on-top', label: '置顶窗口', description: '切换窗口置顶状态' },
   { id: 'open-output', label: '打开当前 output', description: '打开当前绑定的输出目录' },
   { id: 'switch-output', label: '切换 output 位置', description: '重新绑定 ComfyUI output' },
   { id: 'custom-roots', label: '管理自定义目录', description: '维护自定义目录与显示顺序' },

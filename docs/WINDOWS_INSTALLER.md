@@ -1,6 +1,8 @@
 # Windows 安装器说明
 
-当前版本：`v3.0.1`
+当前版本：`v3.1`
+
+更新时间：`2026-05-08`
 
 ## 1. 安装器目标
 
@@ -32,7 +34,7 @@ H:\Comfy Manager\
 在 `desktop-source/` 目录执行：
 
 ```powershell
-wails build --nsis -clean
+wails build -clean -nsis
 ```
 
 前提：
@@ -66,7 +68,15 @@ Copy-Item .\desktop-source\build\bin\ComfyManager-amd64-installer.exe .\ComfyMan
 
 ## 6. 当前版本注意事项
 
-- `v3.0.1` 已重新验证安装器生成链，并确认根目录安装包与 `build/bin` 产物一致
+- `v3.1` 已重新验证安装器生成链，并确认根目录安装包与 `build/bin` 产物一致
+- 当前安装包包含灵动图库小窗、窗口置顶、分页浏览和应用内确认弹层更新
 - 发布前必须确保根目录安装包是最新构建结果
 - 如果安装器构建失败，优先检查 `makensis` 是否可用
+
+## 7. 本次发布校验点
+
+- `wails build -clean -nsis` 成功生成 `desktop-source\build\bin\ComfyManager-amd64-installer.exe`
+- 根目录 `ComfyManager-amd64-installer.exe` 已由 `build\bin` 新产物覆盖
+- 根目录 `desktop-app.exe` 已由 `build\bin` 新产物覆盖
+- 软件内使用文档与 GitHub 文档同步描述小窗和分页行为
 

@@ -48,6 +48,11 @@ const featureCards = [
   },
   {
     icon: FolderTree,
+    title: '灵动图库小窗',
+    description: '把最新 output 放到右下角小窗中查看，支持置顶、目录切换、搜索、分页、批量选择和快速恢复主窗口。',
+  },
+  {
+    icon: FolderTree,
     title: '目录管理',
     description: '支持默认目录、日期归档目录、自定义目录并行浏览，也支持重新绑定任意 ComfyUI output。',
   },
@@ -116,6 +121,14 @@ const quickGuides = [
       '以后需要重复同类风格时，直接复用模板即可。',
     ],
   },
+  {
+    title: '边生成边看最新 output',
+    steps: [
+      '从侧边栏打开灵动图库小窗，需要时开启置顶。',
+      '小窗顶部保留目录和搜索，筛选、排序、Output、清缓存收在工具按钮里。',
+      '使用分页浏览更多图片，每页可在 60 / 120 / 240 张之间切换。',
+    ],
+  },
 ]
 
 const shortcuts = [
@@ -144,6 +157,14 @@ const faqs = [
     a: '当当前目录图片很多时，软件会更偏向使用轻量分页、缩略图或预览图变体，目标是保持大图库下的可用性和流畅度。',
   },
   {
+    q: '小窗里的确认框为什么不是系统弹窗？',
+    a: '批量删除、清缓存等危险操作已经改为应用内确认弹层，避免出现 WebView 原生的 wails.localhost 确认框，也让视觉和主界面保持一致。',
+  },
+  {
+    q: '小窗为什么要分页？',
+    a: '小窗高度有限，分页可以减少一次渲染的图片数量，让滚动、选择和查看保持稳定。默认每页 120 张，也可以改成 60 或 240 张。',
+  },
+  {
     q: '切换了 output 之后要不要重装软件？',
     a: '不需要。重新绑定 output 即可，必要时再刷新图库或清理一次预览缓存。',
   },
@@ -156,7 +177,7 @@ const faqs = [
       <BookOpen class="mr-3 h-5 w-5 text-primary" />
       <div class="flex items-center gap-3">
         <h1 class="text-xl font-bold tracking-tight">使用文档</h1>
-        <Badge variant="outline" class="rounded-full px-3 py-1 text-xs">v3.0.1</Badge>
+        <Badge variant="outline" class="rounded-full px-3 py-1 text-xs">v3.1</Badge>
       </div>
     </div>
 
@@ -168,11 +189,11 @@ const faqs = [
               <Clock3 class="h-4 w-4" />
               <span>当前版本说明</span>
             </div>
-            <h2 class="text-3xl font-semibold tracking-tight">v3.0.1 使用说明</h2>
+            <h2 class="text-3xl font-semibold tracking-tight">v3.1 使用说明</h2>
             <p class="max-w-3xl text-sm leading-7 text-muted-foreground">
               你现在看到的软件内文档已经与 GitHub README、发布说明、安装器版本和当前桌面程序同步到
-              <span class="font-medium text-foreground">v3.0.1</span>。这版在延续结构整理与文档同步的基础上，重点补齐了日期归档目录黑屏、
-              归档树折叠异常以及根目录发布产物覆盖校验。
+              <span class="font-medium text-foreground">v3.1</span>。这版在延续结构整理与文档同步的基础上，补齐了日期归档目录黑屏、
+              归档树折叠异常、灵动图库小窗、分页浏览、应用内确认弹层以及根目录发布产物覆盖校验。
             </p>
           </div>
         </section>
@@ -281,7 +302,7 @@ const faqs = [
         </section>
 
         <div class="pt-4 text-center text-sm text-muted-foreground">
-          Comfy Manager v3.0.1 / 面向 ComfyUI 出图整理、目录治理与提示词工作流
+          Comfy Manager v3.1 / 面向 ComfyUI 出图整理、灵动小窗、目录治理与提示词工作流
         </div>
       </div>
     </div>

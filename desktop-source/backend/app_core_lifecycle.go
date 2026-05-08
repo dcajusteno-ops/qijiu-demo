@@ -98,6 +98,7 @@ func (a *App) startup(ctx context.Context) {
 	if err := a.registerConfiguredShortcuts(); err != nil {
 		log.Printf("failed to register shortcuts: %v", err)
 	}
+	a.applySavedWindowSettings(ctx)
 	a.restartImageWatcher()
 }
 

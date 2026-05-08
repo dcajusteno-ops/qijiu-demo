@@ -148,6 +148,8 @@ var utilityMenuCatalog = []string{
 	"prompt-assistant",
 	"prompt-templates",
 	"auto-rules",
+	"compact-window",
+	"always-on-top",
 	"open-output",
 	"switch-output",
 	"custom-roots",

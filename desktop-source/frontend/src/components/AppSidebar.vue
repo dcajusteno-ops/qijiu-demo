@@ -27,6 +27,9 @@ import {
   Plus,
   PanelLeftClose,
   PanelLeftOpen,
+  Minimize2,
+  Pin,
+  PinOff,
   Eraser,
   ChevronDown,
   ChevronRight,
@@ -62,6 +65,7 @@ const props = defineProps({
   collapsed: { type: Boolean, default: false },
   customRoots: { type: Array, default: () => [] },
   favoriteGroups: { type: Array, default: () => [] },
+  alwaysOnTop: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -85,6 +89,8 @@ const emit = defineEmits([
   'organize-files',
   'open-current-output',
   'open-prompt-assistant',
+  'open-compact-window',
+  'toggle-always-on-top',
 ])
 
 const utilityMenuCatalog = [
@@ -137,6 +143,18 @@ const utilityMenuCatalog = [
     action: () => openAutoRules(),
   },
   {
+    id: 'compact-window',
+    label: '右下角小窗',
+    icon: Minimize2,
+    action: () => openCompactWindow(),
+  },
+  {
+    id: 'always-on-top',
+    label: '置顶窗口',
+    icon: PinOff,
+    action: () => toggleAlwaysOnTop(),
+  },
+  {
     id: 'open-output',
     label: '打开当前 output',
     icon: FolderOpen,
@@ -163,11 +181,19 @@ const utilityMenuEntries = computed(() => {
   return utilityMenuCatalog
     .map((item, index) => {
       const saved = settingsMap.get(item.id)
-      return {
+      const row = {
         ...item,
         visible: item.id === 'settings' ? true : saved?.visible !== false,
         order: saved?.order ?? index + 1,
       }
+      if (row.id === 'always-on-top') {
+        return {
+          ...row,
+          label: props.alwaysOnTop ? '取消窗口置顶' : '置顶窗口',
+          icon: props.alwaysOnTop ? Pin : PinOff,
+        }
+      }
+      return row
     })
     .filter((item) => item.visible)
     .sort((a, b) => {
@@ -349,6 +375,16 @@ const openDirectoryBindingManager = () => {
 
 const openCurrentOutput = () => {
     emit('open-current-output')
+    closeUtilityMenu()
+}
+
+const openCompactWindow = () => {
+    emit('open-compact-window')
+    closeUtilityMenu()
+}
+
+const toggleAlwaysOnTop = () => {
+    emit('toggle-always-on-top')
     closeUtilityMenu()
 }
 
@@ -678,7 +714,14 @@ const handleDrawerClick = (subId) => {
                   class="w-full justify-start gap-2 h-9 px-3 text-sm"
                   @click="item.action"
                 >
-                   <component :is="item.icon" class="h-4 w-4 text-muted-foreground" :class="{ 'text-amber-500': item.id === 'prompt-templates' }" />
+                   <component
+                     :is="item.icon"
+                     class="h-4 w-4 text-muted-foreground"
+                     :class="{
+                       'text-amber-500': item.id === 'prompt-templates',
+                       'text-primary': item.id === 'always-on-top' && alwaysOnTop,
+                     }"
+                   />
                    <span>{{ item.label }}</span>
                 </Button>
              </div>
